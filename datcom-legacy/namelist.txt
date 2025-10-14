@@ -1,0 +1,285 @@
+# Simplified DATCOM Namelist Variables Reference
+# Extracted from namelist.pdf
+# Format: VARIABLE_NAME - Description (Units: unit_type)
+============================================================
+
+NAMELIST ASYFLP - Asymmetrical Control Deflection Unit
+------------------------------------------------------
+DELTAL - deflection angle for left hand plain flap aileron (deg)
+DELTAR - deflection angle for right hand plain flap aileron (deg)
+DELTAD - projected height of deflector, spoiler-slot deflector control (fraction of chord)
+DELTAS - projected height of spoiler, flap/plug spoiler and spoiler-slot deflector control (fraction of chord)
+XSOC - distance from wing leading edge to spoiler lip (fraction of chord)
+HSOC - projected height of spoiler measured from airfoil mean line (fraction of chord)
+STYPE - spoiler type (=1.0 flap, =2.0 plug, =3.0 spoiler-slot-deflection, =4.0 plain flap, =5.0 differential tail)
+XSPRME - distance from wing leading edge to spoiler hinge line (fraction of chord)
+NDELTA - number of control deflection angles (max 9)
+CHRDFI - aileron chord at inboard edge (length)
+CHRDFO - aileron chord at outboard edge (length)
+SPANFI - span location of inboard edge of flap/spoiler control (length)
+SPANFO - span location of outboard edge of flap/spoiler control (length)
+PHETE - tangent of airfoil trailing edge angle
+
+NAMELIST BODY - Body Geometry Data
+----------------------------------
+NX - number of longitudinal body stations (max 20)
+X - longitudinal distance measured from arbitrary location (length, array[20])
+S - cross sectional area (area, array[20])
+P - periphery at station x(i) (length, array[20])
+R - planform half width (length, array[20])
+ZU - z-coordinate at upper body surface (length, array[20])
+ZL - z-coordinate at lower body surface (length, array[20])
+BNOSE - nose type (=1 conical, =2 ogive)
+BTAIL - tail type (=1 conical, =2 ogive)
+BLN - length of body nose (length)
+BLA - length of cylindrical afterbody segment (length)
+DS - nose bluntness diameter (length)
+ITYPE - wing type (=1 straight/no area rule, =2 swept/no area rule, =3 swept/area rule)
+METHOD - analysis method (=1 existing, =2 Jorgensen)
+
+NAMELIST CONTAB - Control Tabs
+-------------------------------
+TTYPE - control tab type (=1 tab control, =2 trim tab, =3 both)
+CFITC - inboard chord, control tab
+CFOTC - outboard chord, control tab
+CFITT - inboard chord, trim tab
+CFOTT - outboard chord, trim tab
+BITC - inboard span location, control tab
+BOTC - outboard span location, control tab
+BITT - inboard span location, trim tab
+BOTT - outboard span location, trim tab
+B1,B2,B3,B4,D1,D2,D3,GCMAX,KS,RL,BGR,DELR - control system parameters (see Table 11)
+
+NAMELIST EXPR - Experimental Data Input
+-----------------------------------------
+CDB,CLB,CMB,CLAB,CMAB - body aerodynamic coefficients (array[20])
+CDW,CLW,CMW,CLAW,CMAW - wing aerodynamic coefficients (array[20])
+CDH,CLH,CMH,CLAH,CMAH - horizontal tail aerodynamic coefficients (array[20])
+CDWB,CLWB,CMWB,CLAWB,CMAWB - wing-body aerodynamic coefficients (array[20])
+QOQINF,EPSLON,DEODA,CDV - additional experimental data (array[20])
+ALPOW,ALPLW,ALPOH,ALPLH - angle of attack limits
+ACLMW,CLMW,ACLMH,CLMH - additional experimental parameters
+
+NAMELIST FLTCON - Flight Conditions
+-----------------------------------
+NMACH - number of Mach numbers/velocities (max 20)
+MACH - freestream Mach number (array[20])
+VINF - freestream speed (length/time, array[20])
+NALPHA - number of angles of attack (max 20)
+ALSCHD - angle of attack values (deg, array[20])
+RNNUB - Reynolds number per unit length (1/length, array[20])
+NALT - number of atmospheric conditions (max 20)
+ALT - geometric altitudes (array[20])
+PINF - freestream static pressure (pressure, array[20])
+TINF - freestream temperature (temp, array[20])
+HYPERS - hypersonic analysis flag (.TRUE./.FALSE.)
+STMACH - upper limit for subsonic analysis (default 0.6)
+TSMACH - lower limit for supersonic analysis (default 1.4)
+TR - drag due to lift transition flag (=0.0 no transition, =1.0 transition strips)
+WT - vehicle weight (force)
+GAMMA - flight path angle (deg)
+LOOP - program looping control (=1 vary alt/Mach, =2 vary Mach, =3 vary alt)
+
+NAMELIST GRNDEF - Ground Effect
+-------------------------------
+NGH - number of ground heights
+GRDHT - ground heights (array[10])
+
+NAMELIST HYPEFF - Flap Control at Hypersonic Speeds
+---------------------------------------------------
+ALITD - altitude (length)
+XHL - distance to control hinge line from leading edge (length)
+TWOTI - ratio of wall temperature to freestream static temperature
+CF - control chord length (length)
+LAMNR - boundary layer flag at hinge line (.TRUE. laminar, .FALSE. turbulent)
+HNDLTA - number of flap deflection angles (max 10)
+HDELTA - control deflection angle (deg, array[10])
+
+NAMELIST JETPWR - Jet Power Parameters
+---------------------------------------
+AIETLJ - angle of incidence of engine thrust line (deg)
+NENGSJ - number of engines (1 or 2)
+THSTCJ - thrust coefficient
+JIALOC - axial location of jet engine inlet (length)
+JEVLOC - vertical location of jet engine exit (length)
+JEALOC - axial location of jet engine exit (length)
+JINLTA - jet engine inlet area (area)
+JEANGL - jet exit angle (deg)
+JEVELO - jet exit velocity (length/time)
+AMBTMP - ambient temperature (temp)
+JESTMP - jet exit static temperature (temp)
+JELLOC - lateral location of jet engine (length)
+JETOTP - jet exit total pressure (pressure)
+AMBSTP - ambient static pressure (pressure)
+
+NAMELIST LARWB - Low Aspect Ratio Wing, Wing-Body Input
+--------------------------------------------------------
+ZB - vertical distance between centroid of base area and body reference plane
+SREF - planform area used as reference area (area)
+DELTEP - sharp leading edge parameter
+SFRONT - projected frontal area perpendicular to zero normal force reference plane (area)
+AR - aspect ratio of surface
+R3LEOB - round leading edge parameter
+DELTAL - round leading edge parameter
+SWET - wetted area, excluding base area (area)
+PERBAS - perimeter of base (length)
+SBASE - base area (area)
+HB - maximum height of base (length)
+BB - maximum span of base (length)
+BLF - base location flag (.TRUE. portions of base aft of non-lifting surface)
+XCG - longitudinal distance of CG from nose (length)
+THETAD - wing semi-apex angle (deg)
+ROUNDN - nose type (.TRUE. rounded, .FALSE. pointed)
+SBS - projected side area of configuration (area)
+SBSLB - projected side area forward of 0.2 body length (area)
+XCENSB - distance from nose to centroid of projected side area (length)
+XCENW - distance from nose to centroid of plan area (length)
+
+NAMELIST OPTINS - Options
+-------------------------
+ROUGFC - surface roughness factor
+SREF - reference area (area)
+CBARR - longitudinal reference length (length)
+BLREF - lateral reference length (length)
+
+NAMELIST PROPWR - Propeller Power Parameters
+---------------------------------------------
+AIETLP - angle of incidence of engine thrust axis (deg)
+NENGSP - number of engines (1 or 2)
+THSTCP - thrust coefficient
+PHALOC - axial location of propeller hub (length)
+PHVLOC - vertical location of propeller hub (length)
+PRPRAD - propeller radius (length)
+ENGFCT - empirical normal force factor
+BWAPR3 - blade width at 0.3 propeller radius (length)
+BWAPR6 - blade width at 0.6 propeller radius (length)
+BWAPR9 - blade width at 0.9 propeller radius (length)
+NOPBPE - number of propeller blades per engine
+BAPR75 - blade angle at 0.75 propeller radius (deg)
+CROT - counter rotating propellers flag (.TRUE./.FALSE.)
+YP - lateral location of engine (length)
+
+NAMELIST SYMFLP - Symmetrical Flap Deflection
+---------------------------------------------
+CHRDFI - flap chord at inboard edge (length)
+CHRDFO - flap chord at outboard edge (length)
+SPANFI - span location of inboard edge (length)
+SPANFO - span location of outboard edge (length)
+NDELTA - number of control deflection angles (max 9)
+PHETEP - tangent of airfoil trailing edge angle (ordinates at x/c=0.95 and 0.99)
+PHETE - tangent of airfoil trailing edge angle (ordinates at x/c=0.90 and 0.99)
+FTYPE - flap type (=1 plain, =2 single slotted, =3 fowler, =4 double slotted, =5 split, =6 leading edge, =7 trailing edge, =8 Krueger)
+NTYPE - nose type (=1 round, =2 elliptical, =3 sharp)
+SCHA - average chord of the balance (length)
+CB - average thickness of the control at the hinge line (length)
+TC - flap deflection angle measured streamwise (deg)
+SCHD - total wing chord at inboard edge of flap (length)
+CPRMEI - total wing chord at outboard edge of flap (length)
+CPRMEO - increment in section lift coefficient
+SCLD - increment in section pitching moment coefficient
+SCMD - two dimensional jet efflux coefficient
+CMU - jet deflection angle (deg)
+DELJET - jet flap type (=1 pure, =2 internally blown, =3 externally blown, =4 combination)
+JETFLP - effective jet deflection angle (deg)
+EBF - internal flap parameters
+EFFJET - external flap parameters
+CAPINB,CAPOUT,DOBDEF,DOBCIN,DOBCOT - additional control parameters
+
+NAMELIST SYNTHS - Synthesis
+---------------------------
+XCG - longitudinal location of CG (length)
+ZCG - vertical location of CG relative to reference plane (length)
+XW - longitudinal location of theoretical wing apex (length)
+ZW - vertical location of theoretical wing apex relative to reference plane (length)
+ALIW - wing root chord incidence angle (deg)
+XH - longitudinal location of theoretical horizontal tail apex (length)
+ZH - vertical location of theoretical horizontal tail apex relative to reference plane (length)
+ALIH - horizontal tail root chord incidence angle (deg)
+XV - longitudinal location of theoretical vertical tail apex (length)
+VERTUP - vertical panel position flag (.TRUE. above reference plane)
+HINAX - longitudinal location of horizontal tail hinge axis (length)
+XVF - longitudinal location of theoretical vertical fin apex (length)
+SCALE - vertical scale factor multiplier
+ZV - vertical location of theoretical vertical tail apex (length)
+ZVF - vertical location of theoretical vertical fin apex (length)
+YV,YF,PHIV,PHIF - additional synthesis parameters
+
+NAMELIST TRNJET - Transverse Jet Control Input
+-----------------------------------------------
+NT - number of time history values (max 10)
+TIME - time history (time, array[10])
+FC - control force required to trim (force, array[10])
+ALPHA - attitude time history (deg, array[10])
+LAMNRJ - boundary layer flag (.TRUE. laminar, .FALSE. turbulent)
+ME - nozzle exit Mach number
+ISP - jet vacuum specific impulse (time)
+SPAN - span of nozzle normal to flow direction (length)
+PHE - inclination of nozzle center line (deg)
+GP - specific heat ratio of propellant
+CC - nozzle discharge coefficient
+LFP - distance of nozzle from plate leading edge (length)
+
+NAMELIST TVTPAN - Twin Vertical Panel Input
+--------------------------------------------
+BVP - vertical panel span above lifting surface (length)
+BV - vertical panel span (length)
+BDV - fuselage depth at quarter-chord of vertical panel (length)
+BH - distance between vertical panels (length)
+SV - planform area of one vertical panel (area)
+VPHITE - total trailing edge angle of vertical panel (deg)
+VLP - distance parallel to longitudinal axis between CG and quarter chord (length)
+ZP - distance in z-direction between CG and MAC of panel (length)
+
+NAMELISTS WGPLNF,HTPLNF,VTPLNF,VFPLNF - Planform
+-------------------------------------------------
+CHRDTP - tip chord (length)
+SSPNOP - semispan, outboard panel (length)
+SSPNE - semispan of exposed panel (length)
+SSPN - semispan theoretical panel from theoretical root chord (length)
+CHRDBP - chord at breakpoint (length)
+CHRDR - root chord (length)
+SAVSI - inboard panel sweep angle (deg)
+SAVSO - outboard panel sweep angle (deg)
+CHSTAT - reference chord station for sweep angles (fraction of chord)
+TWISTA - twist angle (deg)
+SSPNDD - semispan of outboard panel with dihedral (length)
+DHDADI - dihedral angle of inboard panel (deg)
+DHDADO - dihedral angle of outboard panel (deg)
+TYPE - planform type (=1.0 straight tapered, =2.0 double delta, =3.0 cranked)
+SHB - portion of fuselage side area between Mach lines (area)
+SEXT - portion of extended fuselage side area (area)
+RLPH - longitudinal distance between CG and centroid of SHB (length)
+SVWB - portion of exposed vertical panel area (area)
+SVB - area of exposed vertical panel not influenced by wing/tail (area)
+SVHB - portion of exposed vertical panel area (area)
+
+NAMELISTS WGSCHR,HTSCHR,VTSCHR,VFSCHR - Section Characteristics
+---------------------------------------------------------------
+TOVC - maximum airfoil section thickness (fraction of chord)
+DELTAY - difference between airfoil ordinates at 6% and 15% chord (percent chord)
+XOVC - chord location of maximum airfoil thickness (fraction of chord)
+CLI - airfoil section design lift coefficient
+ALPHAI - angle of attack at section design lift coeff. (deg)
+CLALPA - airfoil section lift curve slope per degree (array[20])
+CLMAX - airfoil section maximum lift coefficient (array[20])
+CAMBER - cambered airfoil section flag
+CM0 - section zero lift pitching moment
+CMO - same as CM0
+XOVCO - (x/c)max for outboard panel
+TOVCO - thickness ratio for outboard panel (fraction of chord)
+CMOT - pitching moment coeff at zero lift, outboard panel
+CM0T - same as CMOT
+TCEFF - planform effective thickness ratio (fraction of chord)
+KSHARP - wave drag factor for sharp-nose airfoil
+CLMAXL - airfoil maximum lift coeff. at M=0
+SLOPE - airfoil surface slope
+CLAMO - airfoil section lift curve slope at M=0 per deg.
+CLAM0 - same as CLAMO
+ARCL - aspect ratio classification (see Table 6)
+XAC - section aerodynamic center (fraction of chord)
+DWASH - subsonic downwash method flag (=1,2,3 DATCOM methods)
+YCM - airfoil maximum camber (fraction of chord)
+CLD - conical camber design lift coeff.
+TYPEIN - type of airfoil section coordinates (=1 upper/lower, =2 mean line/thickness)
+LERI - airfoil leading edge radius (fraction of chord)
+LERO - airfoil leading edge radius for outboard panel (fraction of chord)
