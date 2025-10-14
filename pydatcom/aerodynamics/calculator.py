@@ -15,6 +15,7 @@ from pydatcom.aerodynamics.subsonic import calculate_subsonic_coefficients
 from pydatcom.aerodynamics.transonic import calculate_transonic_coefficients
 from pydatcom.aerodynamics.supersonic import calculate_supersonic_coefficients
 from pydatcom.aerodynamics.hypersonic import calculate_hypersonic_coefficients
+from pydatcom.aerodynamics.body_alone import has_wing_or_tail, calculate_body_alone_coefficients
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,8 @@ class AerodynamicCalculator:
         """
         Calculate aerodynamic coefficients at single flight condition.
         
+        Automatically detects body-only vs wing configurations.
+        
         Args:
             alpha_deg: Angle of attack (degrees)
             mach: Mach number
@@ -72,7 +75,14 @@ class AerodynamicCalculator:
         if reynolds is None:
             reynolds = self._estimate_reynolds(mach)
         
-        # Identify regime
+        # Check if this is a body-only configuration
+        if not has_wing_or_tail(self.state):
+            # Use body-alone methods (like BODYRT in FORTRAN)
+            logger.info("Body-only configuration detected, using body-alone methods")
+            result = calculate_body_alone_coefficients(self.state, alpha_deg, mach, reynolds)
+            return result
+        
+        # Identify regime for wing configurations
         regime = self.identify_regime(mach)
         
         # Route to appropriate calculator

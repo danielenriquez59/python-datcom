@@ -127,9 +127,9 @@ class NamelistParser:
                                     while len(existing[key]) < max_len:
                                         existing[key].append(None)
                                     # Update with new values
-                                    for i, v in enumerate(value):
+                                    for idx, v in enumerate(value):
                                         if v is not None:
-                                            existing[key][i] = v
+                                            existing[key][idx] = v
                                 else:
                                     existing[key] = value
                         else:

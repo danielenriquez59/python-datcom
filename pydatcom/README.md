@@ -1,163 +1,132 @@
 # PyDATCOM
 
-A Python implementation of the USAF Digital DATCOM (Data Compendium) aerodynamic analysis tool.
+A modern Python implementation of the USAF Digital DATCOM aerodynamic analysis tool.
 
-## Overview
+## Purpose
 
-PyDATCOM is a modernized Python conversion of the FORTRAN-based Digital DATCOM program. It provides aerodynamic analysis capabilities for aircraft and missiles across subsonic, transonic, supersonic, and hypersonic flight regimes.
+PyDATCOM translates the legacy FORTRAN-based Digital DATCOM (Data Compendium) program into contemporary Python. The original DATCOM provides comprehensive aerodynamic analysis for aircraft and missiles across all flight regimes, but its FORTRAN codebase presents maintenance and usability challenges.
 
-**Original Reference**: AFFDL-TR-79-3032 (NTIS ADA-086557)
+This Python conversion maintains full compatibility with existing DATCOM input formats while providing:
+- **Modern Python architecture** with type hints, exception handling, and logging
+- **Modular design** for easier maintenance and extension
+- **NumPy/SciPy integration** for improved performance and numerical accuracy
+- **Enhanced usability** through Python's ecosystem and tooling
 
-## Features
+## What is DATCOM?
 
-- **Input Parsing**: Compatible with original DATCOM namelist format (.inp files)
-- **State Management**: Component-based state dictionary system
-- **Modular Architecture**: Organized by functional areas (geometry, aerodynamics, interactions)
-- **Modern Python**: Type hints, logging, exception handling
-- **Multi-format Output**: DATCOM, YAML, JSON, CSV support
+The USAF Digital DATCOM (AFFDL-TR-79-3032) is the standard engineering tool for estimating aerodynamic characteristics of aircraft configurations. It provides empirical correlations and analytical methods for:
 
-## Installation
+- **Lift, drag, and moment coefficients** across subsonic, transonic, supersonic, and hypersonic regimes
+- **Stability derivatives** for flight control analysis
+- **Component buildup methods** for wing-body-tail configurations
+- **Power effects** and high-lift device analysis
+
+Originally developed in the 1970s, DATCOM remains the industry standard for preliminary aerodynamic design due to its extensive validation against experimental data.
+
+## Python Architecture
+
+The PyDATCOM codebase is organized into logical modules that mirror DATCOM's functional areas:
+
+### Core Components
+
+- **`config/`** - Configuration management and default parameters
+- **`io/`** - Input parsing and state management systems
+- **`geometry/`** - Geometric definitions for airfoils, bodies, wings, and tails
+- **`aerodynamics/`** - Aerodynamic coefficient calculations by flight regime
+- **`interactions/`** - Component interference and coupling effects
+- **`utils/`** - Mathematical utilities, atmospheric models, and interpolation functions
+
+### Key Design Principles
+
+1. **State Dictionary Pattern**: All data flows through a centralized state dictionary with prefixed keys for organization
+2. **Functional Decomposition**: Complex FORTRAN subroutines are broken into focused, testable functions
+3. **Type Safety**: Full type hints throughout for better IDE support and error catching
+4. **Exception Handling**: Graceful error handling with informative messages
+5. **Logging**: Comprehensive logging for debugging and monitoring
+
+### Input/Output Compatibility
+
+PyDATCOM maintains full compatibility with the original DATCOM namelist format (.inp files) while adding support for modern formats:
+
+- **Input**: Traditional DATCOM namelist format
+- **Output**: DATCOM format, YAML, JSON, CSV
+
+## Installation & Requirements
 
 ### Requirements
-
 - Python 3.8+
 - NumPy >= 1.19.0
 - PyYAML >= 5.3.0
 
 ### Install Dependencies
-
 ```bash
 pip install -r requirements.txt
 ```
 
-## Project Structure
-
-```
-pydatcom/
-├── config/          # Configuration and defaults
-├── io/              # Input/output and state management
-├── geometry/        # Airfoil, body, wing, tail geometry
-├── aerodynamics/    # Lift, drag, moment calculations
-├── interactions/    # Wing-body, downwash, power effects
-├── utils/           # Math, atmosphere, interpolation utilities
-└── core/            # Main engine and case runner
-```
-
-## Usage
-
-### Parse Input File
+## Usage Example
 
 ```python
 from pydatcom.io import NamelistParser, StateManager
 
-# Parse DATCOM input file
+# Parse traditional DATCOM input file
 parser = NamelistParser()
-cases = parser.parse_file('input.inp')
+cases = parser.parse_file('aircraft.inp')
 
-# Convert to state dictionary
+# Initialize state management
 state = StateManager()
 state.update(parser.to_state_dict(cases[0]))
 
-# Access parameters
+# Access aerodynamic parameters
 mach = state.get('flight_mach')
 wing_area = state.get('options_sref')
+lift_coeff = state.get('aero_cl')
 ```
 
-### State Dictionary Naming Convention
+## State Dictionary Convention
 
-All state variables use component prefixes for organization:
+All state variables use descriptive prefixes for organization:
 
-- `constants_*` - Physical/math constants (PI, DEG, RAD)
-- `flight_*` - Flight conditions (Mach, alpha, Reynolds)
-- `options_*` - Reference dimensions (SREF, CBARR, BLREF)
-- `synths_*` - Synthesis parameters (XCG, XW, ZW)
-- `body_*` - Body geometry
-- `wing_*` - Wing data
-- `htail_*` - Horizontal tail
-- `vtail_*` - Vertical tail
-- `aero_*` - Aerodynamic outputs (CL, CD, CM)
-- `flags_*` - Control flags
+| Prefix | Description |
+|--------|-------------|
+| `constants_*` | Physical and mathematical constants |
+| `flight_*` | Flight conditions (Mach, alpha, Reynolds) |
+| `options_*` | Reference dimensions and configuration |
+| `synths_*` | Synthesis parameters (CG locations, etc.) |
+| `body_*` | Body geometry parameters |
+| `wing_*` | Wing geometry and characteristics |
+| `htail_*` | Horizontal tail parameters |
+| `vtail_*` | Vertical tail parameters |
+| `aero_*` | Aerodynamic coefficient outputs |
+| `flags_*` | Control and option flags |
 
-## Development Status
+## FORTRAN to Python Translation
 
-### Phase 1: Core Infrastructure ✅
-- [x] Namelist parser
-- [x] State manager
-- [x] Constants module
-- [x] Configuration system
+The conversion addresses key differences between FORTRAN and modern Python:
 
-### Phase 2: Geometry (In Progress)
-- [ ] Airfoil coordinate generation
-- [ ] Body geometry
-- [ ] Wing geometry
-- [ ] Tail geometry
+### Architectural Changes
+- **COMMON blocks** → Centralized state dictionary
+- **GOTO statements** → Structured control flow
+- **Implicit typing** → Explicit type hints
+- **Fixed arrays** → Dynamic NumPy arrays
+- **Subroutine calls** → Object-oriented methods
 
-### Phase 3: Utilities (In Progress)
-- [x] Math utilities (ARCSIN, ARCCOS, AREA)
-- [x] Atmosphere (US Standard 1962)
-- [ ] Interpolation functions
-- [ ] Table lookup
-
-### Phase 4-7: Aerodynamics & Integration (Planned)
-- [ ] Lift calculations
-- [ ] Drag calculations
-- [ ] Moment calculations
-- [ ] Wing-body interactions
-- [ ] Main computational engine
-- [ ] Output formatting
-
-## Testing
-
-Run basic tests:
-
-```bash
-python tests/test_parser.py
-```
-
-## FORTRAN to Python Conversion Notes
-
-### Key Differences
-
-1. **Array Indexing**: FORTRAN 1-based → Python 0-based
-2. **COMMON Blocks**: → State dictionary with prefixed keys
-3. **GOTO Statements**: → Structured if/else/while
-4. **DATA Statements**: → YAML/JSON tables
-5. **Type System**: Implicit typing → Explicit type hints
-
-### Example Conversion
-
-FORTRAN:
-```fortran
-COMMON /CONSNT/ PI,DEG,UNUSED,RAD,KAND
-SUBROUTINE ARCSIN(A)
-    IF (A .GT. 1.0) A = 1.0
-    ARCSIN = ASIN(A)
-    RETURN
-END
-```
-
-Python:
-```python
-def arcsin(a: float) -> float:
-    """Arc sine with bounds checking (FORTRAN ARCSIN, line 434)."""
-    if a > 1.0:
-        a = 1.0
-    return np.arcsin(a)
-```
+### Performance & Accuracy
+- **Vectorization**: Array operations replace element-wise loops
+- **Numerical libraries**: NumPy/SciPy replace custom math routines
+- **Precision**: Consistent floating-point handling
+- **Memory management**: Automatic garbage collection
 
 ## References
 
-- USAF Stability and Control DATCOM (1978)
-- AFFDL-TR-79-3032: Digital DATCOM User's Manual
-- Public Domain Aeronautical Software (PDAS)
+- **USAF Stability and Control DATCOM** (1978) - Original technical reference
+- **AFFDL-TR-79-3032** - Digital DATCOM User's Manual
+- **Public Domain Aeronautical Software** (PDAS) - Additional validation data
 
 ## License
 
-Converted from public domain USAF Digital DATCOM source code.
+Converted from public domain USAF Digital DATCOM source code. This Python implementation is released under the same public domain terms as the original FORTRAN code.
 
 ## Disclaimer
 
-THIS SOFTWARE IS RELEASED "AS IS". NO WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, 
-IS PROVIDED CONCERNING THIS SOFTWARE, INCLUDING WARRANTIES OF MERCHANTABILITY 
-OR FITNESS FOR A PARTICULAR PURPOSE.
+THIS SOFTWARE IS RELEASED "AS IS". NO WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, IS PROVIDED CONCERNING THIS SOFTWARE, INCLUDING WARRANTIES OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 

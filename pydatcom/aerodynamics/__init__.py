@@ -9,6 +9,7 @@ from pydatcom.aerodynamics.transonic import calculate_transonic_coefficients
 from pydatcom.aerodynamics.supersonic import calculate_supersonic_coefficients
 from pydatcom.aerodynamics.hypersonic import calculate_hypersonic_coefficients
 from pydatcom.aerodynamics.stability import StabilityCalculator, calculate_all_stability_derivatives
+from pydatcom.aerodynamics.body_alone import has_wing_or_tail, calculate_body_alone_coefficients
 
 __all__ = [
     'AerodynamicCalculator',
@@ -25,5 +26,7 @@ __all__ = [
     'calculate_transonic_coefficients',
     'calculate_supersonic_coefficients',
     'calculate_hypersonic_coefficients',
+    'has_wing_or_tail',
+    'calculate_body_alone_coefficients',
 ]
 
