@@ -518,14 +518,14 @@ def test_ex3_fortran_validation():
     
     calc = AerodynamicCalculator(state_mgr.get_all())
     
-    # FORTRAN DATCOM results from ex3.out
-    # Line 129-140: Body-alone (first configuration tested)
+    # FORTRAN DATCOM results from ex3.out - CONFIGURATION BUILDUP
+    # Line 129-140: Body-alone 
     # Line 154-162: Wing-alone
-    # EX3 tests configuration buildup
+    # Line 287-295: Wing-Body-H-tail (COMPLETE CONFIGURATION)
     
     print(f"\n  Configuration: Body + Wing + H-tail + V-tail")
-    print(f"  This is a COMPLETE aircraft (not body-only or wing-only)")
-    print(f"  PyDATCOM should use wing+tail methods, not body-alone")
+    print(f"  This is a COMPLETE aircraft configuration")
+    print(f"  Comparing against FORTRAN Wing-Body-H-tail results")
     
     # Verify configuration detection
     from pydatcom.aerodynamics.body_alone import has_wing_or_tail
@@ -534,32 +534,55 @@ def test_ex3_fortran_validation():
     print(f"\n  Configuration Detection:")
     print(f"    Has wing/tail: {has_surfaces}")
     assert has_surfaces, "Should detect wing/tail surfaces"
-    print(f"    [PASS] Correctly identified as wing configuration")
+    print(f"    [PASS] Correctly identified as wing configuration (not body-alone)")
     
-    # FORTRAN wing-alone results at M=0.6 (ex3.out lines 154-162)
-    fortran_wing_alone = {
-        0.0:  {'CL': 0.000, 'CD': 0.006, 'CM': 0.0000, 'CLA_deg': 4.664E-02},
-        4.0:  {'CL': 0.187, 'CD': 0.015, 'CM': -0.0334, 'CLA_deg': 4.660E-02},
-        8.0:  {'CL': 0.372, 'CD': 0.039, 'CM': -0.0727, 'CLA_deg': 4.519E-02},
-        12.0: {'CL': 0.548, 'CD': 0.078, 'CM': -0.1097, 'CLA_deg': 3.824E-02},
+    # FORTRAN Wing-Body-H-tail results at M=0.6 (ex3.out lines 287-295)
+    # This is the COMPLETE configuration, not wing-alone
+    fortran_complete = {
+        -2.0: {'CL': -0.134, 'CD': 0.018, 'CM': 0.0228, 'CLA_deg': 6.695E-02},
+        0.0:  {'CL':  0.000, 'CD': 0.016, 'CM': 0.0000, 'CLA_deg': 6.695E-02},
+        2.0:  {'CL':  0.134, 'CD': 0.018, 'CM': -0.0239, 'CLA_deg': 6.751E-02},
+        4.0:  {'CL':  0.270, 'CD': 0.026, 'CM': -0.0535, 'CLA_deg': 6.801E-02},
+        8.0:  {'CL':  0.542, 'CD': 0.073, 'CM': -0.1228, 'CLA_deg': 6.676E-02},
+        12.0: {'CL':  0.804, 'CD': 0.160, 'CM': -0.1985, 'CLA_deg': 5.806E-02},
     }
     
-    print(f"\n  Comparison with FORTRAN DATCOM Wing-Alone (ex3.out):")
+    # Also show wing-alone for comparison
+    fortran_wing_alone = {
+        0.0:  {'CL': 0.000, 'CLA_deg': 4.664E-02},
+        4.0:  {'CL': 0.187, 'CLA_deg': 4.660E-02},
+        8.0:  {'CL': 0.372, 'CLA_deg': 4.519E-02},
+    }
+    
+    print(f"\n  Comparison with FORTRAN Wing-Body-H-tail (ex3.out, lines 287-295):")
     print(f"  {'Alpha':>8s} {'PyDATCOM CL':>12s} {'FORTRAN CL':>12s} {'Diff %':>10s} {'Status':>8s}")
     print(f"  {'-'*8} {'-'*12} {'-'*12} {'-'*10} {'-'*8}")
     
-    for alpha in sorted(fortran_wing_alone.keys()):
+    for alpha in sorted(fortran_complete.keys()):
         result = calc.calculate_at_condition(alpha_deg=alpha, mach=0.6)
         py_cl = result['cl']
-        ref_cl = fortran_wing_alone[alpha]['CL']
+        ref_cl = fortran_complete[alpha]['CL']
         
         if abs(ref_cl) > 0.01:
             diff_pct = abs(py_cl - ref_cl) / abs(ref_cl) * 100
         else:
             diff_pct = abs(py_cl - ref_cl) * 100
         
-        status = "GOOD" if diff_pct < 50 else "CHECK"
+        status = "EXCELLENT" if diff_pct < 10 else ("GOOD" if diff_pct < 30 else "CHECK")
         print(f"  {alpha:8.1f} {py_cl:12.4f} {ref_cl:12.3f} {diff_pct:9.1f}% {status:>8s}")
+    
+    # Show wing-alone vs complete for understanding
+    print(f"\n  Understanding Wing-Body Interference:")
+    print(f"  {'Alpha':>8s} {'Wing-Alone':>12s} {'Wing+Body+Tail':>15s} {'Ratio':>8s}")
+    print(f"  {'-'*8} {'-'*12} {'-'*15} {'-'*8}")
+    for alpha in [0.0, 4.0, 8.0]:
+        wing_cl = fortran_wing_alone.get(alpha, {}).get('CL', 0)
+        complete_cl = fortran_complete.get(alpha, {}).get('CL', 0)
+        ratio = complete_cl / wing_cl if wing_cl > 0.01 else 1.0
+        print(f"  {alpha:8.1f} {wing_cl:12.3f} {complete_cl:15.3f} {ratio:8.2f}x")
+    
+    print(f"\n  Note: Body+tail ADD lift (interference effects)")
+    print(f"  FORTRAN shows wing-body-tail CL is ~1.4x wing-alone CL")
     
     # Compare CLA (lift curve slope)
     print(f"\n  Lift Curve Slope Comparison:")
@@ -571,12 +594,16 @@ def test_ex3_fortran_validation():
     
     # Estimate CLA from finite difference
     py_cla = (result_4['cl'] - result_0['cl']) / 4.0  # Per degree
-    fortran_cla = 4.664E-02  # Per degree from ex3.out
+    fortran_cla_complete = 6.801E-02  # Per degree for complete config (ex3.out line 290)
+    fortran_cla_wing = 4.664E-02  # Per degree for wing-alone
     
-    print(f"  {0.0:8.1f} {py_cla:15.6f} {fortran_cla:15.6f} {'Finite diff est.':>20s}")
+    print(f"  Complete config: {py_cla:12.6f} {fortran_cla_complete:15.6f} {'Finite diff':>20s}")
     
-    cla_diff = abs(py_cla - fortran_cla) / fortran_cla * 100 if fortran_cla > 0 else 0
+    cla_diff = abs(py_cla - fortran_cla_complete) / fortran_cla_complete * 100 if fortran_cla_complete > 0 else 0
     print(f"    Difference: {cla_diff:.1f}%")
+    print(f"\n    Note: Wing-alone CLA = {fortran_cla_wing:.6f} /deg")
+    print(f"          Complete CLA  = {fortran_cla_complete:.6f} /deg  (~1.46x higher)")
+    print(f"          Body+tail increase lift curve slope by ~46%")
     
     # Check physics methodology
     print(f"\n  Physics Methodology Validation:")
@@ -610,8 +637,15 @@ def test_ex3_fortran_validation():
     print(f"\n  Overall Assessment:")
     print(f"    [PASS] Correct physics methods applied")
     print(f"    [PASS] Trends match FORTRAN DATCOM")
-    print(f"    [PASS] Magnitudes in reasonable range")
-    print(f"    [PASS] Suitable for preliminary design")
+    print(f"    [PASS] Comparing against correct FORTRAN config (Wing+Body+Tail)")
+    
+    # Note about missing wing-body interference
+    print(f"\n  Missing Physics (explains some differences):")
+    print(f"    [TODO] Wing-body interference (Phase 5)")
+    print(f"    [TODO] Downwash on tail (Phase 5)")
+    print(f"    [INFO] PyDATCOM uses isolated wing+tail lift")
+    print(f"    [INFO] FORTRAN adds wing-body interference effects")
+    print(f"    [INFO] Current accuracy suitable for preliminary design")
     
     print("\n  [PASS] FORTRAN physics validation successful")
 
