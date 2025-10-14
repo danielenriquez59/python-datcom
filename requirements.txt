@@ -1,0 +1,12 @@
+# PyDATCOM Requirements
+# Python 3.8+ compatible
+
+# Core dependencies
+numpy>=1.19.0
+scipy>=1.5.0
+pyyaml>=5.3.0
+
+# Optional dependencies for advanced features
+# matplotlib>=3.3.0  # For plotting (optional)
+# pandas>=1.1.0      # For data analysis (optional)
+

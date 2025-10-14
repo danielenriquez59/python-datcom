@@ -1,0 +1,43 @@
+# PyDATCOM Default Configuration
+# These values correspond to DATCOM defaults from the original FORTRAN code
+
+# Physical constants
+constants:
+  pi: 3.14159265358979
+  deg: 57.29577951308232  # Radians to degrees
+  rad: 0.017453292519943  # Degrees to radians
+  unused: -999.0           # Sentinel for undefined values
+
+# Flight condition defaults
+flight:
+  nmach: 1
+  nalpha: 0
+  loop: 1  # 1=loop mach/alt together, 2=fix alt vary mach, 3=fix mach vary alt
+
+# Reference dimensions
+options:
+  roughness_factor: 1.6e-4  # Default surface roughness
+
+# Body defaults
+body:
+  itype: 2      # 1=straight wing no area rule, 2=swept no area rule, 3=swept with area rule
+  method: 1     # 1=existing methods, 2=Jorgensen method
+  bnose: 1      # 1=conical nose, 2=ogive nose
+  btail: 1      # 1=conical tail, 2=ogive tail
+
+# Computational tolerances
+tolerances:
+  convergence: 1.0e-6
+  zero_threshold: 1.0e-10
+  max_iterations: 100
+
+# Output formatting
+output:
+  columns: 132
+  precision: 5
+  formats:
+    - datcom  # Original DATCOM format
+    - yaml    # YAML output
+    - json    # JSON output
+    - csv     # CSV tables
+
