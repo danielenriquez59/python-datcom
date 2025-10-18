@@ -1,0 +1,95 @@
+      SUBROUTINE M10O12
+C
+C***  EXEC FOR OVERLAY 10, SUBSONIC WING-BODY-TAIL AERO
+C
+      COMMON /IVT/    PVT,    VT(380)
+      COMMON /IVF/    PVF,    VF(380)
+      COMMON /IBW/    PBW,    BW(380)
+      COMMON /IBWH/   PBWH,   BWH(380)
+      COMMON /IBWV/   PBWV,   BWV(380)
+      COMMON /IBWHV/  PBWHV,  BWHV(380)
+      COMMON /IDWASH/ PDWASH, DWASH(60)
+      COMMON /FLGTCD/ FLC(160)
+      COMMON /WINGI/  WINGIN(101)
+      COMMON /HTI/    HTIN(154)
+      COMMON /HTDATA/ AHT(195), BHT(49)
+      COMMON /CONSNT/ PI,DEG,UNUSED,RAD,KAND
+      COMMON /OVERLY/ NLOG,NMACH,I,NALPHA,IG,NF,LF,K,NOVLY
+      COMMON /FLOLOG/ FLTC,OPTI,BO,WGPL,WGSC,SYNT,HTPL,HTSC,VTPL,VTSC,
+     1                HEAD,PRPOWR,JETPOW,LOASRT,TVTPAN,SUPERS,SUBSON,
+     2                TRANSN,HYPERS,SYMFP,ASYFP,TRIMC,TRIM,DAMP,
+     3                HYPEF,TRAJET,BUILD,FIRST,DRCONV,PART,
+     4                VFPL,VFSC,CTAB
+C
+      LOGICAL  FLTC,OPTI,BO,WGPL,WGSC,SYNT,HTPL,HTSC,VTPL,VTSC,
+     1         HEAD,PRPOWR,JETPOW,LOASRT,TVTPAN,SUPERS,SUBSON,
+     2         TRANSN,HYPERS,SYMFP,ASYFP,TRIMC,TRIM,DAMP,
+     3         HYPEF,TRAJET,BUILD,FIRST,DRCONV,PART,
+     4         VFPL,VFSC,CTAB,FOUND
+C
+      DIMENSION CR(6), DR(6), ROUTID(2)
+      DATA ROUTID / 4HM10O, 4H12   /
+C
+      NOVLY=10
+      CALL EXSUBT
+      IF(.NOT. HTPL) GO TO 1000
+      CALL WGEOTL
+      CALL WBTAIL
+C
+C     CALCULATE  B-W-H  CN, CA, CLA, AND CMA
+C
+ 1000 IN = 0
+      IM = 0
+      NLA=NALPHA
+      FOUND=.FALSE.
+      DO 1010 J=1,NALPHA
+         IF(BW(J+40) .NE. 2.*UNUSED .OR. FOUND)GO TO 1010
+         NLA=J-1
+         FOUND=.TRUE.
+ 1010 CONTINUE
+      DO 1040 J=1,NALPHA
+         CA = COS(FLC(J+22)/RAD)
+         SA = SIN(FLC(J+22)/RAD)
+         IF(.NOT. HTPL) GO TO 1020
+         BWH(J+60) = BWH(J+20)*CA + BWH(J)*SA
+         BWH(J+80) = BWH(J)*CA - BWH(J+20)*SA
+         IF(J .EQ. 1) GO TO 1020
+         CALL TBFUNX(FLC(J+22),X,BWH(J+100),NALPHA,FLC(23),BWH(21),
+     1               CR,IN,MI,NG,0,0,4HCLA ,1,ROUTID)
+         CALL TBFUNX(FLC(J+22),X,BWH(J+120),NLA,FLC(23),BWH(41),
+     1               DR,IM,MI,NG,0,0,4HCMA ,1,ROUTID)
+         IF(J .GT. NLA) BWH(J+120)=2.*UNUSED
+ 1020    CONTINUE
+C
+C     CALCULATE  B-W-V  DATA
+C
+         BWV(J) = BW(J) + VT(1) + VF(1)
+         BWV(J+20) = BW(J+20)
+         BWV(J+40) = BW(J+40)
+         BWV(J+60) = BWV(J+20)*CA + BWV(J)*SA
+         BWV(J+80) = BWV(J)*CA - BWV(J+20)*SA
+         BWV(J+100) = BW(J+100)
+         BWV(J+120) = BW(J+120)
+         IF(.NOT. HTPL) GO TO 1030
+C
+C     CALCULATE  B-W-H-V  DATA
+C
+         BWHV(J+20) = BWH(J+20)
+         BWHV(J+40) = BWH(J+40)
+         BWHV(J+60) = BWHV(J+20)*CA + BWHV(J)*SA
+         BWHV(J+80) = BWHV(J)*CA - BWHV(J+20)*SA
+         BWHV(J+100) = BWH(J+100)
+         BWHV(J+120) = BWH(J+120)
+ 1030    IF(BW(J) .NE. -UNUSED) GO TO 1040
+         BWV(J   ) = -UNUSED
+         BWV(J+60) = -UNUSED
+         BWV(J+80) = -UNUSED
+         BWH(J   ) = -UNUSED
+         BWH(J+60) = -UNUSED
+         BWH(J+80) = -UNUSED
+         BWHV(J   ) = -UNUSED
+         BWHV(J+60) = -UNUSED
+         BWHV(J+80) = -UNUSED
+ 1040 CONTINUE
+      RETURN
+      END

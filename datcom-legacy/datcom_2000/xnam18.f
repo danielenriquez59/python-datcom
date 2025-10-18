@@ -1,0 +1,32 @@
+      SUBROUTINE XNAM18(IOP)
+C
+      COMMON /FLAPIN/ AK(137)
+      COMMON /CONSNT/ PI,DEG,UNUSED,RAD,KAND
+C
+      INTEGER HYPEFF
+      LOGICAL EOF
+C
+      DIMENSION LENK(7),LDMK(7),HYPEFF(32),LOCK(7)
+      DIMENSION NLNAME(6)
+C
+      DATA NLNAME / 4HH   ,4HY   ,4HP   ,4HE   ,4HF   ,4HF   /
+      DATA LENK / 5,3,5,2,5,6,6 /
+      DATA LDMK / 4*1,-1,1,10 /
+      DATA LOCK / 1,2,3,4,15,16,5 /
+      DATA HYPEFF /   4HA   ,4HL   ,4HI   ,4HT   ,4HD   ,4HX   ,
+     1  4HH   ,4HL   ,4HT   ,4HW   ,4HO   ,4HT   ,4HI   ,4HC   ,
+     2  4HF   ,4HL   ,4HA   ,4HM   ,4HN   ,4HR   ,4HH   ,4HN   ,
+     3  4HD   ,4HL   ,4HT   ,4HA   ,4HH   ,4HD   ,4HE   ,4HL   ,
+     4  4HT   ,4HA   /
+C
+C**   IF IOP EQUAL ZERO READ NAMELIST HYPEFF
+C**   IF IOP EQUAL ONE WRITE NAMELIST HYPEFF
+C
+      IF(IOP .EQ. 0)
+     1  CALL NAMER(KAND,9,NLNAME,6,HYPEFF,32,LENK,7,LDMK,AK,137,
+     2             LOCK,EOF)
+      IF(IOP .EQ. 1)
+     1  CALL NAMEW(KAND,6,NLNAME,6,HYPEFF,32,LENK,7,LDMK,AK,137,LOCK)
+C
+      RETURN
+      END

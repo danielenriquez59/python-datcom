@@ -1,0 +1,34 @@
+      SUBROUTINE INITZ2
+C
+C     REINITIALIZE ARRAYS FOR FLAP ROUTINES
+C
+      COMMON /CONSNT/ PI,DEG,UNUSED,RAD
+      COMMON /POWR/   SPR(59),FLA(45),FLP(189),TRM(22)
+      COMMON /SUPDW/  FHG(35),TCD(58)
+      COMMON /SUPWH/  FCM(282)
+      COMMON /IBODY/  PB, BODY(400)
+      COMMON /IWING/  PW, WING(400)
+      COMMON /IHT/    PH, HT(380)
+      COMMON /IVT/    PV, VT(380)
+      COMMON /IVF/    PF, VF(380)
+C
+      DIMENSION PWW(315),DW(93)
+      EQUIVALENCE (PWW(1),SPR(1)), (DW(1),FHG(1))
+C
+      DO 1000 I=1,315
+         PWW(I) = UNUSED
+         IF(I .GT. 282) GO TO 1000
+         FCM(I) = UNUSED
+         IF(I .GT. 93) GO TO 1000
+         DW(I) = UNUSED
+ 1000 CONTINUE
+      DO 1010 I=1,200
+         BODY(I+200) = UNUSED
+         WING(I+200) = UNUSED
+         IF(I .GT. 180) GO TO 1010
+         HT(I+200) = UNUSED
+         VF(I+200) = UNUSED
+         VF(I+200) = UNUSED
+ 1010 CONTINUE
+      RETURN
+      END

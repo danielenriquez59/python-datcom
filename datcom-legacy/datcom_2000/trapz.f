@@ -1,0 +1,26 @@
+      SUBROUTINE TRAPZ(F,N,Y,A,NTEST)
+C
+C***  TRAPEZOIDAL RULE INTEGRATION ROUTINE
+C
+C      F IS INTEGRAND - N IS NO. OF PTS. - Y IS INDEPENDENT VARIABLE
+C      A IS ARRAY OF ANS AT EACH INTERVAL IF NTEST .NE. 1
+C      A(1) IS INTEGRAL OVER ENTIRE INTERVAL IF NTEST = 1
+C
+      COMMON /CONSNT/ PI
+      DIMENSION F(1),Y(1),A(1)
+      A(1) = 0.
+      DO 1020 I=2,N
+         TEMP = .5 * (Y(I)-Y(I-1)) * (F(I) + F(I-1))
+C
+C   CALCULATE VOLUME IF .LT. 0
+C
+         IF(NTEST.LT.0)TEMP=PI/3.*(Y(I)-Y(I-1))*(F(I)**2+F(I-1)**2
+     1                     +F(I)*F(I-1))
+         IF(NTEST.LT.0)GO TO 1000
+         IF(NTEST-1)1010,1000,1010
+ 1000    A(1) = A(1) + TEMP
+         GO TO 1020
+ 1010    A(I) = A(I-1) + TEMP
+ 1020 CONTINUE
+      RETURN
+      END
