@@ -20,7 +20,8 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
-
+*.pdf
+*.pptx
 # Virtual environments
 venv/
 ENV/
