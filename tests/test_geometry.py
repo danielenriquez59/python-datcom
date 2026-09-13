@@ -149,7 +149,7 @@ def test_supersonic_airfoil():
     print("Testing Supersonic Airfoil Generation")
     print("="*60)
     
-    generator = NACAGenerator(num_points=30)
+    generator = NACAGenerator(num_points=31)  # Include the midchord peak.
     coords = generator.supersonic_airfoil(thickness_ratio=0.05)
     
     print("\nSupersonic Diamond Airfoil (t/c = 0.05):")
@@ -159,7 +159,8 @@ def test_supersonic_airfoil():
     
     assert coords.thickness[0] == 0.0  # Sharp leading edge
     assert coords.camber.max() < 1e-6  # Symmetric
-    assert 0.04 < coords.thickness.max() < 0.06
+    np.testing.assert_allclose(coords.thickness.max(), 0.025, atol=1e-14)
+    np.testing.assert_allclose((coords.yu - coords.yl).max(), 0.05, atol=1e-14)
     
     print("  [PASS] Supersonic airfoil generation successful")
 

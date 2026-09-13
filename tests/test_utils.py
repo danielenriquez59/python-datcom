@@ -125,16 +125,15 @@ def test_fig60b():
     print("Testing FIG60B (Supersonic Parameters)")
     print("="*60)
     
-    beta = 1.5  # sqrt(M²-1) for M≈1.8
-    
-    btana, cnaa = fig60b(beta)
+    beta = 2.0
+    btana = 0.637  # Source table at CNAA=1.0, BETA=2.0
+    cnaa = fig60b(beta, btana)
     
     print(f"\nFIG60B results for beta={beta}:")
     print(f"  BTANA: {btana:.4f}")
     print(f"  CNAA: {cnaa:.4f}")
     
-    assert 0 <= btana <= 1.0
-    assert 6.0 < cnaa < 7.0
+    assert abs(cnaa - 1.0) < 1e-12
     
     print("  [PASS] FIG60B calculations successful")
 

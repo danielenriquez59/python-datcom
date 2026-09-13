@@ -11,6 +11,8 @@ from pydatcom.utils.interpolation import (
 from pydatcom.utils.table_lookup import (
     fig26, fig53a, fig60b, fig68, get_table_manager
 )
+from pydatcom.utils.legacy_numeric import quad, trapz, tbfunx
+from pydatcom.utils.legacy_tables import glook, switch, tlin1x, tlinex
 
 __all__ = [
     'PI', 'DEG', 'RAD', 'UNUSED', 'get_constants_dict',
@@ -18,5 +20,6 @@ __all__ = [
     'Atmosphere',
     'asmint', 'bilinear_interp', 'TableInterpolator',
     'fig26', 'fig53a', 'fig60b', 'fig68', 'get_table_manager',
+    'quad', 'trapz', 'tbfunx', 'glook', 'switch', 'tlin1x', 'tlinex',
 ]
 

@@ -11,6 +11,8 @@ import numpy as np
 from typing import Tuple
 import logging
 
+from pydatcom.utils.constants import RAD, UNUSED
+
 logger = logging.getLogger(__name__)
 
 
@@ -107,12 +109,18 @@ def fig53a(rv: float, z: float) -> float:
         0.718213, 0.263365, 0.410583, 0.893775, 0.67405
     ])
     d_coef = np.array([
-        -1.49813, -0.478074, -0.771195, -1.79298, -1.35093
+        -1.32167, -9.04994E-02, -0.489542, -1.80535, -1.22853
     ])
     e_coef = np.array([
-        1.00929, 0.162566, 0.423931, 1.27184, 0.96068
+        0.493821, -0.735445, -0.317567, 1.02609, 0.471355
     ])
-    z_points = np.array([0.0, 0.25, 0.50, 0.75, 1.0])
+    z_points = np.array([0.0, 1.0, 2.0, 4.0, 10.0])
+
+    # Label 1070 avoids LOG10(0); every other return clips negative R.
+    if rv == 0.0:
+        return 0.0
+    if rv < 0.0:
+        raise ValueError("FIG53A requires a nonnegative Reynolds number")
     
     # Find Z range
     z_idx = 4  # Default to last
@@ -130,7 +138,7 @@ def fig53a(rv: float, z: float) -> float:
             c_coef[idx] + x * (b_coef[idx] + x * a_coef[idx]))))
     
     # Interpolate between Z values
-    if z_idx < 4:
+    if z_idx < 4 and abs(z - z_points[z_idx]) > 0.001:
         r_z1 = eval_poly(z_idx)
         r_z2 = eval_poly(z_idx + 1)
         
@@ -139,50 +147,68 @@ def fig53a(rv: float, z: float) -> float:
     else:
         r = eval_poly(z_idx)
     
-    return r
+    return max(float(r), 0.0)
 
 
-def fig60b(beta: float) -> Tuple[float, float]:
+def fig60b(beta: float, btana: float) -> float:
+    """FIG60B: fin CNAA for input BETA and BETA*TAN(ALPHA).
+
+    Translates Figure 4.1.3.3-60B, for straight tapered fins with a
+    supersonic leading edge and attached shock. BTANA is an INPUT, not
+    an output. Returns CN per SIN(ALPHA)**2 as specified by the source.
+
+    First interpolate the source's 9-by-13 table in BETA, then invert
+    the resulting BTANA curve. TLINEX modes (1,1,0,0) extrapolate below
+    the BETA table and clamp above it. TBFUNX's value is piecewise linear;
+    its quadratic derivative is unused here.
     """
-    Compute BTANA and CNAA from Figure 4.3.1.1-60B.
-    
-    Reference: FORTRAN FIG60B subroutine, datcom.f line 9503
-    
-    Args:
-        beta: Prandtl-Glauert parameter sqrt(|M²-1|)
-        
-    Returns:
-        Tuple of (btana, cnaa)
-    """
-    # Data from DATCOM Figure 60B
-    beta_data = np.array([
-        0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8,
-        2.0, 2.2, 2.4, 2.6, 2.8, 3.0, 3.2, 3.4, 3.6, 3.8, 4.0
-    ])
-    
-    btana_data = np.array([
-        0.0, 0.0, 0.0, 0.011, 0.045, 0.095, 0.16, 0.229, 0.30, 0.369,
-        0.435, 0.494, 0.548, 0.596, 0.640, 0.679, 0.715, 0.748, 0.778,
-        0.806, 0.832
-    ])
-    
-    cnaa_data = np.array([
-        6.28, 6.28, 6.29, 6.29, 6.30, 6.31, 6.32, 6.33, 6.34, 6.35,
-        6.36, 6.37, 6.38, 6.39, 6.40, 6.40, 6.41, 6.42, 6.42, 6.43, 6.43
-    ])
-    
-    # Interpolate
-    btana = np.interp(beta, beta_data, btana_data)
-    cnaa = np.interp(beta, beta_data, cnaa_data)
-    
-    return btana, cnaa
+    from pydatcom.utils.legacy_tables import tlinex
+
+    cnaa_grid = np.array([0., .2, .4, .6, .8, 1., 1.2, 1.4, 1.6, 1.8, 2., 2.2, 2.4])
+    beta_grid = np.array([1.25, 1.5, 1.75, 2., 2.5, 3., 4., 5., 20.])
+    # Consecutive groups of 13 in FORTRAN DATA Z60B are columns of
+    # Y(NX2,NX1), i.e. a whole CNAA sweep at a fixed BETA.
+    table = np.array([
+        [0., .047, .089, .127, .160, .188, .211, .231, .247, .258, .266, .269, .270],
+        [0., .104, .192, .259, .311, .357, .395, .426, .452, .474, .492, .505, .515],
+        [0., .112, .215, .308, .405, .499, .572, .624, .667, .704, .735, .760, .780],
+        [0., .132, .270, .400, .521, .637, .732, .820, .878, .925, .962, .986, 1.000],
+        [0., .183, .353, .534, .700, .873, 1.040, 1.190, 1.300, 1.388, 1.461, 1.520, 1.563],
+        [0., .223, .447, .652, .865, 1.096, 1.325, 1.525, 1.697, 1.842, 1.978, 2.105, 2.222],
+        [0., .270, .576, .845, 1.106, 1.447, 1.803, 2.222, 2.511, 2.707, 2.875, 3.014, 3.125],
+        [0., .270, .575, .890, 1.170, 1.563, 1.960, 2.473, 2.921, 3.333, 3.744, 4.148, 4.545],
+        [0., .306, .629, .925, 1.232, 1.667, 2.262, 3.004, 4.065, 5.814, 9.259, 20.83, 1000.],
+    ]).T
+    curve = np.zeros(13)
+    for i in range(1, 13):
+        curve[i] = tlinex(beta_grid, cnaa_grid, table, beta, cnaa_grid[i],
+                         lower1=1, lower2=1, upper1=0, upper2=0)
+
+    query = min(btana, curve[-1])
+    # TBFUNX labels 1020-1040 give upper endpoint precedence.
+    if query >= curve[-1]:
+        return float(cnaa_grid[-1])
+    if query <= curve[0]:
+        return float(cnaa_grid[0])
+    # Value-only translation of TBFUNX labels 1000-1010. Do not use
+    # searchsorted: lower-BETA extrapolation can produce a nonmonotonic
+    # curve, and the legacy routine scans the entire interior table.
+    left = max(i for i in range(12) if query >= curve[i])
+    left = max(left, 1)
+    if query < curve[1]:
+        left = 0
+    width = curve[left+1] - curve[left]
+    if width == 0.:
+        width = UNUSED
+    return float(cnaa_grid[left] + (cnaa_grid[left+1] - cnaa_grid[left])
+                 * (query - curve[left]) / width)
 
 
 def fig68(mach: float, delta: float) -> Tuple[float, int]:
     """
     Compute shock wave angle from Figure 4.4.1.1-68.
     
-    Oblique shock relations for given Mach number and deflection angle.
+    Translate the FIG68 cubic solution for a weak oblique shock (gamma=1.4).
     
     Reference: FORTRAN FIG68 subroutine, datcom.f line 9571
     
@@ -192,32 +218,44 @@ def fig68(mach: float, delta: float) -> Tuple[float, int]:
         
     Returns:
         Tuple of (theta_shock_angle_deg, error_code)
-        error_code: 0=success, 1=no solution exists
+        error_code: 0=attached shock, 1=negative deflection (Mach angle),
+            2=detached shock (maximum attached *deflection* angle),
+            3=subsonic Mach number (zero angle).
     """
-    # Simplified implementation using shock relations
-    # Full implementation would use tabulated data
-    
-    if mach <= 1.0:
-        logger.warning(f"FIG68 called with subsonic Mach {mach}")
-        return 0.0, 1
-    
-    # Approximate shock angle using theta-beta-M relation
-    # For small deflections: theta ≈ delta * sqrt((M²-1)/M²)
-    beta_prandtl = np.sqrt(mach**2 - 1.0)
-    delta_rad = np.deg2rad(delta)
-    
-    # Iterative solution for shock angle (simplified)
-    # Full version would use Newton-Raphson on oblique shock equation
-    theta_approx = np.rad2deg(np.arcsin(1.0 / mach))  # Mach angle
-    theta = theta_approx + delta  # Approximate shock angle
-    
-    # Validate solution exists
-    max_deflection = np.rad2deg(np.arcsin(1.0 / mach)) * 2.0
-    if delta > max_deflection:
-        logger.warning(f"Deflection {delta}° exceeds max for M={mach}")
-        return 0.0, 1
-    
-    return theta, 0
+    # DR is initialized to this value in the legacy /CONSNT/ block.
+    dr = RAD
+    if mach < 1.0:
+        return 0.0, 3
+    tmin = dr * np.arcsin(1.0 / mach)
+    if mach == 1.0 and delta > 0.0:
+        return 0.0, 2
+    if delta < 0.0:
+        return float(tmin), 1
+    if delta == 0.0:
+        return float(tmin), 0
+
+    xm2 = mach * mach
+    sin2_tmax = (3.0*xm2 - 5.0 + np.sqrt(9.0*xm2*xm2 + 12.0*xm2 + 60.0)) / (7.0*xm2)
+    tmax = np.arcsin(np.sqrt(sin2_tmax))
+    dmax = dr * np.arctan(1.0 / (np.tan(tmax) * (1.2*xm2 / (xm2*sin2_tmax - 1.0) - 1.0)))
+    if delta > dmax:
+        # Legacy label 1030 returns wedge angle DMAX, not shock angle TMAX.
+        return float(dmax), 2
+    if delta == dmax:
+        return float(tmax * dr), 0
+
+    # X = sin(shock angle)**2; depress the cubic with X = Y - P/3.
+    s2d = np.sin(delta / dr)**2
+    p = -(xm2 + 2.0)/xm2 - 1.4*s2d
+    q = (2.0*xm2 + 1.0)/(xm2*xm2) + (1.44 + 0.4/xm2)*s2d
+    r = -(1.0 - s2d)/(xm2*xm2)
+    a = q - p*p/3.0
+    b = (2.0*p*p*p - 9.0*p*q + 27.0*r)/27.0
+    cosp = -b / (2.0*np.sqrt(-a*a*a/27.0))
+    # Clip roundoff at a repeated root (zero deflection or detachment).
+    phi3 = np.arccos(np.clip(cosp, -1.0, 1.0))/3.0
+    s2t = 2.0*np.sqrt(-a/3.0)*np.cos(phi3 + 240.0/dr) - p/3.0
+    return float(np.arcsin(np.sqrt(np.clip(s2t, 0.0, 1.0))) * dr), 0
 
 
 class DatcomTableManager:
@@ -268,9 +306,8 @@ class DatcomTableManager:
             return fig26(args[0], args[1])
         elif table_name == 'FIG53A' and len(args) == 2:
             return fig53a(args[0], args[1])
-        elif table_name == 'FIG60B' and len(args) == 1:
-            btana, cnaa = fig60b(args[0])
-            return btana  # Return first value
+        elif table_name == 'FIG60B' and len(args) == 2:
+            return fig60b(args[0], args[1])
         elif table_name == 'FIG68' and len(args) == 2:
             theta, ierr = fig68(args[0], args[1])
             return theta

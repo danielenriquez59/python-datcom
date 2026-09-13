@@ -30,6 +30,10 @@ class AirfoilCoordinates:
         self.yl: np.ndarray = np.array([])         # Lower surface Y coordinates
         self.camber: np.ndarray = np.array([])     # Mean camber line
         self.thickness: np.ndarray = np.array([])  # Thickness distribution
+        # CORDSP section parameters; unset for other coordinate generators.
+        self.thickness_ratio: Optional[float] = None  # TOC, full thickness/chord
+        self.max_thickness_location: Optional[float] = None  # XT
+        self.sharpness_parameter: Optional[float] = None  # KSHARP
         
     def to_dict(self) -> Dict[str, np.ndarray]:
         """Convert to dictionary format."""
@@ -410,54 +414,78 @@ class NACAGenerator:
         # Use moderate camber approximation
         return self.naca_4_digit("2" + thick_camber[1:] if len(thick_camber) == 3 else "0012")
     
-    def supersonic_airfoil(self, thickness_ratio: float = 0.05) -> AirfoilCoordinates:
+    def supersonic_airfoil(
+        self, thickness_ratio: float = 0.05, *, shape: str = 'double_wedge',
+        max_thickness_location: float = 0.5, flat_length: float = 0.0,
+    ) -> AirfoilCoordinates:
         """
-        Generate supersonic airfoil (sharp leading edge, wedge/diamond).
-        
-        Typical supersonic airfoils are thin with sharp leading edges.
-        Uses diamond or biconvex sections.
-        
-        Reference: datcom.f line 6418 (CORDSP subroutine)
+        Generate symmetric section coordinates from the CORDSP equations.
+
+        Reference: datcom-legacy/datcom_2000/cordsp.f. This translates its
+        numeric coordinate branches, not NACA card decoding or COMMON input
+        updates. The generator's existing chord stations are retained.
         
         Args:
-            thickness_ratio: Maximum thickness ratio (typically 0.03-0.08)
+            thickness_ratio: Full maximum thickness/chord (TOC), in (0, 1].
+            shape: 'double_wedge', 'biconvex' (circular arc), or 'hexagonal'.
+            max_thickness_location: Chord fraction XT at maximum thickness;
+                CORDSP fixes XT to 0.5 for biconvex sections.
+            flat_length: Chord fraction XF of the flat top after XT; used only
+                for hexagonal sections. Requires 0 <= XF < 1 - XT.
             
         Returns:
-            AirfoilCoordinates for supersonic airfoil
+            AirfoilCoordinates; thickness contains half-thickness, consistent
+            with the other generators. Scalar metadata records TOC, XT, KSHARP.
         """
+        if not np.isfinite(thickness_ratio) or not 0.0 < thickness_ratio <= 1.0:
+            raise ValueError('thickness_ratio must be finite and in (0, 1]')
+        if shape not in ('double_wedge', 'biconvex', 'hexagonal'):
+            raise ValueError("shape must be 'double_wedge', 'biconvex', or 'hexagonal'")
+        xt = 0.5 if shape == 'biconvex' else max_thickness_location
+        if not np.isfinite(xt) or not 0.0 < xt < 1.0:
+            raise ValueError('max_thickness_location must be finite and in (0, 1)')
+        if shape == 'hexagonal' and (
+            not np.isfinite(flat_length) or not 0.0 <= flat_length < 1.0 - xt
+        ):
+            raise ValueError('flat_length must be finite and in [0, 1 - XT)')
+
         coords = AirfoilCoordinates()
         coords.x = self.x_stations.copy()
-        
-        # Diamond airfoil (linear thickness distribution)
-        # Maximum thickness at x=0.5
-        yt = np.where(
-            coords.x <= 0.5,
-            2.0 * thickness_ratio * coords.x,  # Linear increase
-            2.0 * thickness_ratio * (1.0 - coords.x)  # Linear decrease
-        )
-        
-        # Symmetric (no camber for basic supersonic)
-        yc = np.zeros_like(coords.x)
-        alpha = np.zeros_like(coords.x)
-        
-        # Calculate surfaces
-        coords.xu = coords.x - yt * np.sin(alpha)
-        coords.yu = yc + yt * np.cos(alpha)
-        coords.xl = coords.x + yt * np.sin(alpha)
-        coords.yl = yc - yt * np.cos(alpha)
-        
-        coords.camber = yc
-        coords.thickness = yt
-        
-        # Sharp leading edge
-        coords.thickness[0] = 0.0
-        coords.thickness[-1] = 0.0
-        coords.xu[0] = 0.0
-        coords.yl[0] = 0.0
-        coords.xu[-1] = 1.0
-        coords.yu[-1] = 0.0
-        coords.xl[-1] = 1.0
-        coords.yl[-1] = 0.0
+        if shape == 'biconvex':
+            # CORDSP labels 1000-1010: circular arcs, not parabolas.
+            radius = (thickness_ratio ** 2 + 1.0) / (4.0 * thickness_ratio)
+            yt = thickness_ratio / 2.0 - radius + np.sqrt(
+                radius ** 2 - (coords.x - 0.5) ** 2)
+            ksharp = 16.0 / 3.0
+        elif shape == 'hexagonal':
+            # CORDSP labels 1050-1080; aft ramp starts at XT + XF.
+            xf = flat_length
+            yt = np.where(
+                coords.x >= xt + xf,
+                thickness_ratio / 2.0 - (coords.x - xt - xf) *
+                thickness_ratio / (2.0 * (1.0 - xt - xf)),
+                np.where(coords.x >= xt, thickness_ratio / 2.0,
+                         coords.x * thickness_ratio / (2.0 * xt)),
+            )
+            ksharp = (1.0 - xf) / (xt * (1.0 - xt - xf))
+        else:
+            # CORDSP labels 1020-1040: each surface reaches TOC/2 at XT.
+            yt = np.where(
+                coords.x <= xt,
+                coords.x * thickness_ratio / (2.0 * xt),
+                thickness_ratio / 2.0 -
+                (coords.x - xt) * thickness_ratio / (2.0 * (1.0 - xt)),
+            )
+            ksharp = (1.0 / xt) / (1.0 - xt)
+        coords.xu = coords.x.copy()
+        coords.xl = coords.x.copy()
+        coords.yu = yt.copy()
+        coords.yl = -yt
+        coords.camber = np.zeros_like(coords.x)
+        coords.thickness = yt.copy()
+        coords.thickness_ratio = thickness_ratio
+        coords.max_thickness_location = xt
+        coords.sharpness_parameter = ksharp
         
         return coords
 
