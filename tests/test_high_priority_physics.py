@@ -15,14 +15,17 @@ from pydatcom.aerodynamics.moment import (
     calculate_normal_force_coefficient,
     calculate_wing_moment_coefficient,
     calculate_total_pitching_moment,
+    calculate_cmalph_zero_lift_moment,
 )
 from pydatcom.aerodynamics.stability import calculate_static_stability_margin
 from pydatcom.aerodynamics.supersonic import (
     calculate_supersonic_coefficients,
+    calculate_supdrg_straight_wing,
     calculate_supersonic_wave_drag,
 )
 from pydatcom.aerodynamics.subsonic import calculate_subsonic_coefficients
 from pydatcom.aerodynamics.transonic import calculate_transonic_coefficients
+from pydatcom.geometry.wing import calculate_straight_exposed_geometry
 
 
 def _wing_state(sref=100.0):
@@ -141,10 +144,101 @@ def test_subsonic_default_xac_uses_actual_mac_not_reference_chord():
     assert result['cm_wing'] == pytest.approx(0.0)
 
 
+def test_cmalph_constant_section_zero_lift_moment():
+    state = {
+        'wing_area': 4.0,
+        'wing_mac': 1.0,
+        'wing_chrdr': 1.0,
+        'wing_chrdtp': 1.0,
+        'wing_sspn': 2.0,
+        'wing_aspect_ratio': 4.0,
+        'wing_savsi': 0.0,
+        'wing_chstat': 0.25,
+        'wing_cmo': -0.03,
+        'wing_twista': 0.0,
+        'options_sref': 4.0,
+        'options_cbarr': 1.0,
+    }
+    # At M=0 CALM=1; unswept multiplier is AR/(/(AR+2)=2/3.
+    assert calculate_cmalph_zero_lift_moment(state, 0.0) == pytest.approx(-0.02)
+    # CMALPH clamps the Mach correction at its M=0.9 endpoint.
+    assert calculate_cmalph_zero_lift_moment(state, 2.0) == pytest.approx(-0.02 * 1.445)
+
+
+def test_wtgeom_straight_wing_uses_exposed_planform():
+    state = {
+        'wing_type': 1.0,
+        'wing_chrdr': 4.0,
+        'wing_chrdtp': 2.0,
+        'wing_sspn': 5.0,
+        'wing_sspne': 4.0,
+        'wing_savsi': 0.0,
+        'wing_chstat': 0.0,
+        'synths_xw': 10.0,
+    }
+    result = calculate_straight_exposed_geometry(state)
+    exposed_root = 3.6
+    taper = 2.0 / exposed_root
+    expected_mac = (2.0 * exposed_root * (1.0 + taper + taper**2) /
+                    (3.0 * (1.0 + taper)))
+    assert result['root_chord'] == pytest.approx(exposed_root)
+    assert result['area'] == pytest.approx(4.0 * (exposed_root + 2.0))
+    assert result['aspect_ratio'] == pytest.approx(4.0 * 4.0**2 / result['area'])
+    assert result['mac'] == pytest.approx(expected_mac)
+    assert result['exposed_root_x'] == pytest.approx(10.0)
+
+
+def test_wtgeom_converts_sweep_reference_station():
+    from pydatcom.geometry.wing import WingGeometry
+
+    state = {
+        'wing_type': 1.0,
+        'wing_chrdr': 10.0,
+        'wing_chrdtp': 5.0,
+        'wing_sspn': 25.0,
+        'wing_savsi': 30.0,
+        'wing_chstat': 0.25,
+    }
+    wing = WingGeometry(state)
+    expected_le = np.rad2deg(np.arctan(
+        np.tan(np.deg2rad(30.0)) + 0.25 * (10.0 - 5.0) / 25.0))
+    expected_half = np.rad2deg(np.arctan(
+        np.tan(np.deg2rad(30.0)) + (0.5 - 0.25) * (5.0 - 10.0) / 25.0))
+    assert wing.calculate_sweep_at_station(0.0) == pytest.approx(expected_le)
+    assert wing.calculate_sweep_at_station(0.5) == pytest.approx(expected_half)
+
+
 def test_supersonic_lift_drag_recovers_two_dimensional_limit():
     beta = np.sqrt(2.0**2 - 1.0)
     result = calculate_supersonic_wave_drag(2.0, 0.0, 1.0e12, 0.2)
     assert result['cd_wave_lift'] == pytest.approx(beta * 0.2**2 / 4.0, rel=1e-10)
+
+
+def test_supdrg_straight_wing_figure_58_and_reference_basis():
+    # beta*b/2/RLW = 0.4 lands exactly on the third source table entry.
+    state = {
+        'wing_type': 1.0,
+        'wing_chrdr': 1.0,
+        'wing_chrdtp': 1.0,
+        'wing_sspn': 2.0,
+        'wing_area': 4.0,
+        'wing_aspect_ratio': 4.0,
+        'wing_savsi': 0.0,
+        'wing_chstat': 0.0,
+        'wing_tceff': 0.05,
+        'wing_leri': 0.0,
+        'options_sref': 4.0,
+    }
+    result = calculate_supdrg_straight_wing(state, np.sqrt(1.04), 0.2)
+    assert result['dragc'] == pytest.approx(0.593)
+    assert result['p'] == pytest.approx(1.0)
+    assert result['cd_wave_lift'] == pytest.approx(0.593 / (2.0 * np.pi) * 0.2**2)
+    assert result['cd_wave_volume'] == pytest.approx(16.0 * 0.05**2 / (3.0 * 0.2))
+
+    state['options_sref'] = 8.0
+    scaled = calculate_supdrg_straight_wing(state, np.sqrt(1.04), 0.2)
+    assert scaled['cd_wave_lift'] * 8.0 == pytest.approx(result['cd_wave_lift'] * 4.0)
+    assert scaled['cd_wave_volume'] * 8.0 == pytest.approx(result['cd_wave_volume'] * 4.0)
 
 
 def test_component_neutral_point_does_not_move_with_cg():

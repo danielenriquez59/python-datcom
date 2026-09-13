@@ -20,6 +20,57 @@ from pydatcom.utils.constants import PI, DEG, RAD, UNUSED
 logger = logging.getLogger(__name__)
 
 
+def calculate_straight_exposed_geometry(state: Dict) -> Dict[str, float]:
+    """Translate WTGEOM's straight-wing exposed-planform quantities."""
+    if float(state.get('wing_type', 1.0) or 1.0) != 1.0:
+        raise ValueError("WTGEOM straight-wing subset requires TYPE=STRA")
+    root = float(state.get('wing_chrdr', 0.0) or 0.0)
+    tip = float(state.get('wing_chrdtp', 0.0) or 0.0)
+    theoretical_semispan = float(state.get('wing_sspn', 0.0) or 0.0)
+    exposed_semispan = float(state.get('wing_sspne', theoretical_semispan) or 0.0)
+    if root <= 0.0 or tip < 0.0 or min(theoretical_semispan, exposed_semispan) <= 0.0:
+        raise ValueError("CHRDR and spans must be positive; CHRDTP may be zero")
+    if exposed_semispan > theoretical_semispan:
+        raise ValueError("SSPNE cannot exceed SSPN")
+
+    taper = tip / root
+    exposed_fraction = exposed_semispan / theoretical_semispan
+    exposed_root = root * (taper + (1.0 - taper) * exposed_fraction)
+    exposed_taper = tip / exposed_root
+    area = exposed_semispan * (exposed_root + tip)
+    aspect_ratio = 4.0 * exposed_semispan**2 / area
+    mac = (2.0 * exposed_root *
+           (1.0 + exposed_taper + exposed_taper**2) /
+           (3.0 * (1.0 + exposed_taper)))
+    y_mac = (exposed_semispan * (1.0 + 2.0 * exposed_taper) /
+             (3.0 * (1.0 + exposed_taper)))
+
+    sweep_reference = float(state.get('wing_savsi', 0.0) or 0.0)
+    chord_station = float(state.get('wing_chstat', 0.25) or 0.0)
+    tan_le = (np.tan(np.deg2rad(sweep_reference)) +
+              chord_station * (root - tip) / theoretical_semispan)
+    tan_c4 = tan_le + 0.25 * (tip - exposed_root) / exposed_semispan
+    buried_semispan = theoretical_semispan - exposed_semispan
+    incidence = np.deg2rad(float(state.get('synths_aliw', 0.0) or 0.0))
+    exposed_root_x = (float(state.get('synths_xw', 0.0) or 0.0) +
+                      buried_semispan * tan_le * np.cos(incidence))
+    mac_le = y_mac * tan_le
+    return {
+        'root_chord': exposed_root,
+        'tip_chord': tip,
+        'semispan': exposed_semispan,
+        'area': area,
+        'aspect_ratio': aspect_ratio,
+        'taper_ratio': exposed_taper,
+        'mac': mac,
+        'mac_span_location': y_mac,
+        'mac_le_location': mac_le,
+        'tan_le': tan_le,
+        'tan_c4': tan_c4,
+        'exposed_root_x': exposed_root_x,
+    }
+
+
 class WingGeometry:
     """
     Wing planform geometry calculations.
@@ -86,6 +137,25 @@ class WingGeometry:
         Returns:
             Dictionary with computed properties
         """
+        if (self.prefix == 'wing' and self.ptype == 1.0 and
+                self.chrdr is not None and self.chrdtp is not None and
+                self.sspn is not None):
+            geometry = calculate_straight_exposed_geometry(self.state)
+            self.span = 2.0 * geometry['semispan']
+            self.area = geometry['area']
+            self.aspect_ratio = geometry['aspect_ratio']
+            self.taper_ratio = geometry['taper_ratio']
+            self.mac = geometry['mac']
+            self.mac_location = geometry['mac_le_location']
+            return {
+                'area': self.area,
+                'span': self.span,
+                'aspect_ratio': self.aspect_ratio,
+                'taper_ratio': self.taper_ratio,
+                'mac': self.mac,
+                'mac_location': self.mac_location,
+            }
+
         # Total span (double the semispan)
         if self.sspn is not None:
             self.span = 2.0 * self.sspn
@@ -165,8 +235,16 @@ class WingGeometry:
         # Get sweep at reference station
         sweep_ref = self.savsi if self.savsi != 0.0 else self.savso
         
-        # For simple wing, use reference sweep
-        # Full implementation would convert between different sweep reference lines
+        if (self.prefix == 'wing' and self.ptype == 1.0 and
+                self.chrdr is not None and self.chrdtp is not None and
+                self.sspn is not None):
+            geometry = calculate_straight_exposed_geometry(self.state)
+            tangent = (geometry['tan_le'] + x_c *
+                       (geometry['tip_chord'] - geometry['root_chord']) /
+                       geometry['semispan'])
+            return float(np.rad2deg(np.arctan(tangent)))
+
+        # Multi-panel sweep conversion is translated with its panel geometry.
         return sweep_ref
     
     def calculate_panel_areas(self) -> Dict[str, float]:

@@ -14,7 +14,43 @@ import numpy as np
 from typing import Dict
 import logging
 
+from pydatcom.utils.legacy_numeric import tbfunx
+from pydatcom.geometry.wing import calculate_straight_exposed_geometry
+
 logger = logging.getLogger(__name__)
+
+_CMALPH_MACH = np.array([0.0, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50,
+                         0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90])
+_CMALPH_CALM = np.array([1.000, 1.000, 1.005, 1.017, 1.031, 1.050,
+                         1.072, 1.101, 1.132, 1.162, 1.197, 1.237,
+                         1.287, 1.355, 1.445])
+
+
+def calculate_cmalph_zero_lift_moment(state: Dict, mach: float) -> float:
+    """Translate CMALPH's constant-section, untwisted CMO calculation."""
+    geometry = calculate_straight_exposed_geometry(state)
+    area = geometry['area']
+    mac = geometry['mac']
+    sref = float(state.get('options_sref', area) or area)
+    cbar = float(state.get('options_cbarr', mac) or mac)
+    ar = geometry['aspect_ratio']
+    cmo_root = float(state.get('wing_cmo', 0.0) or 0.0)
+    cmo_tip = float(state.get('wing_cmot', 0.0) or 0.0)
+    # CMALPH labels 269-281 use the mean only when both section values are
+    # nonzero; otherwise the surface is treated as constant-section.
+    cmo = (0.5 * (cmo_root + cmo_tip)
+           if abs(cmo_root) >= 1.0e-10 and abs(cmo_tip) >= 1.0e-10
+           else cmo_root)
+    if min(area, mac, sref, cbar, ar) <= 0.0:
+        raise ValueError("CMALPH CMO requires complete positive straight-wing geometry")
+    if abs(float(state.get('wing_twista', 0.0) or 0.0)) >= 1.0e-20:
+        raise ValueError("twisted-wing CMALPH CMO correction is not translated")
+
+    tan_c4 = geometry['tan_c4']
+    cos_c4 = 1.0 / np.sqrt(1.0 + tan_c4**2)
+    calm, _ = tbfunx(_CMALPH_MACH, _CMALPH_CALM, mach, lower=0, upper=0)
+    calm *= area * mac / (sref * cbar)
+    return ar * cos_c4**2 / (ar + 2.0 * cos_c4) * cmo * calm
 
 
 def resolve_wing_xac(state: Dict, fraction: float = 0.25) -> float:
@@ -26,17 +62,21 @@ def resolve_wing_xac(state: Dict, fraction: float = 0.25) -> float:
     # CMALPH's C(6) is XAC/root chord from the root leading edge.
     root_fraction = state.get('wing_xac_root_fraction')
     if root_fraction is not None:
-        root_chord = float(state.get('wing_chrdr', 0.0) or 0.0)
-        if root_chord <= 0.0:
-            raise ValueError("wing_chrdr is required with wing_xac_root_fraction")
-        return xw + float(root_fraction) * root_chord
+        geometry = calculate_straight_exposed_geometry(state)
+        return (geometry['exposed_root_x'] +
+                float(root_fraction) * geometry['root_chord'])
     if 'wing_xac' in state:
         # Preserve the original Python API's documented CBARR fraction.
         cbar = float(state.get('options_cbarr', 0.0) or 0.0)
         return xw + float(state['wing_xac']) * cbar
-    wing_mac = float(state.get('wing_mac', state.get('options_cbarr', 1.0)) or 1.0)
-    mac_le = float(state.get('wing_mac_location', 0.0) or 0.0)
-    return xw + mac_le + fraction * wing_mac
+    try:
+        geometry = calculate_straight_exposed_geometry(state)
+        return (geometry['exposed_root_x'] + geometry['mac_le_location'] +
+                fraction * geometry['mac'])
+    except ValueError:
+        wing_mac = float(state.get('wing_mac', state.get('options_cbarr', 1.0)) or 1.0)
+        mac_le = float(state.get('wing_mac_location', 0.0) or 0.0)
+        return xw + mac_le + fraction * wing_mac
 
 
 def calculate_wing_moment_coefficient(cl: float, xac: float, xcg: float,
@@ -182,6 +222,7 @@ def calculate_total_pitching_moment(state: Dict, cl_wing: float,
     # retained as a reference-chord fraction for compatibility.
     xac_abs = resolve_wing_xac(state)
 
+    cm_method = 'supplied_aircraft_cm_ac'
     cm_ac = state.get('wing_cm_ac')
     if cm_ac is None:
         # WGPLNF CMO is an airfoil/wing-reference coefficient.  Put it on
@@ -190,8 +231,16 @@ def calculate_total_pitching_moment(state: Dict, cl_wing: float,
         wing_area = state.get('wing_area', state.get('options_sref', 1.0)) or 0.0
         wing_mac = state.get('wing_mac', cbar) or cbar
         sref = state.get('options_sref', wing_area) or wing_area
-        cm_ac = (wing_cmo * wing_area * wing_mac / (sref * cbar)
-                 if sref > 0.0 else 0.0)
+        complete_cmalph = all(state.get(key) is not None for key in (
+            'wing_chrdr', 'wing_chrdtp', 'wing_sspn')) and float(
+                state.get('wing_type', 1.0) or 1.0) == 1.0
+        if complete_cmalph and abs(float(state.get('wing_twista', 0.0) or 0.0)) < 1.0e-20:
+            cm_ac = calculate_cmalph_zero_lift_moment(state, mach)
+            cm_method = 'legacy_cmalph_constant_section'
+        else:
+            cm_ac = (wing_cmo * wing_area * wing_mac / (sref * cbar)
+                     if sref > 0.0 else 0.0)
+            cm_method = 'reference_scaled_fallback'
     
     cm_wing = calculate_wing_moment_coefficient(
         cl_wing, xac_abs, xcg, cbar, cbar, cm_ac
@@ -218,6 +267,7 @@ def calculate_total_pitching_moment(state: Dict, cl_wing: float,
         'xcg': xcg,
         'xac': xac_abs,
         'tail_supported': cl_tail is not None,
+        'wing_cm_method': cm_method,
     }
 
 
