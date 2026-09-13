@@ -14,6 +14,7 @@ from typing import Dict
 import logging
 
 from pydatcom.utils.table_lookup import fig60b, fig68
+from pydatcom.aerodynamics.lift import resolve_wing_lift_inputs, wing_reference_ratio
 
 logger = logging.getLogger(__name__)
 
@@ -89,10 +90,12 @@ def calculate_supersonic_wave_drag(mach: float, thickness_ratio: float,
     k_volume = 3.5  # Shape factor (depends on airfoil profile)
     cd_wave_volume = k_volume * thickness_ratio**2 / beta
     
-    # Lift-dependent wave drag
-    # CD_lift = CL² / (π * AR * β)
+    # Lift-dependent wave drag.  The beta/4 term is the linearized
+    # two-dimensional limit; the finite-span term tends to zero as AR grows.
     if aspect_ratio > 0:
-        cd_wave_lift = lift_coef**2 / (np.pi * aspect_ratio * beta)
+        cd_wave_lift = lift_coef**2 * (
+            beta / 4.0 + 1.0 / (np.pi * aspect_ratio)
+        )
     else:
         cd_wave_lift = 0.0
     
@@ -129,17 +132,23 @@ def calculate_supersonic_coefficients(state: Dict, alpha_deg: float,
     # Calculate lift curve slope
     cla = calculate_supersonic_lift_slope(mach, aspect_ratio, sweep_deg)
     
-    # Zero-lift angle
-    alpha_zero = state.get('wing_alphai', 0.0) or 0.0
+    # SETUP1 adds root incidence to the flight alpha schedule.  ALPHAI is
+    # instead the section angle corresponding to the design lift CLI.
+    section = resolve_wing_lift_inputs(state, mach)
+    alpha_zero = section['alpha_zero']
     
     # Calculate lift
     alpha_eff_rad = np.deg2rad(alpha_deg - alpha_zero)
-    cl = cla * alpha_eff_rad
+    cl_wing = cla * alpha_eff_rad
+    reference_ratio = wing_reference_ratio(state)
+    cl = cl_wing * reference_ratio
     
     # Calculate wave drag
     wave_drag = calculate_supersonic_wave_drag(
-        mach, thickness_ratio, aspect_ratio, cl
+        mach, thickness_ratio, aspect_ratio, cl_wing
     )
+    for key in ('cd_wave_volume', 'cd_wave_lift', 'cd_wave_total'):
+        wave_drag[key] *= reference_ratio
     
     # Skin friction (still present in supersonic)
     from pydatcom.aerodynamics.drag import calculate_skin_friction_drag
@@ -149,21 +158,30 @@ def calculate_supersonic_coefficients(state: Dict, alpha_deg: float,
     cd = cd_friction + wave_drag['cd_wave_total']
     
     # Moment (simplified for supersonic)
-    xcg = state.get('synths_xcg', 0.0)
-    xac = 0.5  # AC moves aft in supersonic (typically 0.5c)
-    cbar = state.get('options_cbarr', 1.0)
+    xcg = float(state.get('synths_xcg', 0.0) or 0.0)
+    cbar = float(state.get('options_cbarr', 1.0) or 1.0)
+    wing_chord = float(state.get('wing_mac', cbar) or cbar)
+    mac_le = (float(state.get('synths_xw', 0.0) or 0.0) +
+              float(state.get('wing_mac_location', 0.0) or 0.0))
+    xac = float(state.get('wing_xac_abs', mac_le + 0.5 * wing_chord))
     
     if cbar > 0:
-        cm = -cl * (xac - xcg) / cbar
+        cm = cl * (xcg - xac) / cbar
     else:
         cm = 0.0
     
     return {
         'cl': cl,
+        'cl_wing': cl_wing,
         'cd': cd,
         'cm': cm,
-        'cla': np.rad2deg(cla),  # Per degree
+        'cla': cla * reference_ratio * np.deg2rad(1.0),
+        'cla_wing': cla * np.deg2rad(1.0),
+        'wing_reference_ratio': reference_ratio,
+        'xac': xac,
         'alpha_zero': alpha_zero,
+        'section_alpha_zero': section['section_alpha_zero'],
+        'incidence': section['incidence'],
         'cd_friction': cd_friction,
         'cd_wave': wave_drag['cd_wave_total'],
         'cd_wave_volume': wave_drag['cd_wave_volume'],

@@ -199,7 +199,17 @@ def calculate_total_drag(state: Dict, cl: float, mach: float,
     
     # Component drag buildup
     cd_friction = calculate_skin_friction_drag(state, mach, reynolds)
-    cd_induced = calculate_induced_drag(cl, aspect_ratio, oswald_e)
+    wing_area = float(state.get('wing_area', 0.0) or 0.0)
+    sref = float(state.get('options_sref', wing_area) or wing_area)
+    if wing_area == 0.0:
+        wing_area = sref
+    if sref <= 0.0 or wing_area <= 0.0:
+        raise ValueError("positive wing_area and options_sref are required")
+    # ``cl`` is on SREF. Recover the wing-area coefficient for the induced
+    # drag model, then put its result back on SREF.
+    cl_wing = cl * sref / wing_area
+    cd_induced = (calculate_induced_drag(cl_wing, aspect_ratio, oswald_e) *
+                  wing_area / sref)
     
     # Wave drag
     if mach < 0.9:

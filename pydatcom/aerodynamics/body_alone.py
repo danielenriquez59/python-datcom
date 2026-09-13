@@ -12,6 +12,7 @@ from typing import Dict
 import logging
 
 from pydatcom.utils.table_lookup import fig26
+from pydatcom.utils.legacy_numeric import tbfunx
 
 logger = logging.getLogger(__name__)
 
@@ -71,12 +72,12 @@ def calculate_body_alone_subsonic(state: Dict, alpha_deg: float,
     # Calculate body volume and centroid using integration
     try:
         volume = np.trapezoid(s, x)
-        rx = r * x
         r_integral = np.trapezoid(r, x)
+        rx_integral = np.trapezoid(r * x, x)
     except AttributeError:
         volume = np.trapz(s, x)
-        rx = r * x
         r_integral = np.trapz(r, x)
+        rx_integral = np.trapz(r * x, x)
     
     # Normal force coefficient slope (per radian)
     # From DATCOM Figure 4.2.1.1-20 and slender body theory
@@ -178,29 +179,29 @@ def calculate_body_alone_subsonic(state: Dict, alpha_deg: float,
     # So: CN = CL*cos(α) + CD*sin(α), thus CL = (CN - CD*sin(α))/cos(α)
     # But simpler: CL = CN*cos(α) - CA*sin(α) where CA is axial force
     
-    # Axial force (line 2560)
-    ca = cd * np.cos(alpha_rad) - cn_total * sina
-    
-    # Lift (corrected, line 2559)
-    cl = cn_total * np.cos(alpha_rad) - ca * sina
+    # BODYRT stores CN first, adds its lift-dependent drag, and then applies
+    # the exact orthogonal CN/CD -> CL/CA transform at labels 1100.
+    cl = (cn_total - cd * sina) / np.cos(alpha_rad)
+    ca = cd * np.cos(alpha_rad) - cl * sina
     
     # Pitching moment (lines 2484-2488, 2552-2553)
     # Calculate centroid moment arm effect
+    dsdx = np.array([tbfunx(x, s, station)[1] for station in x])
     try:
-        tst = np.gradient(s, x) * x  # dS/dx * x
-        moment_integral = np.trapezoid(tst, x)
+        moment_integral = np.trapezoid(dsdx * x, x)
     except AttributeError:
-        # Simplified without gradient
-        moment_integral = volume * xcg / length if length > 0 else 0
+        moment_integral = np.trapz(dsdx * x, x)
     
     # CMA (moment curve slope) - line 2488
-    const = 2.0 * k_fineness / (np.deg2rad(1.0) * sref * cbar) if cbar > 0 else 0.0
-    cma_per_rad = (xcg / cbar) * cna_per_rad / cbar - const * moment_integral if cbar > 0 else 0.0
+    const = 2.0 * k_fineness / (sref * cbar) if cbar > 0 else 0.0
+    cma_per_rad = ((xcg / cbar) * cna_per_rad - const * moment_integral
+                   if cbar > 0 else 0.0)
     
     # Pitching moment at this alpha (line 2552-2553)
-    cm = cma_per_rad * alpha_rad - 2.0 * sina2 * k_mach * k_fineness * (moment_integral - xcg * r_integral) / (cbar * sref)
-    if alpha_deg < 0:
-        cm *= -1.0
+    sign = -1.0 if alpha_deg < 0.0 else 1.0
+    cm = (cma_per_rad * alpha_rad -
+          2.0 * sina2 * k_mach * k_fineness *
+          (rx_integral - xcg * r_integral) / (cbar * sref) * sign)
     
     # CLA per degree (line 2462 converted to per degree)
     cla_per_deg = cna_per_rad * np.deg2rad(1.0)
@@ -367,15 +368,6 @@ def calculate_body_alone_hypersonic(state: Dict, alpha_deg: float, mach: float) 
     
     result = calculate_hypersonic_coefficients(state, alpha_deg, mach)
     result['regime'] = 'body_alone_hypersonic'
-    
-    # Scale by body area ratio
-    max_area = state.get('body_max_area', 0.0) or np.max(state.get('body_s', [1.0]))
-    sref = state.get('options_sref', 1.0) or 1.0
-    area_ratio = max_area / sref if sref > 0 else 1.0
-    
-    # Bodies have lower coefficients than wings in hypersonic
-    result['cl'] *= area_ratio * 0.5
-    result['cn'] *= area_ratio * 0.5
     
     return result
 
