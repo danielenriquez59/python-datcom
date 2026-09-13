@@ -10,21 +10,22 @@ Note: Uses numpy constants directly. Import as:
     # Use np.pi, np.deg2rad(), np.rad2deg() directly
 """
 
-import numpy as np
-from typing import Dict
+from typing import Dict, Union
 
 # DEPRECATED: Use np.pi directly
 # Kept for backward compatibility with state dict
-PI = np.pi
-DEG = np.rad2deg(1.0)  # Radians to degrees conversion (use np.rad2deg() instead)
-RAD = np.deg2rad(1.0)  # Degrees to radians conversion (use np.deg2rad() instead)
+PI = 3.141592654
+DEG = 0.01745329  # Multiply degrees by DEG to obtain radians.
+RAD = 57.2957795  # Multiply radians by RAD to obtain degrees.
 
 # DATCOM-specific constants
-UNUSED = -999.0   # Sentinel value for unused parameters
-KAND = 0          # Additional constant from COMMON block
+# Source: BLOCKD, DATA CONST. Keep its precision and sentinel convention
+# for translated routines; use np.deg2rad/rad2deg for generic math.
+UNUSED = 1.e-30
+KAND = '$'  # Portable representation of the source Hollerith 4H$ delimiter.
 
 
-def get_constants_dict() -> Dict[str, float]:
+def get_constants_dict() -> Dict[str, Union[float, str]]:
     """
     Return constants as a dictionary with state manager naming convention.
     
@@ -32,9 +33,9 @@ def get_constants_dict() -> Dict[str, float]:
         Dictionary with constants_* prefixed keys
     """
     return {
-        'constants_pi': np.pi,
-        'constants_deg': np.rad2deg(1.0),
-        'constants_rad': np.deg2rad(1.0),
+        'constants_pi': PI,
+        'constants_deg': DEG,
+        'constants_rad': RAD,
         'constants_unused': UNUSED,
         'constants_kand': KAND,
     }

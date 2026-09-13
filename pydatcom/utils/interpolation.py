@@ -32,7 +32,7 @@ def asmint(x_data: np.ndarray, y_data: np.ndarray, x_vals: np.ndarray) -> np.nda
     Algorithm:
     - End intervals: 2nd order polynomial (parabola)
     - Interior intervals: 3rd order polynomial (cubic)
-    - Slopes at each point: average of left and right linear slopes
+    - Interior slopes: tangent of the average of the two secant angles
     - Continuous derivatives everywhere
     
     Args:
@@ -43,6 +43,13 @@ def asmint(x_data: np.ndarray, y_data: np.ndarray, x_vals: np.ndarray) -> np.nda
     Returns:
         Interpolated Y values at x_vals
     """
+    x_data = np.asarray(x_data, dtype=float)
+    y_data = np.asarray(y_data, dtype=float)
+    x_vals = np.asarray(x_vals, dtype=float)
+    if x_data.ndim != 1 or y_data.shape != x_data.shape:
+        raise ValueError("ASMINT requires matching one-dimensional X and Y arrays")
+    if len(x_data) < 2 or not np.all(np.isfinite(x_data)) or not np.all(np.diff(x_data) > 0):
+        raise ValueError("ASMINT requires at least two finite, strictly increasing X values")
     npt = len(x_data)
     if npt < 3:
         # Fall back to linear interpolation for < 3 points
@@ -51,11 +58,18 @@ def asmint(x_data: np.ndarray, y_data: np.ndarray, x_vals: np.ndarray) -> np.nda
     y_vals = np.zeros_like(x_vals, dtype=float)
     
     for i, xval in enumerate(x_vals):
+        # FORTRAN branches directly to 1080 at a data point. Do not
+        # overwrite a knot value by falling through to another interval.
+        knot = np.searchsorted(x_data, xval)
+        if knot < npt and xval == x_data[knot]:
+            y_vals[i] = y_data[knot]
+            continue
         # Determine location
         if xval < x_data[1]:
             # Left end parabola (extrapolation or first interval)
-            j = 0
-            k = 1
+            # Labels 1020/1040 use the slope at X(2), not X(1).
+            j = 1
+            k = 2
             locate = 1
         elif xval > x_data[-2]:
             # Right end parabola (extrapolation or last interval)
@@ -66,9 +80,6 @@ def asmint(x_data: np.ndarray, y_data: np.ndarray, x_vals: np.ndarray) -> np.nda
             # Interior cubic
             # Find interval
             for idx in range(1, npt - 2):
-                if xval == x_data[idx]:
-                    y_vals[i] = y_data[idx]
-                    continue
                 if xval < x_data[idx + 1]:
                     j = idx
                     k = idx + 1
@@ -112,53 +123,32 @@ def asmint(x_data: np.ndarray, y_data: np.ndarray, x_vals: np.ndarray) -> np.nda
         # Calculate polynomial coefficients
         if locate == 2:
             # Interior: cubic polynomial
-            x1s = x_data[j]**2
-            x2s = x_data[k]**2
-            x12f = x_data[j] - x_data[k]
-            y12f = y_data[j] - y_data[k]
-            x12s = x1s - x2s
-            x12c = x1s * x_data[j] - x2s * x_data[k]
-            y12p = yp[0] - yp[1]
-            
-            tw = 2.0
-            th = 3.0
-            red = tw * x_data[k] * x12f - x12s
-            grn = th * x2s * x12f - x12c
-            yel = yp[1] * x12f - y12f
-            e = th * x12s * red - tw * x12f * grn
-            
-            if abs(e) > 1e-10:
-                a = (y12p * red - tw * x12f * yel) / e
-                b = (th * x12s * yel - y12p * grn) / e
-            else:
-                a = 0.0
-                b = 0.0
-            
-            c = (y12f - a * x12c - b * x12s) / x12f if abs(x12f) > 1e-10 else 0.0
-            d = y_data[k] - a * x2s * x_data[k] - b * x2s - c * x_data[k]
+            # Hermite form is algebraically identical to labels 1050-1060,
+            # but avoids cancellation in powers of absolute X coordinates.
+            # In particular, do not zero the cubic for small airfoil intervals.
+            width = x_data[k] - x_data[j]
+            t = (xval - x_data[j]) / width
+            y_vals[i] = (
+                (2*t**3 - 3*t**2 + 1) * y_data[j]
+                + (t**3 - 2*t**2 + t) * width * yp[0]
+                + (-2*t**3 + 3*t**2) * y_data[k]
+                + (t**3 - t**2) * width * yp[1]
+            )
+            continue
         else:
             # End parabola
             j_idx = 0 if locate == 1 else npt - 2
-            k_idx = 1 if locate == 1 else npt - 1
-            l_idx = 1 if locate == 1 else npt - 2
-            
-            if x_data[k_idx] != x_data[j_idx]:
-                z = (y_data[j_idx] - y_data[k_idx]) / (x_data[j_idx] - x_data[k_idx])
-            else:
-                z = 0.0
-            
-            a = 0.0
-            denom = 2.0 * x_data[l_idx] - x_data[j_idx] - x_data[k_idx]
-            if abs(denom) > 1e-10:
-                b = (yp[0] - z) / denom
-            else:
-                b = 0.0
-            c = yp[0] - 2.0 * b * x_data[l_idx]
-            d = y_data[j_idx] - ((b * x_data[j_idx] + c) * x_data[j_idx])
-        
-        # Evaluate polynomial
-        y_vals[i] = (((a * xval + b) * xval) + c) * xval + d
-    
+            k_idx = j_idx + 1
+            width = x_data[k_idx] - x_data[j_idx]
+            secant = (y_data[k_idx] - y_data[j_idx]) / width
+            # Labels 1070 constrain the derivative at the inner endpoint.
+            curvature = (yp[0] - secant) / width
+            if locate == 3:
+                curvature = -curvature
+            offset = xval - x_data[j_idx]
+            y_vals[i] = (y_data[j_idx] + secant * offset
+                         + curvature * offset * (offset - width))
+
     return y_vals
 
 

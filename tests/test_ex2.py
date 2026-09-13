@@ -382,7 +382,10 @@ def test_ex2_complete_analysis():
     best_ld = 0
     best_alpha = 0
     
-    for alpha in alpha_vals[:5]:  # Test first 5 alphas
+    # Exercise the complete requested schedule. Its first five values end
+    # at only +2 degrees and cannot establish the case's best lift/drag.
+    assert len(alpha_vals) == int(case1_state['flight_nalpha'])
+    for alpha in alpha_vals:
         result = calc.calculate_at_condition(alpha, mach)
         ld = result['cl'] / result['cd'] if result['cd'] > 0.001 else 0.0
         

@@ -73,12 +73,12 @@ class Atmosphere:
         Returns:
             Dictionary with atmospheric properties:
             - cs: Speed of sound, ft/sec
-            - dcs_dz: Sound derivative, 1/ft  
+            - dcs_dz: Relative sound derivative (1/cs)(dcs/dz), 1/ft
             - altitude: Geometric altitude, ft
             - pressure: Pressure, lb/ft²
             - dp_dz: Pressure derivative, lb/ft³
             - density: Density, slugs/ft³
-            - drho_dz: Density derivative, 1/ft
+            - drho_dz: Relative density derivative (1/rho)(drho/dz), 1/ft
             - temperature: Temperature, deg Rankine
             - dt_dz: Temperature derivative, deg R/ft
         """
@@ -92,10 +92,11 @@ class Atmosphere:
             h = cls.R0 * z / (cls.R0 + z)
             
             # Find temperature region
-            j = 0
             for i in range(1, len(cls.HG)):
+                # ATMOS assigns J before testing, retaining the last interval
+                # when rounded altitude breakpoints leave H above HG[-1].
+                j = i - 1
                 if cls.HG[i] >= h:
-                    j = i - 1
                     break
             
             # Calculate temperature slope and value
@@ -119,12 +120,11 @@ class Atmosphere:
         
         else:
             # Temperature linear with Z (high altitude)
-            j = 8
-            k = 0
             for i in range(1, len(cls.ZM)):
+                # Preserve the FORTRAN last-interval extrapolation on exhaustion.
+                j = i + 8
+                k = i - 1
                 if cls.ZM[i] >= z:
-                    j = i + 8
-                    k = i - 1
                     break
             
             # Calculate temperature slope and value

@@ -111,45 +111,53 @@ def area1(x: np.ndarray, y: np.ndarray, nsum: int) -> float:
 
 def area2(x: np.ndarray, y: np.ndarray, inum: int) -> Tuple[float, float, float]:
     """
-    Calculate area using trapezoidal rule and centroid.
-    
-    Reference: FORTRAN AREA2, datcom.f line 471
-    
+    Calculate body-shadow area and first moments as in FORTRAN AREA2.
+
+    Reference: datcom-legacy/datcom_2000/area2.f and its BDAREA callers.
+    Triangle (1, 2, 3) is always included; INUM=2 adds (1, 3, 4).
+    Areas are unsigned, including for the lower body profile. This is a
+    sum of triangle areas, not a signed polygon-area calculation.
+
+    BDAREA's quadrilaterals have Y(1)=Y(4)=0. AREA2's second-triangle
+    centroid formula assumes this geometry, which is required here too.
+    Determinants replace Heron's formula and vertex averages replace
+    intersecting medians, avoiding singular slopes for vertical medians
+    and giving zero moments for collapsed triangles.
+
     Args:
-        x: Array of x-coordinates
-        y: Array of y-coordinates  
-        inum: Number of points
-        
+        x: One-dimensional x-coordinates, at least 3 or 4 entries.
+        y: Matching y-coordinates.
+        inum: Legacy selector: 3 for a triangle, 2 for a quadrilateral.
+
     Returns:
-        Tuple of (area, x_centroid, y_centroid)
+        (area, AX, AY), where AX=integral(x dA) and AY=integral(y dA).
+        These are first moments, not centroid coordinates. Divide each
+        moment by nonzero area to obtain the centroid.
+
+    Raises:
+        ValueError: For an unsupported selector or body-shadow geometry.
     """
-    area = 0.0
-    ax = 0.0
-    ay = 0.0
-    
-    for i in range(inum - 1):
-        # Trapezoidal area increment
-        da = (y[i] + y[i + 1]) * (x[i + 1] - x[i]) / 2.0
+    if inum not in (2, 3):
+        raise ValueError("AREA2 inum must be 3 (triangle) or 2 (quadrilateral)")
+    count = 3 if inum == 3 else 4
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    if x.ndim != 1 or y.ndim != 1 or len(x) < count or len(y) < count:
+        raise ValueError(f"AREA2 requires at least {count} x and y coordinates")
+    if not np.all(np.isfinite(x[:count])) or not np.all(np.isfinite(y[:count])):
+        raise ValueError("AREA2 coordinates must be finite")
+    if inum == 2 and (y[0] != 0.0 or y[3] != 0.0):
+        raise ValueError("AREA2 quadrilateral requires y[0] = y[3] = 0")
+
+    area = ax = ay = 0.0
+    triangles = ((0, 1, 2),) if inum == 3 else ((0, 1, 2), (0, 2, 3))
+    for i, j, k in triangles:
+        da = abs((x[j] - x[i]) * (y[k] - y[i])
+                 - (x[k] - x[i]) * (y[j] - y[i])) / 2.0
         area += da
-        
-        # Centroid contributions
-        dx = x[i + 1] - x[i]
-        dy = y[i + 1] - y[i]
-        
-        # X centroid contribution
-        dax = (x[i] + dx / 3.0) * (y[i] * dx + dy * dx / 2.0)
-        ax += dax
-        
-        # Y centroid contribution  
-        day = (y[i] / 2.0 + dy / 3.0) * (y[i] * dx + dy * dx / 2.0)
-        ay += day
-    
-    # Finalize centroids
-    if abs(area) > 1e-10:
-        ax = ax / area
-        ay = ay / area
-    
-    return area, ax, ay
+        ax += da * (x[i] + x[j] + x[k]) / 3.0
+        ay += da * (y[i] + y[j] + y[k]) / 3.0
+    return float(area), float(ax), float(ay)
 
 
 def det4(a: np.ndarray) -> float:

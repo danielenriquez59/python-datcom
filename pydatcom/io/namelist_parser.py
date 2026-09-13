@@ -21,7 +21,7 @@ class NamelistParser:
     
     Handles:
     - $NAMELIST ... $ syntax
-    - Array notation: PARAM(1)=val1, val2, val3
+    - Array notation: PARAM=val1, val2 or PARAM(1)=val1, val2
     - Multi-case input with CASEID, SAVE, NEXT CASE
     - Comments and formatting
     """
@@ -120,7 +120,11 @@ class NamelistParser:
                         if namelist_name in self.current_case['namelists']:
                             existing = self.current_case['namelists'][namelist_name]
                             for key, value in params.items():
-                                if key in existing and isinstance(existing[key], list) and isinstance(value, list):
+                                if key in existing and (isinstance(existing[key], list) or isinstance(value, list)):
+                                    if not isinstance(existing[key], list):
+                                        existing[key] = [existing[key]]
+                                    if not isinstance(value, list):
+                                        value = [value]
                                     # Merge arrays by extending
                                     max_len = max(len(existing[key]), len(value))
                                     # Ensure lists are same length
@@ -225,7 +229,10 @@ class NamelistParser:
         # Split into individual assignments
         assignments = self._split_assignments(param_str)
         
-        # Track last array for continuation values
+        # Unindexed lists start at element 1, just as indexed lists do.
+        # Keep a lone unindexed value scalar until a continuation establishes
+        # that it is an array. INPUT's MACH/ALSCHD/ALT are examples of arrays
+        # whose legacy input decks commonly omit the explicit (1).
         last_array_name = None
         last_array_idx = None
         
@@ -252,6 +259,8 @@ class NamelistParser:
                     # Initialize array if needed
                     if array_name not in params:
                         params[array_name] = []
+                    elif not isinstance(params[array_name], list):
+                        params[array_name] = [params[array_name]]
                     
                     # Ensure array is large enough
                     if isinstance(value, list):
@@ -271,12 +280,21 @@ class NamelistParser:
                     
                     last_array_name = array_name
                 else:
-                    params[param_name] = value
-                    last_array_name = None
-                    last_array_idx = None
+                    if isinstance(params.get(param_name), list):
+                        values = value if isinstance(value, list) else [value]
+                        for idx, v in enumerate(values):
+                            while len(params[param_name]) <= idx:
+                                params[param_name].append(None)
+                            params[param_name][idx] = v
+                    else:
+                        params[param_name] = value
+                    last_array_name = param_name
+                    last_array_idx = len(value) if isinstance(value, list) else 1
             else:
                 # Continuation values for last array
                 if last_array_name and last_array_idx is not None:
+                    if not isinstance(params[last_array_name], list):
+                        params[last_array_name] = [params[last_array_name]]
                     cont_values = self._parse_value('', assignment)
                     if isinstance(cont_values, list):
                         for v in cont_values:

@@ -1,0 +1,137 @@
+"""Numerical contracts of DATCOM GLOOK, SWITCH, TLIN1X, and TLINEX.
+
+Unlike generic interpolation, legacy table lookup snaps to grid points with
+relative error below 0.001. Extrapolation controls refer to the first (lower)
+and last (upper) *table ends*, including for descending grids. Modes <= 0
+clamp, 1 extrapolates linearly, and > 1 extrapolates quadratically when three
+points exist. Mode 0 also requests a legacy diagnostic, as do positive modes.
+
+Python adaptations: indices are zero based; unused interpolation fractions
+are None; invalid grids/shapes raise ValueError instead of out-of-bounds
+Fortran access. Message printing and Hollerith ROUT/MESS bookkeeping are not
+translated. SWITCH exposes the flags so callers can supply diagnostics.
+"""
+
+from typing import NamedTuple, Optional
+
+import numpy as np
+
+from .legacy_numeric import quad
+
+
+class Lookup(NamedTuple):
+    index: int
+    fraction: Optional[float]
+
+
+class Switches(NamedTuple):
+    no_interpolation: bool
+    after_last: bool
+    before_first: bool
+    message_requested: bool
+    extrapolate: bool
+    ascending: bool
+    use_extrapolation: bool
+
+
+def _grid(x):
+    x = np.asarray(x, dtype=float)
+    if x.ndim != 1 or not len(x) or not np.all(np.isfinite(x)):
+        raise ValueError("A grid must be a nonempty finite one-dimensional array")
+    if len(x) > 1 and not (np.all(np.diff(x) > 0) or np.all(np.diff(x) < 0)):
+        raise ValueError("Grid coordinates must be strictly monotonic")
+    return x
+
+
+def glook(x, query: float, ascending: Optional[bool] = None) -> Lookup:
+    """Translate GLOOK with its caller-initialized NOING=False contract.
+
+    A None fraction means use Y[index] directly (snap or endpoint clamp).
+    Otherwise interpolate between index-1 and index with the given fraction.
+    """
+    x = _grid(x)
+    if not np.isfinite(query):
+        raise ValueError("The query must be finite")
+    if ascending is None:
+        ascending = x[0] <= x[-1]
+    previous = 0.0
+    for index, coordinate in enumerate(x):
+        difference = query - coordinate
+        denominator = coordinate if query == 0.0 else query
+        if abs(denominator) <= 0.0001:
+            denominator = 1.0
+        if abs(difference / denominator) < 1.e-3:
+            return Lookup(index, None)
+        if (ascending and difference < 0.0) or (not ascending and difference > 0.0):
+            if index == 0:
+                return Lookup(index, None)
+            return Lookup(index, float(previous / (previous - difference)))
+        previous = difference
+    return Lookup(len(x)-1, None)
+
+
+def switch(x, query: float, lower: int = 0, upper: int = 0) -> Switches:
+    """Translate SWITCH's seven LG flags, preserving table-end semantics."""
+    x = _grid(x)
+    if not np.isfinite(query):
+        raise ValueError("The query must be finite")
+    ascending = bool(x[0] <= x[-1])
+    after = bool(query > x[-1] if ascending else query < x[-1])
+    before = bool(query < x[0] if ascending else query > x[0])
+    mode = upper if after else lower
+    outside = after or before
+    message = outside and mode >= 0
+    extrapolate = outside and mode > 0
+    return Switches(False, after, before, message, extrapolate, ascending, extrapolate)
+
+
+def tlin1x(x, y, query: float, lower: int = 0, upper: int = 0) -> float:
+    """TLIN1X: snapped linear lookup with table-end extrapolation controls.
+
+    SWITCH chooses extrapolation before GLOOK, so a positive mode bypasses
+    snapping outside the grid, even arbitrarily close to an endpoint.
+    Singleton tables support direct lookup/clamping; extrapolation needs
+    at least two points (the legacy routine otherwise accesses outside X/Y).
+    """
+    x = _grid(x)
+    y = np.asarray(y, dtype=float)
+    if y.shape != x.shape or not np.all(np.isfinite(y)):
+        raise ValueError("Y must be a finite array with the same shape as X")
+    flags = switch(x, query, lower, upper)
+    if not flags.use_extrapolation:
+        index, fraction = glook(x, query, flags.ascending)
+        if fraction is None:
+            return float(y[index])
+        return float(y[index-1] + fraction*(y[index]-y[index-1]))
+
+    if len(x) < 2:
+        raise ValueError("Extrapolation requires at least two grid points")
+    mode = lower if flags.before_first else upper
+    if mode > 1 and len(x) > 2:
+        selected = slice(0, 3) if flags.before_first else slice(-3, None)
+        return quad(x[selected], y[selected], query)
+    if flags.before_first:
+        fraction = (query-x[0])/(x[1]-x[0])
+        return float(y[0] + fraction*(y[1]-y[0]))
+    fraction = (query-x[-1])/(x[-1]-x[-2])
+    return float(y[-1] + fraction*(y[-1]-y[-2]))
+
+
+def tlinex(x1, x2, y, query1: float, query2: float,
+           lower1: int = 0, lower2: int = 0,
+           upper1: int = 0, upper2: int = 0) -> float:
+    """TLINEX: interpolate X2 columns, then interpolate their values in X1.
+
+    Y must have shape ``(len(x2), len(x1))``, matching Fortran Y(NX2,NX1).
+    Each axis uses TLIN1X's snapping and independent extrapolation modes.
+    The legacy label sequence evaluates only needed X1 columns; this version
+    evaluates all columns before the same outer linear/quadratic operation.
+    The numerical result is equivalent for finite valid tables.
+    """
+    x1, x2 = _grid(x1), _grid(x2)
+    y = np.asarray(y, dtype=float)
+    if y.shape != (len(x2), len(x1)) or not np.all(np.isfinite(y)):
+        raise ValueError("Y must be finite with shape (len(x2), len(x1))")
+    columns = [tlin1x(x2, y[:, index], query2, lower2, upper2)
+               for index in range(len(x1))]
+    return tlin1x(x1, columns, query1, lower1, upper1)

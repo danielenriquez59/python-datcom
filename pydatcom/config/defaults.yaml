@@ -3,10 +3,11 @@
 
 # Physical constants
 constants:
-  pi: 3.14159265358979
-  deg: 57.29577951308232  # Radians to degrees
-  rad: 0.017453292519943  # Degrees to radians
-  unused: -999.0           # Sentinel for undefined values
+  pi: 3.141592654
+  deg: 0.01745329  # Degrees to radians (BLOCKD naming)
+  rad: 57.2957795  # Radians to degrees (BLOCKD naming)
+  unused: 1.0e-30  # Legacy sentinel for undefined values
+  kand: '$'
 
 # Flight condition defaults
 flight:
