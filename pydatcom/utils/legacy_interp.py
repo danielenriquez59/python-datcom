@@ -49,6 +49,16 @@ def interx(n_independent: int, table, var: Sequence[float],
     ``TABLE(1,1)`` as its ``X2``, with the query values and end modes
     swapped to match.  That swap is preserved here.
 
+    The three-variable table uses the same first-variable-fastest
+    ordering.  ``TLIN3X`` declares ``Y(NX1,NX2,NX3)`` but only ever
+    touches ``Y`` by handing slices to ``TLINEX``, which declares
+    ``Y(NX2,NX1)``, so that declaration is dead and the effective layout
+    cannot be settled by reading the source.  It was established by
+    compiling and running the legacy routine: with ``Y(i)=i`` over an
+    asymmetric 2x3x2 table the returned flat indices fit
+    ``j + (i-1)*NX2 + (k-1)*NX1*NX2``, so X2 varies fastest.  Composed
+    with INTERX's own swap this reduces to the ordering documented above.
+
     Args:
         n_independent: ``NIND``, the number of independent variables.
         table: Independent variable tables.  A flat array laid out as the
@@ -70,7 +80,6 @@ def interx(n_independent: int, table, var: Sequence[float],
 
     Raises:
         ValueError: For an unsupported ``NIND`` or an inconsistent table.
-        NotImplementedError: For ``NIND`` of 3, pending TLIN3X; see below.
     """
     if n_independent not in (1, 2, 3, 4):
         raise ValueError("INTERX supports 1 to 4 independent variables")
@@ -79,16 +88,6 @@ def interx(n_independent: int, table, var: Sequence[float],
         raise ValueError(
             "INTERX has no four-variable branch; the source deleted the "
             "TLIN4X call to save core")
-    if n_independent == 3:
-        # Reported before the table is validated: an unsupported branch is
-        # more useful to hear about than a shape complaint about its inputs.
-        raise NotImplementedError(
-            "INTERX's three-variable branch needs TLIN3X, which is not yet "
-            "translated. Its source declares Y(NX1,NX2,NX3) but hands slices "
-            "to TLINEX, which declares Y(NX2,NX1); those layouts disagree "
-            "unless NX1 == NX2, so the ordering must be settled against a "
-            "compiled run before the branch can be trusted.")
-
     grids = _columns(table, n_independent, length, lind)
     values = np.asarray(dep, dtype=float).ravel()
     query = [float(v) for v in var]
@@ -111,7 +110,18 @@ def interx(n_independent: int, table, var: Sequence[float],
                             query[1], query[0],
                             lx2l, lx1l, lx2u, lx1u))
 
-    raise AssertionError("unreachable: NIND is validated above")
+    n1, n2, n3 = (int(length[0]), int(length[1]), int(length[2]))
+    if values.size < n1 * n2 * n3:
+        raise ValueError(
+            f"DEP needs {n1 * n2 * n3} values for a {n1}x{n2}x{n3} table")
+    # DEP(NX1,NX2,NX3) in column-major order, first variable fastest.
+    cube = values[:n1 * n2 * n3].reshape((n1, n2, n3), order='F')
+    # Each X3 slice is handled exactly as the two-variable case, then the
+    # slice results are interpolated along X3.
+    slices = [tlinex(grids[1], grids[0], cube[:, :, k],
+                     query[1], query[0], lx2l, lx1l, lx2u, lx1u)
+              for k in range(n3)]
+    return float(tlin1x(grids[2], slices, query[2], lx3l, lx3u))
 
 
 def _columns(table, n_independent: int, length: Sequence[int],
@@ -125,7 +135,15 @@ def _columns(table, n_independent: int, length: Sequence[int],
     """
     if len(length) < n_independent:
         raise ValueError("LENGTH must cover every independent variable")
-    array = np.asarray(table, dtype=float)
+    try:
+        array = np.asarray(table, dtype=float)
+    except (ValueError, TypeError):
+        # A ragged sequence of per-variable grids, which numpy cannot make
+        # rectangular.  Each entry is taken as one variable's grid.
+        array = None
+    if array is None or array.dtype == object:
+        return [np.asarray(table[index], dtype=float)[:int(length[index])]
+                for index in range(n_independent)]
     flat = array.ndim == 1
 
     if flat and n_independent > 1 and lind is None:
