@@ -284,39 +284,12 @@ def test_body_geometry():
     print("  [PASS] Body geometry calculations successful")
 
 
-def test_wing_geometry():
-    """Test wing geometry calculations."""
-    print("\n" + "="*60)
-    print("Testing Wing Geometry")
-    print("="*60)
-    
-    # Create test state with simple wing
-    state = {
-        'wing_chrdr': 10.0,      # Root chord = 10 ft
-        'wing_chrdtp': 5.0,      # Tip chord = 5 ft
-        'wing_sspn': 25.0,       # Semispan = 25 ft
-        'wing_savsi': 30.0,      # Sweep = 30 deg
-        'wing_dhdadi': 5.0,      # Dihedral = 5 deg
-        'wing_type': 1.0,        # Straight tapered
-    }
-    
-    wing = WingGeometry(state, component='wing')
-    props = wing.calculate_planform_properties()
-    
-    print(f"\nWing Properties:")
-    print(f"  Area: {props['area']:.2f} ft²")
-    print(f"  Span: {props['span']:.2f} ft")
-    print(f"  Aspect ratio: {props['aspect_ratio']:.2f}")
-    print(f"  Taper ratio: {props['taper_ratio']:.2f}")
-    print(f"  MAC: {props['mac']:.2f} ft")
-    
-    # Expected area = semispan * (root + tip) = 25 * (10 + 5) = 375
-    assert 370 < props['area'] < 380
-    assert props['span'] == 50.0
-    assert props['taper_ratio'] == 0.5
-    assert 7.5 < props['mac'] < 8.0  # MAC for taper=0.5
-    
-    print("  [PASS] Wing geometry calculations successful")
+# Wing planform geometry is validated against executed FORTRAN in
+# tests/test_fortran_parity.py, which compares every WTGEOM quantity with the
+# WINGD COMMON block the compiled original produced.  The loose range checks
+# that used to live here (370 < area < 380, 7.5 < MAC < 8.0) tested the same
+# arithmetic with far less authority, so they were removed rather than
+# maintained alongside it.
 
 
 def test_tail_geometry():
@@ -409,7 +382,6 @@ if __name__ == '__main__':
     test_body_cross_section()
     
     # Wing/tail geometry tests
-    test_wing_geometry()
     test_tail_geometry()
     
     # Optionally create visualization

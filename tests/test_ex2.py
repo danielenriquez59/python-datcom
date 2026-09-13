@@ -58,56 +58,12 @@ def test_ex2_parsing():
     return cases
 
 
-def test_ex2_case1_geometry():
-    """Test Case 1: Straight tapered wing geometry."""
-    print("\n" + "="*70)
-    print("TEST: EX2 Case 1 - Straight Tapered Wing Geometry")
-    print("="*70)
-    
-    parser = NamelistParser()
-    fixture_path = Path(__file__).parent / 'fixtures' / 'ex2.inp'
-    cases = parser.parse_file(fixture_path)
-    
-    # Get Case 1
-    case1_state = parser.to_state_dict(cases[0])
-    
-    print(f"\n  Wing Planform Parameters:")
-    print(f"    Root chord: {case1_state.get('wing_chrdr')} ft")
-    print(f"    Tip chord: {case1_state.get('wing_chrdtp')} ft")
-    print(f"    Semispan: {case1_state.get('wing_sspn')} ft")
-    print(f"    Sweep angle: {case1_state.get('wing_savsi')}°")
-    print(f"    Type: {case1_state.get('wing_type')}")
-    
-    # Calculate wing geometry
-    wing_geom = WingGeometry(case1_state, component='wing')
-    props = wing_geom.calculate_planform_properties()
-    
-    print(f"\n  Calculated Properties:")
-    print(f"    Area: {props['area']:.2f} ft²")
-    print(f"    Span: {props['span']:.2f} ft")
-    print(f"    Aspect ratio: {props['aspect_ratio']:.2f}")
-    print(f"    Taper ratio: {props['taper_ratio']:.2f}")
-    print(f"    MAC: {props['mac']:.2f} ft")
-    
-    # Validation
-    assert props['area'] > 0, "Wing area should be positive"
-    assert props['span'] > 0, "Wing span should be positive"
-    assert 0 < props['taper_ratio'] <= 1.0, "Taper ratio should be between 0 and 1"
-    
-    # Check against SREF from OPTINS
-    sref_input = case1_state.get('options_sref')
-    if sref_input:
-        print(f"\n  Reference area check:")
-        print(f"    Calculated: {props['area']:.2f} ft²")
-        print(f"    From OPTINS: {sref_input:.2f} ft²")
-        # They should be similar (within 10%)
-        if abs(props['area'] - sref_input) / sref_input < 0.1:
-            print(f"    Match: GOOD (within 10%)")
-        else:
-            print(f"    Note: Using OPTINS SREF for calculations")
-    
-    print("\n  [PASS] Case 1 geometry calculated successfully")
-    return case1_state
+# Case 1 wing geometry is validated against executed FORTRAN in
+# tests/test_fortran_parity.py: Example Problem 2 carries a DUMP A card,
+# so the compiled original prints the WINGD COMMON block this deck
+# produces and every WTGEOM quantity is compared against it directly.
+# The assertions here were area > 0, span > 0 and 0 < taper <= 1 on the
+# same configuration, which that comparison supersedes entirely.
 
 
 def test_ex2_case1_aerodynamics():
@@ -563,7 +519,6 @@ if __name__ == '__main__':
     cases = test_ex2_parsing()
     
     if cases:
-        test_ex2_case1_geometry()
         test_ex2_case1_aerodynamics()
         test_ex2_fortran_validation()
         test_ex2_multi_mach()
