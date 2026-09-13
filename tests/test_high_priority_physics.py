@@ -293,3 +293,46 @@ def test_subsonic_to_transonic_boundary_is_continuous():
     boundary = calculate_transonic_coefficients(state, 5.0, 0.9, 1.0e7)
     for coefficient in ('cl', 'cd', 'cm'):
         assert below[coefficient] == pytest.approx(boundary[coefficient], rel=1e-6, abs=1e-9)
+
+
+def test_aspect_ratio_resolves_from_planform_not_default():
+    """A deck with only raw WGPLNF geometry must not fall back to AR=6.0.
+
+    Example Problem 2 supplies CHRDR/CHRDTP/SSPN/SSPNE for a low-aspect-ratio
+    swept wing.  Before the WTGEOM lookup was wired into the lift path, the
+    absent `wing_aspect_ratio` key silently selected the 6.0 default, which
+    roughly doubled CL for that deck.
+    """
+    from pydatcom.aerodynamics.lift import calculate_wing_lift_subsonic
+    from pydatcom.geometry.wing import calculate_straight_exposed_geometry
+
+    state = {
+        'wing_type': 1.0,
+        'wing_chrdr': 2.90, 'wing_chrdtp': 0.64,
+        'wing_sspn': 1.59, 'wing_sspne': 1.59,
+        'wing_savsi': 55.0, 'wing_chstat': 0.0,
+        'options_sref': 8.85, 'options_cbarr': 2.46,
+    }
+    from pydatcom.aerodynamics.lift import (
+        calculate_lift_curve_slope_compressible, _half_chord_sweep_deg,
+        resolve_wing_lift_inputs,
+    )
+
+    geometry = calculate_straight_exposed_geometry(state)
+    exposed_ar = geometry['aspect_ratio']
+    assert exposed_ar < 2.0, "fixture should be a low-aspect-ratio wing"
+
+    section = resolve_wing_lift_inputs(state, 0.6)
+    sweep = _half_chord_sweep_deg(state)
+    expected = calculate_lift_curve_slope_compressible(
+        exposed_ar, geometry['taper_ratio'], 0.6, sweep,
+        section['section_cla_per_deg'])
+    default = calculate_lift_curve_slope_compressible(
+        6.0, 0.5, 0.6, sweep, section['section_cla_per_deg'])
+
+    result = calculate_wing_lift_subsonic(state, 4.0, 0.6)
+    # Note: the lift path treats aspect_ratio == 6.0 as a "not supplied"
+    # sentinel, so a control case cannot be built by passing 6.0 explicitly.
+    assert result['cla'] == pytest.approx(expected, rel=1e-9)
+    assert expected < 0.6 * default, (
+        "the exposed-AR slope should be far below the AR=6 default")

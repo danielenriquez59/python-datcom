@@ -223,16 +223,30 @@ def calculate_wing_lift_subsonic(state: Dict, alpha_deg: float, mach: float) -> 
     taper_ratio = state.get('wing_taper_ratio', 0.5)
     sweep_deg = _half_chord_sweep_deg(state)
     
-    # If not computed yet, try to calculate from planform
+    # If not computed yet, derive it from the planform.  Prefer the
+    # translated WTGEOM exposed geometry over the span/area shortcut: a deck
+    # that supplies only CHRDR/CHRDTP/SSPN/SSPNE otherwise silently fell back
+    # to AR=6.0, which is far from the exposed AR of a typical DATCOM case.
     if aspect_ratio is None or aspect_ratio == 6.0:
-        # Try to calculate from span and area
-        span = state.get('wing_span')
-        area = state.get('wing_area') or state.get('options_sref')
-        if span and area:
-            aspect_ratio = span**2 / area
-        else:
+        resolved = None
+        if float(state.get('wing_type', 1.0) or 1.0) == 1.0:
+            try:
+                from pydatcom.geometry.wing import calculate_straight_exposed_geometry
+                geometry = calculate_straight_exposed_geometry(state)
+                resolved = geometry['aspect_ratio']
+                if taper_ratio is None or taper_ratio == 0.5:
+                    taper_ratio = geometry['taper_ratio']
+            except ValueError:
+                resolved = None
+        if resolved is None:
+            span = state.get('wing_span')
+            area = state.get('wing_area') or state.get('options_sref')
+            if span and area:
+                resolved = span**2 / area
+        if resolved is None:
             logger.warning("Wing aspect ratio not available, using default 6.0")
-            aspect_ratio = 6.0
+            resolved = 6.0
+        aspect_ratio = resolved
     
     # Calculate lift curve slope
     section = resolve_wing_lift_inputs(state, mach)
