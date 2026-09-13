@@ -278,7 +278,13 @@ def calculate_total_pitching_moment(state: Dict, cl_wing: float,
             )
             downwash_result = calculate_downwash(state, alpha_deg)
             tail_load = calculate_tail_load(state, alpha_deg, downwash_result)
+            from pydatcom.interactions.body_vortex import (
+                body_vortex_lift_increment,
+            )
             carryover = calculate_carryover_factors(state, component='htail')
+            vortex = body_vortex_lift_increment(
+                state, tail_load['alpt_deg'], tail_load['cla_tail_sref'],
+                component='htail')
             # CLWBT applies the Section 4.3.1.2 carryover to the tail load
             # before adding it to the wing-body result.  Passing zero for
             # CLBW isolates the tail increment this function needs.
@@ -288,6 +294,7 @@ def calculate_total_pitching_moment(state: Dict, cl_wing: float,
                 downwash_result['eps_deg'], downwash_result['qoqi'],
                 khb=carryover['kwb'], kbh=carryover['kbw'],
                 kkhb=carryover['kkwb'], kkbh=carryover['kkbw'],
+                vortex_increment=vortex['increment'],
             )
             cl_tail = buildup['cl_tail_increment']
             tail_method = 'legacy_clwbt_with_carryover'

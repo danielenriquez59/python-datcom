@@ -30,17 +30,19 @@ def calculate_clwbt(cl_wing_body: float, cl_tail_at_alpt: float,
                     khb: float = 1.0, kbh: float = 0.0,
                     kkhb: float = 1.0, kkbh: float = 0.0,
                     cla_wing_body: Optional[float] = None,
-                    deda: Optional[float] = None) -> Dict[str, float]:
+                    deda: Optional[float] = None,
+                    vortex_increment: float = 0.0) -> Dict[str, float]:
     """Translate CLWBT's wing-body-tail lift.
 
-    ``CLBWH = ((CLH-CLI)*(KHB+KBH) + CLI*(KKHB+KKBH))*QOQI + CLBW`` with
-    ``CLI = CLAH*ALIH``, and
+    ``CLBWH = ((CLH-CLI)*(KHB+KBH) + CLI*(KKHB+KKBH) + FACT)*QOQI + CLBW``
+    with ``CLI = CLAH*ALIH``, and
     ``CLABWH = CLABW + (KHB+KBH)*CLAH*(1-DEODA)*QOQI``.
 
-    The source additionally carries a ``FACT(141)*FACT(J+141)*FACT(J+161)``
-    vortex/flap term onto ``CLAH*ALPT``.  That term comes from the
-    untranslated ``WHWB`` path and is omitted here; it is zero for a clean
-    configuration with no deflected surfaces.
+    ``FACT`` is the source's ``FACT(141)*FACT(J+141)*FACT(J+161)*CLAH*ALPT``
+    body-vortex term, supplied through ``vortex_increment``.  See
+    ``pydatcom.interactions.body_vortex.body_vortex_lift_increment``, which
+    translates it from BODOWG; it is zero below six degrees and for bodies
+    smaller than a third of the semispan.
 
     Args:
         cl_wing_body: ``CLBW``, wing-body lift coefficient on SREF.
@@ -63,7 +65,7 @@ def calculate_clwbt(cl_wing_body: float, cl_tail_at_alpt: float,
         raise ValueError("dynamic-pressure ratio cannot be negative")
     cli = cla_tail * alih_deg
     cl_tail_term = ((cl_tail_at_alpt - cli) * (khb + kbh) +
-                    cli * (kkhb + kkbh))
+                    cli * (kkhb + kkbh) + vortex_increment)
     cl_tail_increment = cl_tail_term * qoqi
     cl_total = cl_tail_increment + cl_wing_body
 
@@ -75,7 +77,8 @@ def calculate_clwbt(cl_wing_body: float, cl_tail_at_alpt: float,
         'cli': float(cli),
         'eps_deg': float(eps_deg),
         'qoqi': float(qoqi),
-        'method': 'legacy_clwbt_no_vortex_term',
+        'vortex_increment': float(vortex_increment),
+        'method': 'legacy_clwbt',
     }
     if cla_wing_body is not None and deda is not None:
         result['cla_total'] = float(

@@ -12,7 +12,7 @@ import pytest
 
 from pydatcom.aerodynamics.downwash import (
     fig4417_68a, fig4417_68b, calculate_downwash_geometry,
-    calculate_downwash_gradient_441, calculate_downwash,
+    calculate_downwash_gradient_441, calculate_downwash, calculate_dyprls,
 )
 from pydatcom.aerodynamics.wing_body_tail import (
     calculate_clwbt, calculate_cdwbt, calculate_tail_load,
@@ -422,3 +422,117 @@ def test_incomplete_tail_geometry_is_reported_not_guessed():
     assert not result['tail_supported']
     assert result['tail_method'] == 'unsupported_configuration'
     assert result['cm_tail'] == 0.0
+
+
+# --------------------------------------------------------------------------
+# DYPRLS: dynamic-pressure loss in the wing wake
+# --------------------------------------------------------------------------
+
+def _wake_state():
+    state = _aircraft_state()
+    state['wing_cdo'] = 0.008
+    return state
+
+
+def test_dyprls_matches_source_expression():
+    """q/q = 1 - DQOQ0*cos(pi/2 * ZOCB/ZWOCB)**2 with the source factors."""
+    state = _wake_state()
+    result = calculate_dyprls(state, 8.0, 0.008, eps_rad=np.deg2rad(2.46))
+    wing = calculate_straight_exposed_geometry(state, component='wing')
+    geometry = calculate_downwash_geometry(state)
+
+    area, mac, sref = wing['area'], wing['mac'], 135.0
+    gamma = geometry['tail_angle']
+    distance = geometry['tail_arm'] / np.cos(gamma)
+    ej = np.deg2rad(2.46)
+    alpha = np.deg2rad(8.0)
+    i2ocb = distance * np.cos(gamma - alpha + ej) / (np.cos(gamma) * mac)
+    zwocb = 0.68 * np.sqrt(0.008 * (i2ocb + 0.15) * sref / area)
+    dqoq0 = 2.42 * np.sqrt(0.008 * sref / area) / (i2ocb + 0.3)
+    zocb = i2ocb * np.tan(ej + gamma - alpha)
+
+    assert result['streamwise_distance'] == pytest.approx(i2ocb, rel=1e-12)
+    assert result['wake_half_width'] == pytest.approx(zwocb, rel=1e-12)
+    assert result['centerline_loss'] == pytest.approx(dqoq0, rel=1e-12)
+    assert result['surface_offset'] == pytest.approx(zocb, rel=1e-12)
+    expected = 1.0 - dqoq0 * np.cos(0.5 * np.pi * zocb / zwocb)**2
+    assert result['qoqi'] == pytest.approx(expected, rel=1e-12)
+
+
+def test_dyprls_no_loss_outside_the_wake():
+    """The source forces q/q = 1 once |ZOCB/ZWOCB| >= 1."""
+    state = _wake_state()
+    # A tail far above the wing plane never enters the wake.
+    state['synths_zh'] = 20.0
+    result = calculate_dyprls(state, 0.0, 0.008, cl_wing=0.3)
+    assert not result['in_wake']
+    assert result['qoqi'] == 1.0
+
+
+def test_dyprls_loss_is_bounded_and_physical():
+    """Inside the wake the loss is positive but well short of total."""
+    state = _wake_state()
+    losses = []
+    for alpha in np.linspace(-6.0, 16.0, 60):
+        result = calculate_downwash(state, float(alpha))
+        assert 0.0 < result['qoqi'] <= 1.0
+        losses.append(1.0 - result['qoqi'])
+    assert max(losses) > 0.0, "the tail should pass through the wake somewhere"
+
+
+def test_dyprls_tail_crosses_the_wake_once():
+    """Offset changes sign as alpha increases: the tail sweeps through."""
+    state = _wake_state()
+    offsets = [calculate_dyprls(state, float(a), 0.008,
+                                eps_rad=np.deg2rad(0.31 * a))['surface_offset']
+               for a in (-4.0, 0.0, 4.0, 8.0, 12.0)]
+    assert offsets[0] > 0.0 and offsets[-1] < 0.0
+    assert all(b < a for a, b in zip(offsets, offsets[1:]))
+
+
+def test_dyprls_zero_drag_gives_no_loss():
+    """With no wing profile drag there is no wake deficit."""
+    result = calculate_dyprls(_wake_state(), 8.0, 0.0, cl_wing=0.5)
+    assert result['qoqi'] == pytest.approx(1.0)
+
+
+def test_dyprls_greater_drag_gives_greater_loss():
+    """A dirtier wing produces a deeper wake at the same station."""
+    state = _wake_state()
+    eps = np.deg2rad(2.46)
+    light = calculate_dyprls(state, 8.0, 0.006, eps_rad=eps)
+    heavy = calculate_dyprls(state, 8.0, 0.016, eps_rad=eps)
+    assert heavy['centerline_loss'] > light['centerline_loss']
+    assert heavy['qoqi'] < light['qoqi']
+
+
+def test_dyprls_requires_an_input():
+    with pytest.raises(ValueError):
+        calculate_dyprls(_wake_state(), 8.0, 0.008)
+    with pytest.raises(ValueError):
+        calculate_dyprls(_wake_state(), 8.0, -0.01, cl_wing=0.3)
+
+
+def test_downwash_qoqi_sources_are_reported():
+    """The result must say where its dynamic-pressure ratio came from."""
+    plain = calculate_downwash(_aircraft_state(), 8.0)
+    assert plain['qoqi'] == 1.0
+    assert plain['qoqi_method'] == 'no_loss_default'
+
+    supplied = calculate_downwash(dict(_aircraft_state(), htail_qoqi=0.9), 8.0)
+    assert supplied['qoqi'] == pytest.approx(0.9)
+    assert supplied['qoqi_method'] == 'supplied'
+
+    modelled = calculate_downwash(_wake_state(), 8.0)
+    assert modelled['qoqi_method'] == 'legacy_dyprls'
+    assert modelled['qoqi'] < 1.0
+
+
+def test_dynamic_pressure_loss_reduces_tail_moment():
+    """A tail in the wake is less effective than one in clean air."""
+    from pydatcom.aerodynamics.moment import calculate_total_pitching_moment
+    clean = calculate_total_pitching_moment(
+        dict(_aircraft_state(), htail_qoqi=1.0), 0.6, 8.0, 0.3)
+    in_wake = calculate_total_pitching_moment(
+        dict(_aircraft_state(), htail_qoqi=0.85), 0.6, 8.0, 0.3)
+    assert abs(in_wake['cm_tail']) < abs(clean['cm_tail'])

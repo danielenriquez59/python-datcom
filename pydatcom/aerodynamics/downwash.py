@@ -219,6 +219,83 @@ def calculate_downwash_gradient_441(state: Dict) -> Dict[str, float]:
     }
 
 
+def calculate_dyprls(state: Dict, alpha_deg: float, cd0_wing: float,
+                     cl_wing: Optional[float] = None,
+                     eps_rad: Optional[float] = None) -> Dict[str, float]:
+    """Translate DYPRLS: dynamic-pressure loss in the wing wake.
+
+    The wake has a cosine-squared velocity profile of half-width ``ZWOCB``
+    and centerline loss ``DQOQ0``, both in MAC units:
+
+    ``q/q_inf = 1 - DQOQ0 * cos(pi/2 * ZOCB/ZWOCB)**2``
+
+    and no loss at all once the surface lies outside the wake.  The source
+    takes the wake deflection ``EJ`` either from the wing load, as
+    ``1.62*CL/(pi*A)``, or from the translated downwash when ``KEPSLN`` is
+    set; supplying ``eps_rad`` selects the latter.
+
+    Args:
+        state: State dictionary with wing and htail geometry.
+        alpha_deg: Angle of attack, degrees.
+        cd0_wing: ``CDOW``, wing zero-lift drag coefficient.
+        cl_wing: Wing lift coefficient on the aircraft SREF basis; required
+            unless ``eps_rad`` is given.
+        eps_rad: Downwash angle in radians, selecting the ``KEPSLN`` branch.
+
+    Returns:
+        Dictionary with ``qoqi``, the wake half-width, the centerline loss
+        and the surface offset, all in MAC units.
+
+    Raises:
+        ValueError: If the geometry or the drag input is unusable.
+    """
+    if cd0_wing < 0.0:
+        raise ValueError("DYPRLS requires a nonnegative wing zero-lift drag")
+    if cl_wing is None and eps_rad is None:
+        raise ValueError("DYPRLS needs either a wing CL or a downwash angle")
+
+    wing = calculate_straight_exposed_geometry(state, component='wing')
+    geometry = calculate_downwash_geometry(state)
+    area = wing['area']
+    mac = wing['mac']
+    sref = float(state.get('options_sref', area) or area)
+    if min(area, mac, sref) <= 0.0:
+        raise ValueError("DYPRLS requires positive exposed area, MAC and SREF")
+
+    # GAMMA is the inclination of the line from the wing to the tail, the
+    # A(11) that INFTGM stores; I2 is that line's length.
+    gamma = geometry['tail_angle']
+    distance = geometry['tail_arm'] / np.cos(gamma) if np.cos(gamma) else 0.0
+
+    if eps_rad is not None:
+        ej = float(eps_rad)
+    else:
+        ej = 1.62 / (np.pi * wing['aspect_ratio']) * float(cl_wing) * sref / area
+
+    alpha_rad = np.deg2rad(alpha_deg)
+    i2ocb = (distance * np.cos(gamma - alpha_rad + ej) /
+             (np.cos(gamma) * mac))
+    zwocb = 0.68 * np.sqrt(cd0_wing * (i2ocb + 0.15) * sref / area)
+    dqoq0 = 2.42 * np.sqrt(cd0_wing * sref / area) / (i2ocb + 0.3)
+    zocb = i2ocb * np.tan(ej + gamma - alpha_rad)
+
+    if zwocb == 0.0 or abs(zocb / zwocb) >= 1.0:
+        qoqi = 1.0
+    else:
+        qoqi = 1.0 - dqoq0 * np.cos(0.5 * np.pi * zocb / zwocb)**2
+
+    return {
+        'qoqi': float(qoqi),
+        'wake_half_width': float(zwocb),
+        'centerline_loss': float(dqoq0),
+        'surface_offset': float(zocb),
+        'streamwise_distance': float(i2ocb),
+        'wake_deflection': float(ej),
+        'in_wake': bool(zwocb != 0.0 and abs(zocb / zwocb) < 1.0),
+        'method': 'legacy_dyprls',
+    }
+
+
 def calculate_downwash(state: Dict, alpha_deg: float,
                        cl_wing: Optional[float] = None) -> Dict[str, float]:
     """Downwash angle and gradient at the horizontal tail.
@@ -237,15 +314,38 @@ def calculate_downwash(state: Dict, alpha_deg: float,
     Returns:
         Dictionary with ``eps_deg``, ``deda`` and the dynamic-pressure ratio.
     """
-    del cl_wing
     gradient = calculate_downwash_gradient_441(state)
     alpha_zero = float(state.get('wing_alpha_zero_lift', 0.0) or 0.0)
     eps_deg = gradient['deda'] * (float(alpha_deg) - alpha_zero)
+
+    # QOQI: an explicit input wins; otherwise use the translated DYPRLS wake
+    # model when a wing zero-lift drag is available, and fall back to no
+    # loss when it is not.
+    supplied = state.get('htail_qoqi')
+    wake = None
+    if supplied is not None:
+        qoqi = float(supplied)
+        qoqi_method = 'supplied'
+    else:
+        cd0_wing = state.get('wing_cdo')
+        if cd0_wing is None:
+            qoqi = 1.0
+            qoqi_method = 'no_loss_default'
+        else:
+            wake = calculate_dyprls(state, alpha_deg, float(cd0_wing),
+                                    cl_wing=cl_wing,
+                                    eps_rad=np.deg2rad(eps_deg))
+            qoqi = wake['qoqi']
+            qoqi_method = wake['method']
+
     result = dict(gradient)
     result.update({
         'eps_deg': float(eps_deg),
         'alpha_deg': float(alpha_deg),
         'alpha_zero_lift': alpha_zero,
-        'qoqi': float(state.get('htail_qoqi', 1.0) or 1.0),
+        'qoqi': float(qoqi),
+        'qoqi_method': qoqi_method,
     })
+    if wake is not None:
+        result['wake'] = wake
     return result
