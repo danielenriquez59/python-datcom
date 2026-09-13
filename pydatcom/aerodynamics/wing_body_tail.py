@@ -152,8 +152,10 @@ def calculate_tail_load(state: Dict, alpha_deg: float,
     if cla_tail is None:
         from pydatcom.aerodynamics.lift import calculate_lift_curve_slope_compressible
         mach = float(state.get('flight_mach', 0.0) or 0.0)
+        # That routine returns a per-radian slope; every angle in this
+        # buildup is in degrees, so convert rather than mixing units.
         cla_tail = calculate_lift_curve_slope_compressible(
-            tail['aspect_ratio'], tail['taper_ratio'], mach)
+            tail['aspect_ratio'], tail['taper_ratio'], mach) * np.pi / 180.0
 
     alih = float(state.get('synths_alih', 0.0) or 0.0)
     alpt = float(alpha_deg) - downwash['eps_deg']

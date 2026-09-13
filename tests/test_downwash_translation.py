@@ -316,6 +316,48 @@ def test_cdwbt_rejects_negative_dynamic_pressure_ratio():
 # Tail load and the aircraft moment
 # --------------------------------------------------------------------------
 
+def test_tail_lift_slope_is_per_degree():
+    """The tail slope must be per degree, matching the degree angles used.
+
+    calculate_lift_curve_slope_compressible returns a per-radian slope.
+    Using it directly against a degree angle inflates the tail load by
+    180/pi, which is how a 3965% static margin reached an example run.
+    """
+    state = _aircraft_state()
+    downwash = calculate_downwash(state, 10.0)
+    load = calculate_tail_load(state, 10.0, downwash)
+    # A subsonic tail of AR ~5 has a slope near 2*pi*AR/(2+AR) per radian,
+    # i.e. well under 0.12 per degree.
+    assert 0.02 < load['cla_tail'] < 0.12
+    assert 0.0 < load['cl_tail'] < 0.5
+
+
+def test_tail_moment_magnitude_is_physical():
+    """Cm_tail must stay in a plausible range for a conventional layout."""
+    state = _aircraft_state()
+    for alpha in (-4.0, 0.0, 5.0, 10.0):
+        result = calculate_total_pitching_moment(state, 0.5, alpha, 0.3)
+        assert abs(result['cm_tail']) < 1.5, (
+            f"Cm_tail={result['cm_tail']:.4f} at alpha={alpha} is outside "
+            "any physical range for this configuration")
+
+
+def test_static_margin_is_physical():
+    """dCm/dCL must give a static margin of a few tens of percent MAC."""
+    state = _aircraft_state()
+    from pydatcom.aerodynamics.lift import calculate_wing_lift_subsonic
+    alphas = np.array([-4.0, -2.0, 0.0, 2.0, 4.0, 6.0])
+    cls, cms = [], []
+    for alpha in alphas:
+        cl = calculate_wing_lift_subsonic(state, alpha, 0.3)['cl']
+        cls.append(cl)
+        cms.append(calculate_total_pitching_moment(
+            state, cl, alpha, 0.3)['cm_total'])
+    dcm_dcl = np.polyfit(cls, cms, 1)[0]
+    assert -2.0 < dcm_dcl < 0.0, (
+        f"dCm/dCL={dcm_dcl:.4f} implies a {-dcm_dcl*100:.0f}% static margin")
+
+
 def test_tail_load_uses_local_flow_angle():
     """ALPT = alpha - eps, and the load is normalized to SREF."""
     state = _aircraft_state()
@@ -333,7 +375,7 @@ def test_tail_moment_is_no_longer_zero():
     state = _aircraft_state()
     result = calculate_total_pitching_moment(state, 0.5, 5.0, 0.3)
     assert result['tail_supported']
-    assert result['tail_method'] == 'legacy_dwash_isolated_tail'
+    assert result['tail_method'] == 'legacy_clwbt_with_carryover'
     assert abs(result['cm_tail']) > 1e-6
 
 

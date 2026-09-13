@@ -266,14 +266,31 @@ def calculate_total_pitching_moment(state: Dict, cl_wing: float,
     cl_tail = state.get('aero_cl_tail')
     tail_method = 'supplied_cl_tail'
     downwash_result = None
+    carryover = None
     if cl_tail is None:
         try:
             from pydatcom.aerodynamics.downwash import calculate_downwash
-            from pydatcom.aerodynamics.wing_body_tail import calculate_tail_load
+            from pydatcom.aerodynamics.wing_body_tail import (
+                calculate_tail_load, calculate_clwbt,
+            )
+            from pydatcom.interactions.carryover import (
+                calculate_carryover_factors,
+            )
             downwash_result = calculate_downwash(state, alpha_deg)
             tail_load = calculate_tail_load(state, alpha_deg, downwash_result)
-            cl_tail = tail_load['cl_tail']
-            tail_method = 'legacy_dwash_isolated_tail'
+            carryover = calculate_carryover_factors(state, component='htail')
+            # CLWBT applies the Section 4.3.1.2 carryover to the tail load
+            # before adding it to the wing-body result.  Passing zero for
+            # CLBW isolates the tail increment this function needs.
+            buildup = calculate_clwbt(
+                0.0, tail_load['cl_tail'], tail_load['cla_tail_sref'],
+                float(state.get('synths_alih', 0.0) or 0.0),
+                downwash_result['eps_deg'], downwash_result['qoqi'],
+                khb=carryover['kwb'], kbh=carryover['kbw'],
+                kkhb=carryover['kkwb'], kkbh=carryover['kkbw'],
+            )
+            cl_tail = buildup['cl_tail_increment']
+            tail_method = 'legacy_clwbt_with_carryover'
         except (ValueError, KeyError, TypeError):
             cl_tail = None
             tail_method = 'unsupported_configuration'
@@ -299,6 +316,8 @@ def calculate_total_pitching_moment(state: Dict, cl_wing: float,
     if downwash_result is not None:
         result['eps_deg'] = downwash_result['eps_deg']
         result['deda'] = downwash_result['deda']
+    if carryover is not None:
+        result['carryover'] = carryover
     return result
 
 
