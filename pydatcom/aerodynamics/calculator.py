@@ -17,6 +17,7 @@ from pydatcom.aerodynamics.supersonic import calculate_supersonic_coefficients
 from pydatcom.aerodynamics.hypersonic import calculate_hypersonic_coefficients
 from pydatcom.aerodynamics.body_alone import has_wing_or_tail, calculate_body_alone_coefficients
 from pydatcom.utils.atmosphere import Atmosphere
+from pydatcom.geometry.wing import calculate_straight_exposed_geometry
 
 logger = logging.getLogger(__name__)
 
@@ -213,6 +214,12 @@ class AerodynamicCalculator:
             # layout is translated.
             length = (self.state.get('wing_mac') or
                       self.state.get('options_cbarr'))
+            if (not self.state.get('wing_mac') and
+                    float(self.state.get('wing_type', 1.0) or 1.0) == 1.0):
+                try:
+                    length = calculate_straight_exposed_geometry(self.state)['mac']
+                except ValueError:
+                    pass
             if not length:
                 root = self.state.get('wing_chrdr')
                 tip = self.state.get('wing_chrdtp')

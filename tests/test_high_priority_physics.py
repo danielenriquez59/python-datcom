@@ -21,6 +21,7 @@ from pydatcom.aerodynamics.stability import calculate_static_stability_margin
 from pydatcom.aerodynamics.supersonic import (
     calculate_supersonic_coefficients,
     calculate_supdrg_straight_wing,
+    calculate_supdrg_skin_friction,
     calculate_supersonic_wave_drag,
 )
 from pydatcom.aerodynamics.subsonic import calculate_subsonic_coefficients
@@ -239,6 +240,34 @@ def test_supdrg_straight_wing_figure_58_and_reference_basis():
     scaled = calculate_supdrg_straight_wing(state, np.sqrt(1.04), 0.2)
     assert scaled['cd_wave_lift'] * 8.0 == pytest.approx(result['cd_wave_lift'] * 4.0)
     assert scaled['cd_wave_volume'] * 8.0 == pytest.approx(result['cd_wave_volume'] * 4.0)
+
+
+def test_supdrg_straight_wing_skin_friction_and_roughness_cutoff():
+    state = {
+        'wing_type': 1.0,
+        'wing_chrdr': 1.0,
+        'wing_chrdtp': 1.0,
+        'wing_sspn': 2.0,
+        'options_sref': 8.0,
+        'options_rougfc': 1.6e-4,
+    }
+    smooth = calculate_supdrg_skin_friction(state, 2.0, 1.0e7)
+    assert smooth['cd_friction'] == pytest.approx(smooth['cf'])
+    assert smooth['reynolds_used'] == pytest.approx(1.0e7)
+    assert smooth['cf'] == pytest.approx(0.002304082970, rel=2e-9)
+
+    state['options_rougfc'] = 1.0e-3
+    rough = calculate_supdrg_skin_friction(state, 2.0, 1.0e9)
+    expected_cutoff = (12.0 / 1.0e-3)**1.0482 * 10.0**1.98509
+    assert rough['roughness_cutoff_reynolds'] == pytest.approx(expected_cutoff)
+    assert rough['reynolds_used'] == pytest.approx(expected_cutoff)
+    assert rough['cf'] == pytest.approx(0.00305908123105, rel=2e-9)
+
+    capped = calculate_supdrg_skin_friction(state, 4.0, 1.0e9)
+    at_three = calculate_supdrg_skin_friction(state, 3.0, 1.0e9)
+    assert capped['mach_lookup'] == 3.0
+    assert capped['roughness_cutoff_reynolds'] == pytest.approx(
+        at_three['roughness_cutoff_reynolds'])
 
 
 def test_component_neutral_point_does_not_move_with_cg():

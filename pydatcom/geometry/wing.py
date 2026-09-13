@@ -20,14 +20,28 @@ from pydatcom.utils.constants import PI, DEG, RAD, UNUSED
 logger = logging.getLogger(__name__)
 
 
-def calculate_straight_exposed_geometry(state: Dict) -> Dict[str, float]:
-    """Translate WTGEOM's straight-wing exposed-planform quantities."""
-    if float(state.get('wing_type', 1.0) or 1.0) != 1.0:
-        raise ValueError("WTGEOM straight-wing subset requires TYPE=STRA")
-    root = float(state.get('wing_chrdr', 0.0) or 0.0)
-    tip = float(state.get('wing_chrdtp', 0.0) or 0.0)
-    theoretical_semispan = float(state.get('wing_sspn', 0.0) or 0.0)
-    exposed_semispan = float(state.get('wing_sspne', theoretical_semispan) or 0.0)
+def calculate_straight_exposed_geometry(state: Dict,
+                                        component: str = 'wing') -> Dict[str, float]:
+    """Translate WTGEOM's straight-surface exposed-planform quantities.
+
+    Args:
+        state: State dictionary.
+        component: State-key prefix of the lifting surface, ``'wing'`` or
+            ``'htail'``/``'vtail'``.  WTGEOM is called once per surface with
+            the same AIN layout, so the same subset applies to each.
+
+    Returns:
+        Exposed-planform quantities, plus the theoretical-planform values
+        WTGEOM stores in ``A(118)``, ``A(120)``, ``A(122)``, ``A(130)``,
+        ``A(195)`` and ``A(161)``.  Exposed keys keep their original names.
+    """
+    if float(state.get(f'{component}_type', 1.0) or 1.0) != 1.0:
+        raise ValueError("WTGEOM straight-surface subset requires TYPE=STRA")
+    root = float(state.get(f'{component}_chrdr', 0.0) or 0.0)
+    tip = float(state.get(f'{component}_chrdtp', 0.0) or 0.0)
+    theoretical_semispan = float(state.get(f'{component}_sspn', 0.0) or 0.0)
+    exposed_semispan = float(
+        state.get(f'{component}_sspne', theoretical_semispan) or 0.0)
     if root <= 0.0 or tip < 0.0 or min(theoretical_semispan, exposed_semispan) <= 0.0:
         raise ValueError("CHRDR and spans must be positive; CHRDTP may be zero")
     if exposed_semispan > theoretical_semispan:
@@ -45,16 +59,40 @@ def calculate_straight_exposed_geometry(state: Dict) -> Dict[str, float]:
     y_mac = (exposed_semispan * (1.0 + 2.0 * exposed_taper) /
              (3.0 * (1.0 + exposed_taper)))
 
-    sweep_reference = float(state.get('wing_savsi', 0.0) or 0.0)
-    chord_station = float(state.get('wing_chstat', 0.25) or 0.0)
+    sweep_reference = float(state.get(f'{component}_savsi', 0.0) or 0.0)
+    chord_station = float(state.get(f'{component}_chstat', 0.25) or 0.0)
     tan_le = (np.tan(np.deg2rad(sweep_reference)) +
               chord_station * (root - tip) / theoretical_semispan)
     tan_c4 = tan_le + 0.25 * (tip - exposed_root) / exposed_semispan
     buried_semispan = theoretical_semispan - exposed_semispan
-    incidence = np.deg2rad(float(state.get('synths_aliw', 0.0) or 0.0))
-    exposed_root_x = (float(state.get('synths_xw', 0.0) or 0.0) +
+    incidence_key = {'wing': 'synths_aliw', 'htail': 'synths_alih'}.get(
+        component, 'synths_aliw')
+    origin_key = {'wing': 'synths_xw', 'htail': 'synths_xh'}.get(
+        component, 'synths_xw')
+    incidence = np.deg2rad(float(state.get(incidence_key, 0.0) or 0.0))
+    exposed_root_x = (float(state.get(origin_key, 0.0) or 0.0) +
                       buried_semispan * tan_le * np.cos(incidence))
     mac_le = y_mac * tan_le
+
+    # Theoretical planform: WTGEOM's LOGSWT branch sets CHRDBP=CHRDTP and
+    # SSPNOP=0, collapsing A(119)/A(4) onto the root-to-tip trapezoid.
+    theoretical_taper = tip / root
+    area_theoretical = theoretical_semispan * (root + tip)
+    aspect_ratio_theoretical = (4.0 * theoretical_semispan**2 /
+                                area_theoretical)
+    mac_theoretical = (2.0 * root *
+                       (1.0 + theoretical_taper + theoretical_taper**2) /
+                       (3.0 * (1.0 + theoretical_taper)))
+    y_mac_theoretical = (theoretical_semispan *
+                         (1.0 + 2.0 * theoretical_taper) /
+                         (3.0 * (1.0 + theoretical_taper)))
+    # A(195) is the theoretical MAC leading edge aft of the root leading
+    # edge; A(161) adds the quarter chord of that MAC.
+    mac_le_theoretical = y_mac_theoretical * tan_le
+    mac_c4_theoretical = mac_theoretical / 4.0 + mac_le_theoretical
+    # A(30) - A(16)/4: the exposed MAC quarter chord aft of the exposed
+    # root leading edge, used by INFTGM's XBRSTH.
+    mac_c4_exposed = mac / 4.0 + mac_le
     return {
         'root_chord': exposed_root,
         'tip_chord': tip,
@@ -65,9 +103,19 @@ def calculate_straight_exposed_geometry(state: Dict) -> Dict[str, float]:
         'mac': mac,
         'mac_span_location': y_mac,
         'mac_le_location': mac_le,
+        'mac_c4_location': mac_c4_exposed,
         'tan_le': tan_le,
         'tan_c4': tan_c4,
         'exposed_root_x': exposed_root_x,
+        'theoretical_semispan': theoretical_semispan,
+        'theoretical_root_chord': root,
+        'area_theoretical': area_theoretical,
+        'aspect_ratio_theoretical': aspect_ratio_theoretical,
+        'taper_ratio_theoretical': theoretical_taper,
+        'mac_theoretical': mac_theoretical,
+        'mac_span_location_theoretical': y_mac_theoretical,
+        'mac_le_theoretical': mac_le_theoretical,
+        'mac_c4_theoretical': mac_c4_theoretical,
     }
 
 
