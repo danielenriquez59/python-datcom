@@ -82,10 +82,59 @@ def test_four_variables_rejected_as_in_source():
         interx(4, _TFIG10, [0.5] * 4, [11] * 4, _DKWB10)
 
 
-def test_three_variables_reports_the_unresolved_layout():
-    """TLIN3X is pending: its Y layout conflicts with TLINEX's."""
-    with pytest.raises(NotImplementedError, match="TLIN3X"):
-        interx(3, _TFIG10, [0.5] * 3, [11] * 3, _DKWB10, lind=11)
+# --------------------------------------------------------------------------
+# NIND=3, checked against executed FORTRAN
+#
+# TLIN3X declares Y(NX1,NX2,NX3) but only ever touches Y by handing slices to
+# TLINEX, which declares Y(NX2,NX1).  The declaration is therefore dead and
+# the effective layout could not be settled by reading the source.  A probe
+# program linked against the legacy tlin3x.f, tlinex.f, tlin1x.f, glook.f,
+# switch.f and quad.f was compiled and run with Y(i)=i over a deliberately
+# asymmetric 2x3x2 table; the returned flat indices fit
+# index = j + (i-1)*NX2 + (k-1)*NX1*NX2 at every node, establishing that X2
+# varies fastest and the effective layout is Y(NX2,NX1,NX3).
+#
+# The values below are that program's output.  To regenerate, see
+# tools/fortran_parity.py for the build pattern.
+# --------------------------------------------------------------------------
+
+_TLIN3X_X1 = [1.0, 2.0]          # TLIN3X's X1 == INTERX's second variable
+_TLIN3X_X2 = [10.0, 20.0, 30.0]  # TLIN3X's X2 == INTERX's first variable
+_TLIN3X_X3 = [100.0, 200.0]
+_TLIN3X_DEP = [float(i + 1) for i in range(12)]
+
+_TLIN3X_FORTRAN = [
+    # (q1, q2, q3, value produced by the compiled original)
+    (1.00, 10.0, 100.0, 1.0),
+    (2.00, 10.0, 100.0, 4.0),
+    (1.00, 20.0, 100.0, 2.0),
+    (1.00, 30.0, 100.0, 3.0),
+    (1.00, 10.0, 200.0, 7.0),
+    (2.00, 30.0, 200.0, 12.0),
+    (1.50, 15.0, 150.0, 6.0),
+    (1.25, 25.0, 120.0, 4.4499998),
+    (1.75, 12.0, 180.0, 8.25),
+]
+
+
+@pytest.mark.parametrize("q1,q2,q3,expected", _TLIN3X_FORTRAN)
+def test_three_variables_match_executed_fortran(q1, q2, q3, expected):
+    """Every probe point, nodes and interior, matches the compiled original."""
+    table = [_TLIN3X_X2, _TLIN3X_X1, _TLIN3X_X3]
+    assert interx(3, table, [q2, q1, q3], [3, 2, 2],
+                  _TLIN3X_DEP) == pytest.approx(expected, abs=2e-6)
+
+
+def test_three_variable_layout_is_x2_fastest():
+    """Pins the empirically established Y(NX2,NX1,NX3) ordering.
+
+    Reading tlin3x.f alone would suggest Y(NX1,NX2,NX3), which returns 2.0
+    rather than 4.0 at this node.
+    """
+    table = [_TLIN3X_X2, _TLIN3X_X1, _TLIN3X_X3]
+    # INTERX var1 = 2.0 on the 3-entry grid's partner; see the node table.
+    assert interx(3, table, [10.0, 2.0, 100.0], [3, 2, 2],
+                  _TLIN3X_DEP) == pytest.approx(4.0)
 
 
 def test_short_dependent_table_is_rejected():
