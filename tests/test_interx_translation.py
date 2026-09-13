@@ -91,3 +91,96 @@ def test_three_variables_reports_the_unresolved_layout():
 def test_short_dependent_table_is_rejected():
     with pytest.raises(ValueError):
         interx(2, _T4337A, [1.0, 0.5], [8, 3], _D4337A[:10], lind=8)
+
+
+# --------------------------------------------------------------------------
+# EQSPC1 / EQSPCE: eqspc1.f, eqspce.f
+# --------------------------------------------------------------------------
+
+from pydatcom.utils.legacy_interp import eqspc1, eqspce
+
+# Unevenly spaced body stations with a parabolic area distribution.
+_X = [0., 2., 5., 8., 10.]
+_S = [v * (10.0 - v) for v in _X]
+
+
+def test_eqspc1_builds_equally_spaced_stations():
+    """XE spans the original range with pinned endpoints."""
+    result = eqspc1(_X, _S, 5)
+    assert result['xe'] == pytest.approx([0.0, 2.5, 5.0, 7.5, 10.0])
+    assert result['xe'][0] == _X[0]
+    assert result['xe'][-1] == _X[-1]
+
+
+def test_eqspc1_endpoints_are_taken_not_interpolated():
+    """SE(1) and SE(NE) come straight from the source arrays."""
+    result = eqspc1(_X, _S, 7)
+    assert result['se'][0] == _S[0]
+    assert result['se'][-1] == _S[-1]
+
+
+def test_eqspc1_interior_is_linear_between_original_stations():
+    """INTERX interpolates linearly, so a parabola is undershot.
+
+    At XE=2.5 the bracketing originals are (2, 16) and (5, 25), giving
+    17.5 rather than the analytic 18.75.  Asserting the analytic value here
+    would be asserting against the source.
+    """
+    result = eqspc1(_X, _S, 5)
+    assert result['se'][1] == pytest.approx(16.0 + (0.5 / 3.0) * (25.0 - 16.0))
+    assert result['se'][1] == pytest.approx(17.5)
+    assert result['se'][1] < 2.5 * (10.0 - 2.5)
+
+
+def test_eqspc1_single_station_is_constant_with_zero_slope():
+    """The source's NP=1 branch fills every output with the one value."""
+    result = eqspc1([3.0], [7.0], 4)
+    assert result['xe'] == pytest.approx([3.0] * 4)
+    assert result['se'] == pytest.approx([7.0] * 4)
+    assert result['dsedx'] == pytest.approx([0.0] * 4)
+
+
+def test_eqspc1_slope_is_taken_on_the_resampled_table():
+    """DSEDX is a TBFUNX slope of (XE, SE), not of the original curve."""
+    result = eqspc1(_X, _S, 5)
+    # Symmetric data: the slope must be odd about the midpoint and zero there.
+    assert result['dsedx'][2] == pytest.approx(0.0, abs=1e-12)
+    assert result['dsedx'][1] == pytest.approx(-result['dsedx'][3])
+    assert result['dsedx'][0] > 0.0 > result['dsedx'][-1]
+
+
+def test_eqspc1_rejects_bad_input():
+    with pytest.raises(ValueError):
+        eqspc1([], [], 5)
+    with pytest.raises(ValueError):
+        eqspc1(_X, _S[:3], 5)
+    with pytest.raises(ValueError):
+        eqspc1(_X, _S, 1)
+
+
+def test_eqspce_resamples_three_arrays_on_one_grid():
+    """EQSPCE is EQSPC1 over R, P and S with a single slope, on S."""
+    r = [1., 2., 3., 2., 1.]
+    p = [6., 7., 8., 7., 6.]
+    combined = eqspce(_X, r, p, _S, 5)
+    single = eqspc1(_X, _S, 5)
+
+    assert combined['xe'] == pytest.approx(single['xe'])
+    assert combined['se'] == pytest.approx(single['se'])
+    assert combined['dsedx'] == pytest.approx(single['dsedx'])
+    # Each array keeps its own endpoints.
+    assert combined['re'][0] == r[0] and combined['re'][-1] == r[-1]
+    assert combined['pe'][0] == p[0] and combined['pe'][-1] == p[-1]
+
+
+def test_eqspce_single_station_is_constant():
+    result = eqspce([3.0], [1.0], [2.0], [4.0], 3)
+    assert result['re'] == pytest.approx([1.0] * 3)
+    assert result['pe'] == pytest.approx([2.0] * 3)
+    assert result['se'] == pytest.approx([4.0] * 3)
+    assert result['dsedx'] == pytest.approx([0.0] * 3)
+
+
+def test_eqspce_rejects_mismatched_arrays():
+    with pytest.raises(ValueError):
+        eqspce(_X, [1., 2.], [1.] * 5, _S, 5)
