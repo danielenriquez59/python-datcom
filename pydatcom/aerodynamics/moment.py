@@ -169,31 +169,41 @@ def calculate_tail_moment_contribution(state: Dict, cl_tail: float,
         Tail pitching moment coefficient
     """
     # Get tail geometry
-    area_tail = state.get(f'{tail_type}_area', 0.0)
-    x_tail = state.get(f'synths_x{"h" if tail_type == "htail" else "v"}', 0.0)
-    
+    area_tail = state.get(f'{tail_type}_area', 0.0) or 0.0
+    x_tail = state.get(f'synths_x{"h" if tail_type == "htail" else "v"}', 0.0) or 0.0
+
     # Reference values
     sref = state.get('options_sref', 1.0)
     cbar = state.get('options_cbarr', 1.0)
-    xcg = state.get('synths_xcg', 0.0)
-    
+    xcg = state.get('synths_xcg', 0.0) or 0.0
+
     if sref <= 0 or cbar <= 0:
         raise ValueError("reference area and chord must be positive")
-    
-    # Tail volume coefficient
-    if area_tail > 0 and x_tail > xcg:
-        # XH/XV is the surface longitudinal reference location in /SYNTSS/.
-        # A translated aerodynamic-center offset may be supplied in length
-        # units; omitting it means the force is referenced at XH/XV.
-        xac_tail = x_tail + state.get(f'{tail_type}_xac_offset', 0.0)
+
+    # XH/XV is the surface longitudinal reference location in /SYNTSS/.  Put
+    # the force at the surface MAC quarter chord when the translated
+    # planform is available; an explicit offset still wins.
+    xac_offset = state.get(f'{tail_type}_xac_offset')
+    if xac_offset is None:
+        try:
+            from pydatcom.geometry.wing import calculate_straight_exposed_geometry
+            surface = calculate_straight_exposed_geometry(state,
+                                                          component=tail_type)
+            xac_offset = surface['mac_c4_theoretical']
+            if area_tail <= 0.0:
+                area_tail = surface['area']
+        except ValueError:
+            xac_offset = 0.0
+    xac_tail = x_tail + float(xac_offset)
+
+    # Tail volume coefficient.  cl_tail is already on the SREF basis when it
+    # comes from calculate_tail_load, so the area ratio is not applied again.
+    if area_tail > 0 and xac_tail > xcg:
         moment_arm = (xac_tail - xcg) / cbar
-        volume_coef = (area_tail / sref) * moment_arm
-        
-        # Tail moment
-        cm_tail = -cl_tail * volume_coef
+        cm_tail = -cl_tail * moment_arm
     else:
         cm_tail = 0.0
-    
+
     return cm_tail
 
 
@@ -249,17 +259,32 @@ def calculate_total_pitching_moment(state: Dict, cl_wing: float,
     # Body contribution
     cm_body = calculate_body_pitching_moment(state, alpha_deg, mach)
     
-    # W B TAIL computes the horizontal-tail load after downwash and
-    # interference.  Do not synthesize that load here.  Include it only when
-    # an upstream translated routine has supplied a tail lift coefficient.
+    # Horizontal tail.  A caller-supplied load wins; otherwise build it from
+    # the translated DWASH downwash and the tail planform.  The carryover
+    # factors of CLWBT are not yet translated, so this is an isolated-tail
+    # load placed at the translated tail MAC quarter chord.
     cl_tail = state.get('aero_cl_tail')
+    tail_method = 'supplied_cl_tail'
+    downwash_result = None
+    if cl_tail is None:
+        try:
+            from pydatcom.aerodynamics.downwash import calculate_downwash
+            from pydatcom.aerodynamics.wing_body_tail import calculate_tail_load
+            downwash_result = calculate_downwash(state, alpha_deg)
+            tail_load = calculate_tail_load(state, alpha_deg, downwash_result)
+            cl_tail = tail_load['cl_tail']
+            tail_method = 'legacy_dwash_isolated_tail'
+        except (ValueError, KeyError, TypeError):
+            cl_tail = None
+            tail_method = 'unsupported_configuration'
+
     cm_tail = (calculate_tail_moment_contribution(state, cl_tail)
                if cl_tail is not None else 0.0)
-    
+
     # Total moment
     cm_total = cm_wing + cm_body + cm_tail
-    
-    return {
+
+    result = {
         'cm_total': cm_total,
         'cm_wing': cm_wing,
         'cm_body': cm_body,
@@ -267,8 +292,14 @@ def calculate_total_pitching_moment(state: Dict, cl_wing: float,
         'xcg': xcg,
         'xac': xac_abs,
         'tail_supported': cl_tail is not None,
+        'tail_method': tail_method,
+        'cl_tail': cl_tail,
         'wing_cm_method': cm_method,
     }
+    if downwash_result is not None:
+        result['eps_deg'] = downwash_result['eps_deg']
+        result['deda'] = downwash_result['deda']
+    return result
 
 
 def calculate_normal_force_coefficient(cl: float, cd: float, 

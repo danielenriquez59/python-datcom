@@ -6,7 +6,58 @@ wrappers are not substitutes for the legacy integration and lookup modes.
 
 import numpy as np
 
-from .constants import PI
+from .constants import PI, UNUSED
+
+
+def tranf(x, y, left_slope: float, right_slope: float,
+          query: float) -> float:
+    """TRANF: nonnegative piecewise-cubic transonic interpolation.
+
+    Endpoint derivatives are supplied by the caller. Interior derivatives
+    are the tangent of the mean angle of the adjacent secants, with the
+    source's flattening rules at nonpositive ordinates and slope reversals.
+    The first or last cubic is also used for extrapolation.
+    """
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    if (x.ndim != 1 or x.shape != y.shape or len(x) < 2 or
+            not np.all(np.isfinite(x)) or not np.all(np.isfinite(y)) or
+            not np.all(np.diff(x) > 0.0)):
+        raise ValueError("TRANF requires finite matching arrays and increasing X")
+    if not all(np.isfinite(value) for value in (left_slope, right_slope, query)):
+        raise ValueError("TRANF slopes and query must be finite")
+
+    right = int(np.searchsorted(x[1:-1], query, side='right')) + 1
+    left = right - 1
+
+    def point_slope(index: int) -> float:
+        if index == 0:
+            return float(left_slope)
+        if index == len(x) - 1:
+            return float(right_slope)
+        slope_left = (y[index] - y[index - 1]) / (x[index] - x[index - 1])
+        slope_right = (y[index + 1] - y[index]) / (x[index + 1] - x[index])
+        slope = np.tan((np.arctan(slope_left) + np.arctan(slope_right)) / 2.0)
+        if y[index] <= 0.0:
+            slope = 0.0
+        if (len(x) > 10 and
+                (abs(slope_left) <= UNUSED or abs(slope_right) <= UNUSED)):
+            slope = 0.0
+        if slope_right != 0.0 and slope_left / slope_right < 0.0:
+            slope = 0.0
+        return float(slope)
+
+    width = x[right] - x[left]
+    parameter = (query - x[left]) / width
+    slope_left = point_slope(left)
+    slope_right = point_slope(right)
+    value = (
+        (2.0 * parameter**3 - 3.0 * parameter**2 + 1.0) * y[left]
+        + (parameter**3 - 2.0 * parameter**2 + parameter) * width * slope_left
+        + (-2.0 * parameter**3 + 3.0 * parameter**2) * y[right]
+        + (parameter**3 - parameter**2) * width * slope_right
+    )
+    return max(0.0, float(value))
 
 
 def quad(x, y, query: float, derivative: bool = False) -> float:

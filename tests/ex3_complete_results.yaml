@@ -1,108 +1,62 @@
-aero_alpha_array: &id002
-- -6.0
-- -4.0
-- -2.0
-- 0.0
-- 2.0
-- 4.0
-- 8.0
-- 12.0
-- 16.0
-- 20.0
-- 24.0
 aero_ca: null
 aero_cd: null
-aero_cd_array:
-- 0.025898855177493338
-- 0.024744325550879142
-- 0.02413367869504806
-- 0.023955332799508212
-- 0.02413367869504806
-- 0.024744325550879142
-- 0.02770531180008337
-- 0.033680500501306714
-- 0.04341385221764184
-- 0.057520864032923384
-- 0.07652795208999066
 aero_cl: null
-aero_cl_array:
-- -0.015973573294660724
-- -0.009608001964605145
-- -0.0042706195818577
-- 0.0
-- 0.0042706195818577
-- 0.009608001964605145
-- 0.02331578457305262
-- 0.04066145361608404
-- 0.0609908405299824
-- 0.0835015110448452
-- 0.10741443489843626
 aero_cm: null
-aero_cm_array:
-- -0.01476032766588093
-- -0.009545685478795437
-- -0.004624854687064265
-- 0.0
-- 0.004624854687064265
-- 0.009545685478795437
-- 0.02026518511942382
-- 0.03212411622062009
-- 0.045065918343823334
-- 0.059019142638462245
-- 0.07394197443905698
 aero_cn: null
-body_bla: 3.67
-body_bln: 2.59
-body_bnose: 1.0
-body_btail: null
+area: 1.2225599999999999
+aspect_ratio: 2.3583333333333334
+body_bla: 1.97
+body_bln: 1.46
+body_bnose: 2.0
+body_btail: 1.0
 body_ds: null
 body_itype: 2
 body_method: 1
 body_nx: 10.0
 body_p:
 - 0.0
-- 1.0
-- 1.42
-- 2.01
-- 3.08
-- 3.34
-- 3.44
-- 3.61
-- 3.61
-- 3.61
+- 0.262
+- 0.523
+- 0.785
+- 1.04
+- 1.305
+- 1.305
+- 1.305
+- 1.12
+- 0.866
 body_r:
 - 0.0
-- 0.186
-- 0.286
-- 0.424
-- 0.533
-- 0.533
-- 0.533
-- 0.533
-- 0.533
-- 0.533
+- 0.0417
+- 0.0833
+- 0.125
+- 0.1665
+- 0.208
+- 0.208
+- 0.208
+- 0.178
+- 0.138
 body_s:
 - 0.0
-- 0.08
-- 0.16
-- 0.323
-- 0.751
-- 0.883
-- 0.939
-- 1.032
-- 1.032
-- 1.032
+- 0.00547
+- 0.022
+- 0.0491
+- 0.0872
+- 0.136
+- 0.136
+- 0.136
+- 0.0993
+- 0.0598
 body_x:
 - 0.0
-- 0.258
-- 0.589
-- 1.26
-- 2.26
-- 2.59
-- 2.93
-- 3.59
+- 0.175
+- 0.322
+- 0.53
+- 0.85
+- 1.46
+- 2.5
+- 3.43
+- 3.97
 - 4.57
-- 6.26
 body_zl: []
 body_zu: []
 case_dump: false
@@ -124,7 +78,7 @@ centroid: !!python/object/apply:numpy._core.multiarray.scalar
   - -1
   - 0
 - !!binary |
-  bK3FVTowD0A=
+  v2DFlLnkA0A=
 constants_deg: 0.01745329
 constants_kand: $
 constants_pi: 3.141592654
@@ -133,7 +87,7 @@ constants_unused: 1.0e-30
 fineness_ratio: !!python/object/apply:numpy._core.multiarray.scalar
 - *id001
 - !!binary |
-  qVY3RyjYFUA=
+  RXX5qur2JUA=
 flags_bo: false
 flags_fltc: false
 flags_htpl: false
@@ -149,14 +103,28 @@ flags_vtsc: false
 flags_wgpl: false
 flags_wgsc: false
 flight_alpha: []
-flight_alschd: *id002
+flight_alschd:
+- -2.0
+- 0.0
+- 2.0
+- 4.0
+- 8.0
+- 12.0
+- 16.0
+- 20.0
+- 24.0
 flight_alt: []
 flight_mach:
 - 0.6
-flight_nalpha: 11.0
-flight_nmach: 1.0
+- 0.8
+- 1.5
+flight_nalpha: 9.0
+flight_nmach: 3.0
 flight_pinf: []
-flight_rnnub: 4280000.0
+flight_rnnub:
+- 4260000.0
+- 6400000.0
+- 9960000.0
 flight_tinf: []
 flight_vinf: []
 htail_a:
@@ -355,6 +323,7 @@ htail_a:
 - 0.0
 - 0.0
 - 0.0
+htail_alphai: 0.0
 htail_b:
 - 0.0
 - 0.0
@@ -405,47 +374,74 @@ htail_b:
 - 0.0
 - 0.0
 - 0.0
+htail_chrdr: 0.42
+htail_chrdtp: 0.253
+htail_chstat: 0.25
+htail_clalpa:
+- 0.131
+htail_clamo: 0.105
+htail_cli: 0.0
+htail_clmax:
+- 0.82
+htail_cmo: 0.0
 htail_data: {}
+htail_deltay: 1.3
+htail_dhdadi: 0.0
+htail_dhdado: 0.0
+htail_leri: 0.0025
+htail_savsi: 45.0
+htail_sspn: 0.67
+htail_sspndd: 0.0
+htail_sspne: 0.52
+htail_swafp: 0.0
+htail_tovc: 0.06
+htail_twista: 0.0
+htail_type: 1.0
+htail_xovc: 0.4
 length: !!python/object/apply:numpy._core.multiarray.scalar
 - *id001
 - !!binary |
-  CtejcD0KGUA=
+  SOF6FK5HEkA=
+mac: 0.7616666666666666
+mac_location: 0.0
 max_area: !!python/object/apply:numpy._core.multiarray.scalar
 - *id001
 - !!binary |
-  UI2XbhKD8D8=
+  nMQgsHJowT8=
 max_area_location: !!python/object/apply:numpy._core.multiarray.scalar
 - *id001
 - !!binary |
-  uB6F61G4DEA=
-options_blref: 4.28
-options_cbarr: 2.48
+  XI/C9Shc9z8=
+options_blref: 3.0
+options_cbarr: 0.822
 options_irun: 0
 options_rougfc: 0.00016
-options_sref: 8.85
-synths_alih: null
-synths_aliw: null
+options_sref: 2.25
+span: 1.698
+synths_alih: 0.0
+synths_aliw: 0.0
 synths_hinax: null
 synths_phif: null
 synths_phiv: null
 synths_scale: null
-synths_vertup: false
-synths_xcg: 4.14
-synths_xh: null
-synths_xv: null
+synths_vertup: true
+synths_xcg: 2.6
+synths_xh: 3.93
+synths_xv: 3.34
 synths_xvf: null
-synths_xw: null
+synths_xw: 1.7
 synths_yf: null
 synths_yv: null
-synths_zcg: -0.2
-synths_zh: null
+synths_zcg: 0.0
+synths_zh: 0.0
 synths_zv: null
 synths_zvf: null
-synths_zw: null
+synths_zw: 0.0
+taper_ratio: 0.4117647058823529
 volume: !!python/object/apply:numpy._core.multiarray.scalar
 - *id001
 - !!binary |
-  /fUKC+7vEkA=
+  g6H1jTun3j8=
 vtail_a:
 - 0.0
 - 0.0
@@ -642,7 +638,20 @@ vtail_a:
 - 0.0
 - 0.0
 - 0.0
+vtail_chrdr: 1.02
+vtail_chrdtp: 0.42
+vtail_chstat: 0.25
+vtail_clalpa:
+- 0.141
 vtail_data: {}
+vtail_leri: 0.0075
+vtail_savsi: 28.1
+vtail_sspn: 0.849
+vtail_sspne: 0.63
+vtail_swafp: 0.0
+vtail_tovc: 0.09
+vtail_twista: 0.0
+vtail_type: 0.0
 vtail_vf:
 - 0.0
 - 0.0
@@ -839,6 +848,7 @@ vtail_vf:
 - 0.0
 - 0.0
 - 0.0
+vtail_xovc: 0.4
 wing_a:
 - 0.0
 - 0.0
@@ -1035,6 +1045,7 @@ wing_a:
 - 0.0
 - 0.0
 - 0.0
+wing_alphai: 0.0
 wing_b:
 - 0.0
 - 0.0
@@ -1085,4 +1096,28 @@ wing_b:
 - 0.0
 - 0.0
 - 0.0
+wing_chrdr: 1.16
+wing_chrdtp: 0.346
+wing_chstat: 0.25
+wing_clalpa:
+- 0.131
+wing_clamo: 0.105
+wing_cli: 0.0
+wing_clmax:
+- 0.82
+wing_clmaxl: 0.78
+wing_cmo: 0.0
 wing_data: {}
+wing_deltay: 1.3
+wing_dhdadi: 0.0
+wing_dhdado: 0.0
+wing_leri: 0.0025
+wing_savsi: 45.0
+wing_sspn: 1.5
+wing_sspndd: 0.0
+wing_sspne: 1.29
+wing_swafp: 0.0
+wing_tovc: 0.06
+wing_twista: 0.0
+wing_type: 1.0
+wing_xovc: 0.4

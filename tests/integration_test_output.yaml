@@ -97,11 +97,11 @@ body_zu: []
 case_dump: false
 case_id: ''
 case_save: true
-constants_deg: 57.29577951308232
-constants_kand: 0
-constants_pi: 3.141592653589793
-constants_rad: 0.017453292519943295
-constants_unused: -999.0
+constants_deg: 0.01745329
+constants_kand: $
+constants_pi: 3.141592654
+constants_rad: 57.2957795
+constants_unused: 1.0e-30
 flags_bo: false
 flags_fltc: false
 flags_htpl: false

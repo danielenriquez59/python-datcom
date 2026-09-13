@@ -13,10 +13,11 @@ import numpy as np
 from typing import Dict
 import logging
 
-from pydatcom.utils.table_lookup import fig60b, fig68
+from pydatcom.utils.table_lookup import fig26, fig60b, fig68
 from pydatcom.aerodynamics.lift import resolve_wing_lift_inputs, wing_reference_ratio
 from pydatcom.utils.constants import UNUSED
 from pydatcom.utils.legacy_tables import tlin1x
+from pydatcom.utils.legacy_numeric import tbfunx
 from pydatcom.geometry.wing import calculate_straight_exposed_geometry
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,40 @@ logger = logging.getLogger(__name__)
 _FIG_415258_X = np.array([0.0, 0.28, 0.40, 0.50, 1.87])
 _FIG_415258_SHARP = np.array([0.54, 0.54, 0.559, 0.60, 1.95])
 _FIG_415258_ROUND = np.array([0.54, 0.54, 0.593, 0.68, 2.0])
+_FIG_415127_MACH = np.array([0.0, 1.0, 2.0, 3.0])
+_FIG_415127_CEPT = np.array([1.57780, 1.67221, 1.98509, 2.28874])
+
+
+def calculate_supdrg_skin_friction(state: Dict, mach: float,
+                                   reynolds_mac: float) -> Dict[str, float]:
+    """Translate SUPDRG's straight-wing skin-friction branch."""
+    if mach <= 1.0 or reynolds_mac <= 0.0:
+        raise ValueError("SUPDRG friction requires Mach > 1 and positive Reynolds")
+    geometry = calculate_straight_exposed_geometry(state)
+    sref = float(state.get('options_sref', geometry['area']) or geometry['area'])
+    if sref <= 0.0:
+        raise ValueError("SREF must be positive")
+
+    reynolds_used = float(reynolds_mac)
+    roughness = float(state.get('options_rougfc', 1.6e-4) or 1.6e-4)
+    if roughness < 0.0:
+        raise ValueError("roughness height cannot be negative")
+    mach_lookup = min(float(mach), 3.0)
+    cept, _ = tbfunx(_FIG_415127_MACH, _FIG_415127_CEPT,
+                     mach_lookup, lower=0, upper=0)
+    cutoff = (12.0 * geometry['mac'] / roughness)**1.0482 * 10.0**cept
+    reynolds_used = min(reynolds_used, cutoff)
+
+    cf = fig26(reynolds_used, mach_lookup)
+    cdf = 2.0 * cf * geometry['area'] / sref
+    return {
+        'cd_friction': cdf,
+        'cf': cf,
+        'reynolds_used': reynolds_used,
+        'roughness_cutoff_reynolds': cutoff,
+        'mach_lookup': mach_lookup,
+        'method': 'legacy_supdrg_straight',
+    }
 
 
 def calculate_supdrg_straight_wing(state: Dict, mach: float,
@@ -238,7 +273,13 @@ def calculate_supersonic_coefficients(state: Dict, alpha_deg: float,
     
     # Skin friction (still present in supersonic)
     from pydatcom.aerodynamics.drag import calculate_skin_friction_drag
-    cd_friction = calculate_skin_friction_drag(state, mach, reynolds)
+    if has_supdrg_geometry and float(state.get('wing_type', 1.0) or 1.0) == 1.0:
+        friction = calculate_supdrg_skin_friction(state, mach, reynolds)
+        cd_friction = friction['cd_friction']
+        friction_method = friction['method']
+    else:
+        cd_friction = calculate_skin_friction_drag(state, mach, reynolds)
+        friction_method = 'generic_fallback'
     
     # Total drag
     cd = cd_friction + wave_drag['cd_wave_total']
@@ -269,6 +310,7 @@ def calculate_supersonic_coefficients(state: Dict, alpha_deg: float,
         'section_alpha_zero': section['section_alpha_zero'],
         'incidence': section['incidence'],
         'cd_friction': cd_friction,
+        'friction_method': friction_method,
         'cd_wave': wave_drag['cd_wave_total'],
         'cd_wave_volume': wave_drag['cd_wave_volume'],
         'cd_wave_lift': wave_drag['cd_wave_lift'],

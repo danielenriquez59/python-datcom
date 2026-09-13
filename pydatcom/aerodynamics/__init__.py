@@ -11,10 +11,18 @@ from pydatcom.aerodynamics.subsonic import calculate_subsonic_coefficients
 from pydatcom.aerodynamics.transonic import calculate_transonic_coefficients
 from pydatcom.aerodynamics.supersonic import (
     calculate_supersonic_coefficients, calculate_supdrg_straight_wing,
+    calculate_supdrg_skin_friction,
 )
 from pydatcom.aerodynamics.hypersonic import calculate_hypersonic_coefficients
 from pydatcom.aerodynamics.stability import StabilityCalculator, calculate_all_stability_derivatives
 from pydatcom.aerodynamics.body_alone import has_wing_or_tail, calculate_body_alone_coefficients
+from pydatcom.aerodynamics.downwash import (
+    calculate_downwash, calculate_downwash_geometry,
+    calculate_downwash_gradient_441, fig4417_68a, fig4417_68b,
+)
+from pydatcom.aerodynamics.wing_body_tail import (
+    calculate_clwbt, calculate_cdwbt, calculate_tail_load,
+)
 
 __all__ = [
     'AerodynamicCalculator',
@@ -32,8 +40,17 @@ __all__ = [
     'calculate_transonic_coefficients',
     'calculate_supersonic_coefficients',
     'calculate_supdrg_straight_wing',
+    'calculate_supdrg_skin_friction',
     'calculate_hypersonic_coefficients',
     'has_wing_or_tail',
     'calculate_body_alone_coefficients',
+    'calculate_downwash',
+    'calculate_downwash_geometry',
+    'calculate_downwash_gradient_441',
+    'fig4417_68a',
+    'fig4417_68b',
+    'calculate_clwbt',
+    'calculate_cdwbt',
+    'calculate_tail_load',
 ]
 
