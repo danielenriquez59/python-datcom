@@ -1,5 +1,5 @@
 """
-INTERX: the general table interpolator used throughout Digital DATCOM.
+INTERX and the resampling routines built directly on it.
 
 ``INTERX`` is a thin dispatcher over the dimension-specific routines:
 ``TLIN1X`` for one independent variable, ``TLINEX`` for two, ``TLIN3X`` for
@@ -11,14 +11,20 @@ request is an error in the original as well.
 three-variable call sites, so this is the single highest-leverage utility in
 the legacy codebase.
 
-Reference: datcom-legacy/datcom_2000/interx.f, tlin1x.f, tlinex.f, tlin3x.f
+``EQSPC1`` and ``EQSPCE`` resample body station data onto an equally spaced
+X grid using ``INTERX``, then take the slope of the resampled curve with
+``TBFUNX``.  ``BODYRT`` and ``BODOPT`` both call them as setup.
+
+Reference: datcom-legacy/datcom_2000/interx.f, tlin1x.f, tlinex.f,
+tlin3x.f, eqspc1.f, eqspce.f
 """
 
 import numpy as np
-from typing import Sequence
+from typing import Dict, Sequence
 import logging
 
 from pydatcom.utils.legacy_tables import tlin1x, tlinex
+from pydatcom.utils.legacy_numeric import tbfunx
 
 logger = logging.getLogger(__name__)
 
@@ -149,3 +155,126 @@ def _columns(table, n_independent: int, length: Sequence[int],
                 f"({column.size} < {size})")
         grids.append(np.asarray(column[:size], dtype=float))
     return grids
+
+
+def _equal_spaced_stations(x, n_equal: int):
+    """The equally spaced X grid EQSPC1 and EQSPCE build.
+
+    The source accumulates ``XE(I)=XE(I-1)+XIN`` rather than forming
+    ``X(1)+(I-1)*XIN``, and pins both endpoints to the original ones.  The
+    accumulation is preserved: it is what the legacy routines actually do,
+    and the two differ in the last bits.
+    """
+    x = np.asarray(x, dtype=float)
+    count = int(n_equal)
+    if count < 2:
+        raise ValueError("EQSPC1/EQSPCE need at least two output stations")
+    stations = np.empty(count)
+    step = (x[-1] - x[0]) / float(count - 1)
+    stations[0] = x[0]
+    for index in range(1, count - 1):
+        stations[index] = stations[index - 1] + step
+    stations[count - 1] = x[-1]
+    return stations
+
+
+def _resample(x, values, stations):
+    """Interior values via INTERX, endpoints taken from the source arrays."""
+    x = np.asarray(x, dtype=float)
+    values = np.asarray(values, dtype=float)
+    count = len(stations)
+    out = np.empty(count)
+    out[0] = values[0]
+    out[count - 1] = values[-1]
+    for index in range(1, count - 1):
+        out[index] = interx(1, x, [stations[index]], [len(x)], values)
+    return out
+
+
+def eqspc1(x, s, n_equal: int) -> Dict[str, np.ndarray]:
+    """Translate EQSPC1: resample one curve onto equally spaced stations.
+
+    Args:
+        x: Original station coordinates, length ``NP``.
+        s: Values at those stations.
+        n_equal: ``NE``, the number of equally spaced output stations.
+
+    Returns:
+        Dictionary with ``xe``, ``se`` and ``dsedx``.
+
+    Raises:
+        ValueError: If the inputs are empty, mismatched or fewer than two
+            output stations are requested.
+
+    Notes:
+        ``DSEDX`` comes from ``TBFUNX`` evaluated on the *resampled* table,
+        so it is a local quadratic slope of ``(XE, SE)``, not the derivative
+        of the piecewise-linear interpolant that produced ``SE``.  A single
+        input station is the source's degenerate branch: every output
+        station takes that value and a zero slope.
+    """
+    x = np.asarray(x, dtype=float)
+    s = np.asarray(s, dtype=float)
+    if x.ndim != 1 or x.shape != s.shape or len(x) == 0:
+        raise ValueError("EQSPC1 requires nonempty matching one-dimensional arrays")
+    count = int(n_equal)
+    if count < 2:
+        raise ValueError("EQSPC1 needs at least two output stations")
+
+    if len(x) == 1:
+        return {
+            'xe': np.full(count, x[0]),
+            'se': np.full(count, s[0]),
+            'dsedx': np.zeros(count),
+        }
+
+    stations = _equal_spaced_stations(x, count)
+    resampled = _resample(x, s, stations)
+    slopes = np.array([tbfunx(stations, resampled, station, lower=0, upper=0)[1]
+                       for station in stations])
+    return {'xe': stations, 'se': resampled, 'dsedx': slopes}
+
+
+def eqspce(x, r, p, s, n_equal: int) -> Dict[str, np.ndarray]:
+    """Translate EQSPCE: resample three curves onto equally spaced stations.
+
+    The four-array body form of ``EQSPC1``: ``R``, ``P`` and ``S`` are each
+    resampled over the same new X grid, and only ``S`` gets a slope.
+
+    Args:
+        x: Original station coordinates, length ``NP``.
+        r: First dependent array, normally body radius.
+        p: Second dependent array, normally perimeter.
+        s: Third dependent array, normally cross-sectional area.
+        n_equal: ``NE``, the number of equally spaced output stations.
+
+    Returns:
+        Dictionary with ``xe``, ``re``, ``pe``, ``se`` and ``dsedx``.
+
+    Raises:
+        ValueError: If the inputs are empty, mismatched or fewer than two
+            output stations are requested.
+    """
+    arrays = [np.asarray(value, dtype=float) for value in (x, r, p, s)]
+    x, r, p, s = arrays
+    if x.ndim != 1 or len(x) == 0 or any(a.shape != x.shape for a in arrays):
+        raise ValueError("EQSPCE requires nonempty matching one-dimensional arrays")
+    count = int(n_equal)
+    if count < 2:
+        raise ValueError("EQSPCE needs at least two output stations")
+
+    if len(x) == 1:
+        return {
+            'xe': np.full(count, x[0]), 're': np.full(count, r[0]),
+            'pe': np.full(count, p[0]), 'se': np.full(count, s[0]),
+            'dsedx': np.zeros(count),
+        }
+
+    stations = _equal_spaced_stations(x, count)
+    resampled = {name: _resample(x, values, stations)
+                 for name, values in (('re', r), ('pe', p), ('se', s))}
+    resampled['dsedx'] = np.array([
+        tbfunx(stations, resampled['se'], station, lower=0, upper=0)[1]
+        for station in stations])
+    resampled['xe'] = stations
+    return resampled
