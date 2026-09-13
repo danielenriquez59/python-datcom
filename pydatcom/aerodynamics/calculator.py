@@ -16,6 +16,7 @@ from pydatcom.aerodynamics.transonic import calculate_transonic_coefficients
 from pydatcom.aerodynamics.supersonic import calculate_supersonic_coefficients
 from pydatcom.aerodynamics.hypersonic import calculate_hypersonic_coefficients
 from pydatcom.aerodynamics.body_alone import has_wing_or_tail, calculate_body_alone_coefficients
+from pydatcom.utils.atmosphere import Atmosphere
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,8 @@ class AerodynamicCalculator:
             return 'hypersonic'
     
     def calculate_at_condition(self, alpha_deg: float, mach: float,
-                               reynolds: float = None) -> Dict[str, float]:
+                               reynolds: float = None,
+                               condition_index: int = None) -> Dict[str, float]:
         """
         Calculate aerodynamic coefficients at single flight condition.
         
@@ -66,14 +68,18 @@ class AerodynamicCalculator:
         Args:
             alpha_deg: Angle of attack (degrees)
             mach: Mach number
-            reynolds: Reynolds number (estimated if None)
+            reynolds: Dimensionless Reynolds number based on the relevant
+                component/reference length. When omitted, DATCOM's RNNUB
+                (Reynolds number per unit length) is resolved for this Mach
+                and multiplied by that length.
+            condition_index: Optional zero-based FLTCON condition index.
             
         Returns:
             Dictionary with CL, CD, Cm and components
         """
         # Estimate Reynolds number if not provided
         if reynolds is None:
-            reynolds = self._estimate_reynolds(mach)
+            reynolds = self._estimate_reynolds(mach, condition_index)
         
         # Check if this is a body-only configuration
         if not has_wing_or_tail(self.state):
@@ -134,7 +140,7 @@ class AerodynamicCalculator:
             'cd': cd_array,
             'cm': cm_array,
             'mach': mach,
-            'reynolds': reynolds or self._estimate_reynolds(mach),
+            'reynolds': reynolds if reynolds is not None else self._estimate_reynolds(mach),
             'regime': self.identify_regime(mach),
         }
     
@@ -155,12 +161,14 @@ class AerodynamicCalculator:
         cd_array = np.zeros(n_mach)
         cm_array = np.zeros(n_mach)
         
+        reynolds_array = np.zeros(n_mach)
         for i, mach in enumerate(mach_range):
-            reynolds = self._estimate_reynolds(mach)
-            result = self.calculate_at_condition(alpha_deg, mach, reynolds)
+            reynolds = self._estimate_reynolds(mach, i)
+            result = self.calculate_at_condition(alpha_deg, mach, reynolds, i)
             cl_array[i] = result['cl']
             cd_array[i] = result['cd']
             cm_array[i] = result['cm']
+            reynolds_array[i] = reynolds
         
         return {
             'mach': mach_range,
@@ -168,9 +176,60 @@ class AerodynamicCalculator:
             'cd': cd_array,
             'cm': cm_array,
             'alpha': alpha_deg,
+            'reynolds': reynolds_array,
         }
     
-    def _estimate_reynolds(self, mach: float) -> float:
+    @staticmethod
+    def _as_list(value) -> List[float]:
+        """Return a scalar/array state entry as a plain list."""
+        if value is None:
+            return []
+        if np.isscalar(value):
+            return [value]
+        return list(value)
+
+    def _condition_index(self, mach: float, requested: int = None) -> int:
+        machs = self._as_list(self.state.get('flight_mach'))
+        if requested is not None and 0 <= requested < len(machs):
+            if np.isclose(machs[requested], mach, rtol=1e-9, atol=1e-12):
+                return requested
+        for index, scheduled_mach in enumerate(machs):
+            if np.isclose(scheduled_mach, mach, rtol=1e-9, atol=1e-12):
+                return index
+        # A direct off-schedule API call has no FORTRAN loop index. Retain
+        # the first supplied condition rather than inventing interpolation.
+        return 0
+
+    def _reference_length(self) -> float:
+        """Length used to dimensionalize RNNUB for the active configuration."""
+        if not has_wing_or_tail(self.state):
+            body_x = self._as_list(self.state.get('body_x'))
+            length = self.state.get('body_length')
+            if length is None and len(body_x) >= 2:
+                length = body_x[-1] - body_x[0]
+        else:
+            # CDRAG uses A(16), the exposed mean aerodynamic chord. CBARR is
+            # the best available fallback until the complete geometry COMMON
+            # layout is translated.
+            length = (self.state.get('wing_mac') or
+                      self.state.get('options_cbarr'))
+            if not length:
+                root = self.state.get('wing_chrdr')
+                tip = self.state.get('wing_chrdtp')
+                if root and tip is not None and root > 0.0:
+                    taper = float(tip) / float(root)
+                    length = (2.0 / 3.0) * float(root) * (
+                        (1.0 + taper + taper**2) / (1.0 + taper))
+                elif root:
+                    # Partial continuation cases can omit the prior panel
+                    # definition. Root chord is the only dimensional surface
+                    # length available until case inheritance is translated.
+                    length = root
+        if length is None or not np.isfinite(length) or length <= 0:
+            raise ValueError("A positive characteristic length is required to convert RNNUB")
+        return float(length)
+
+    def _estimate_reynolds(self, mach: float, condition_index: int = None) -> float:
         """
         Estimate Reynolds number from Mach and state.
         
@@ -180,25 +239,34 @@ class AerodynamicCalculator:
         Returns:
             Estimated Reynolds number
         """
-        # Try to get from state
-        rnnub_list = self.state.get('flight_rnnub', [])
-        if rnnub_list and len(rnnub_list) > 0:
-            return rnnub_list[0]
-        
-        # Estimate from altitude and Mach
-        altitude = self.state.get('flight_alt', [0.0])
-        if isinstance(altitude, list) and len(altitude) > 0:
-            alt = altitude[0]
+        index = self._condition_index(mach, condition_index)
+        rnnub = self._as_list(self.state.get('flight_rnnub'))
+        if rnnub:
+            per_length = rnnub[min(index, len(rnnub) - 1)]
         else:
-            alt = 0.0
-        
-        # Rough estimate: Re ≈ 1e6 per ft of characteristic length at sea level
-        char_length = self.state.get('options_cbarr', 10.0) or 10.0
-        
-        # Simple atmospheric correction
-        reynolds = 1e6 * char_length * mach * np.exp(-alt / 30000.0)
-        
-        return reynolds
+            pressures = self._as_list(self.state.get('flight_pinf'))
+            temperatures = self._as_list(self.state.get('flight_tinf'))
+            altitudes = self._as_list(self.state.get('flight_alt'))
+            loop = int(self.state.get('flight_loop', 1) or 1)
+            atmosphere_index = index if loop == 1 else 0
+            if pressures and temperatures:
+                pressure = pressures[min(atmosphere_index, len(pressures) - 1)]
+                temperature = temperatures[min(atmosphere_index, len(temperatures) - 1)]
+            elif altitudes:
+                altitude = altitudes[min(atmosphere_index, len(altitudes) - 1)]
+                atmosphere = Atmosphere.calculate(float(altitude))
+                pressure = atmosphere['pressure']
+                temperature = atmosphere['temperature']
+            else:
+                # INPUT labels 1130-1160 use this per-unit-length fallback.
+                per_length = 5.0e6
+                return per_length * self._reference_length()
+            # Main program labels 1030/1050/1080. PINF is psf, TINF Rankine.
+            per_length = (1.2527e6 * pressure * mach *
+                          (temperature + 198.6) / temperature**2)
+        if not np.isfinite(per_length) or per_length <= 0:
+            raise ValueError("RNNUB must be a positive Reynolds number per unit length")
+        return float(per_length) * self._reference_length()
 
 
 def calculate_aero_coefficients(state: Dict, alpha_deg: float, mach: float,

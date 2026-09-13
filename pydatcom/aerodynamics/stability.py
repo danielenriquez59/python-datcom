@@ -13,6 +13,8 @@ import numpy as np
 from typing import Dict
 import logging
 
+from pydatcom.aerodynamics.moment import resolve_wing_xac
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,7 +31,24 @@ def calculate_pitch_damping(state: Dict, mach: float) -> Dict[str, float]:
     Returns:
         Dictionary with damping derivatives
     """
-    # Get geometry
+    # DATCOM obtains these terms from DNPWBT after the wing/body and tail
+    # interference calculations.  Prefer those translated outputs whenever
+    # they are available.
+    translated = [state.get('wing_cmq'), state.get('body_cmq'),
+                  state.get('htail_cmq')]
+    if any(value is not None for value in translated):
+        cmq_wing = state.get('wing_cmq', 0.0) or 0.0
+        cmq_body = state.get('body_cmq', 0.0) or 0.0
+        cmq_tail = state.get('htail_cmq', 0.0) or 0.0
+        return {
+            'cmq': cmq_wing + cmq_body + cmq_tail,
+            'cmq_wing': cmq_wing,
+            'cmq_body': cmq_body,
+            'cmq_tail': cmq_tail,
+            'datcom_supported': True,
+        }
+
+    # Compatibility estimate used until DNPWBT is fully translated.
     aspect_ratio = state.get('wing_aspect_ratio', 6.0)
     taper_ratio = state.get('wing_taper_ratio', 0.5)
     
@@ -58,7 +77,9 @@ def calculate_pitch_damping(state: Dict, mach: float) -> Dict[str, float]:
     return {
         'cmq': cmq_total,
         'cmq_wing': cmq_wing,
+        'cmq_body': 0.0,
         'cmq_tail': cmq_tail,
+        'datcom_supported': False,
     }
 
 
@@ -141,21 +162,49 @@ def calculate_static_stability_margin(state: Dict, mach: float) -> Dict[str, flo
     xcg = state.get('synths_xcg', 0.0) or 0.0
     cbar = state.get('options_cbarr', 1.0) or 1.0
     
-    # Estimate neutral point location
-    # For wing alone: xnp ≈ xac_wing ≈ 0.25c from wing LE
-    xw = state.get('synths_xw', 0.0) or 0.0
-    xnp_wing = xw + 0.25 * cbar
+    # CMALPH uses CMA = CLA * (XCG-XAC)/CBARR.  If translated total
+    # derivatives are present, invert that exact relation.
+    cla_total = state.get('aero_cla')
+    cma_total = state.get('aero_cma')
+    if cla_total is not None and cma_total is not None and cla_total != 0.0:
+        xnp = xcg - cbar * cma_total / cla_total
+        static_margin = (xnp - xcg) / cbar
+        return {
+            'xnp': xnp,
+            'xcg': xcg,
+            'static_margin': static_margin,
+            'stable': static_margin > 0.0,
+            'meets_five_percent_margin': static_margin >= 0.05,
+            'tail_supported': state.get('htail_cla') is not None,
+            'method': 'datcom_derivatives',
+        }
+
+    # Wing-alone XAC.  ``wing_xac_abs`` is the unambiguous dimensional
+    # form; the historical ``wing_xac`` public key is a CBARR fraction.
+    xnp_wing = resolve_wing_xac(state)
     
     # Tail contribution moves NP aft
     htail_area = state.get('htail_area', 0.0)
     sref = state.get('options_sref', 1.0)
     
-    if htail_area and htail_area > 0 and sref > 0:
-        xh = state.get('synths_xh', xw + 2.0 * cbar) or (xw + 2.0 * cbar)
-        tail_volume = (htail_area / sref) * (xh - xcg) / cbar
-        
-        # NP shift due to tail
-        xnp = xnp_wing + tail_volume * cbar
+    wing_cla = state.get('wing_cla')
+    tail_cla = state.get('htail_cla')
+    tail_supported = bool(htail_area and htail_area > 0 and sref > 0 and
+                          wing_cla is not None and wing_cla > 0 and
+                          tail_cla is not None)
+    if tail_supported:
+        xh = state.get('synths_xh')
+        if xh is None:
+            raise ValueError("synths_xh is required with htail_cla")
+        xac_h = xh + state.get('htail_xac_offset', 0.0)
+        q_ratio = state.get('htail_dynamic_pressure_ratio', 1.0)
+        downwash = state.get('htail_downwash_gradient', 0.0)
+        interference = state.get('htail_lift_interference_factor', 1.0)
+        effective_tail_cla = (tail_cla * htail_area / sref * q_ratio *
+                              (1.0 - downwash) * interference)
+        total_cla = wing_cla + effective_tail_cla
+        xnp = ((wing_cla * xnp_wing + effective_tail_cla * xac_h) /
+               total_cla if total_cla != 0.0 else xnp_wing)
     else:
         xnp = xnp_wing
     
@@ -169,7 +218,10 @@ def calculate_static_stability_margin(state: Dict, mach: float) -> Dict[str, flo
         'xnp': xnp,
         'xcg': xcg,
         'static_margin': static_margin,
-        'stable': static_margin > 0.05,  # At least 5% margin for stability
+        'stable': static_margin > 0.0,
+        'meets_five_percent_margin': static_margin >= 0.05,
+        'tail_supported': tail_supported,
+        'method': 'component_derivatives' if tail_supported else 'wing_xac',
     }
 
 

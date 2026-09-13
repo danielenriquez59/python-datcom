@@ -17,36 +17,55 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def resolve_wing_xac(state: Dict, fraction: float = 0.25) -> float:
+    """Resolve a wing aerodynamic-center fraction to an absolute X."""
+    absolute = state.get('wing_xac_abs')
+    if absolute is not None:
+        return float(absolute)
+    xw = float(state.get('synths_xw', 0.0) or 0.0)
+    # CMALPH's C(6) is XAC/root chord from the root leading edge.
+    root_fraction = state.get('wing_xac_root_fraction')
+    if root_fraction is not None:
+        root_chord = float(state.get('wing_chrdr', 0.0) or 0.0)
+        if root_chord <= 0.0:
+            raise ValueError("wing_chrdr is required with wing_xac_root_fraction")
+        return xw + float(root_fraction) * root_chord
+    if 'wing_xac' in state:
+        # Preserve the original Python API's documented CBARR fraction.
+        cbar = float(state.get('options_cbarr', 0.0) or 0.0)
+        return xw + float(state['wing_xac']) * cbar
+    wing_mac = float(state.get('wing_mac', state.get('options_cbarr', 1.0)) or 1.0)
+    mac_le = float(state.get('wing_mac_location', 0.0) or 0.0)
+    return xw + mac_le + fraction * wing_mac
+
+
 def calculate_wing_moment_coefficient(cl: float, xac: float, xcg: float,
-                                      mac: float, cbar: float) -> float:
+                                      mac: float, cbar: float,
+                                      cm_ac: float = 0.0) -> float:
     """
     Calculate wing pitching moment about CG.
     
-    Cm = Cm0 + CL * (xac - xcg) / cbar
+    Cm_cg = Cm_ac + CL * (xcg - xac) / cbar
+
+    This is the sign and coordinate convention used by ``CMALPH``:
+    ``DCMDCL=(DXCG-XAC)/CBARR`` after both locations have been put in
+    the same dimensional coordinate system.
     
     Args:
         cl: Lift coefficient
         xac: Aerodynamic center location (from nose)
         xcg: Center of gravity location (from nose)
-        mac: Mean aerodynamic chord
+        mac: Mean aerodynamic chord (retained for API compatibility)
         cbar: Reference chord
+        cm_ac: Pitching moment coefficient about the aerodynamic center
         
     Returns:
         Pitching moment coefficient about CG
     """
-    # Moment arm
-    if cbar > 0:
-        moment_arm = (xac - xcg) / cbar
-    else:
-        moment_arm = 0.0
-    
-    # Zero-lift pitching moment (wing camber effect)
-    cm0 = 0.0  # Will be added from state or airfoil data
-    
-    # Total moment
-    cm = cm0 - cl * moment_arm
-    
-    return cm
+    del mac
+    if cbar <= 0:
+        raise ValueError("reference chord must be positive")
+    return cm_ac + cl * (xcg - xac) / cbar
 
 
 def calculate_body_pitching_moment(state: Dict, alpha_deg: float,
@@ -119,11 +138,15 @@ def calculate_tail_moment_contribution(state: Dict, cl_tail: float,
     xcg = state.get('synths_xcg', 0.0)
     
     if sref <= 0 or cbar <= 0:
-        return 0.0
+        raise ValueError("reference area and chord must be positive")
     
     # Tail volume coefficient
     if area_tail > 0 and x_tail > xcg:
-        moment_arm = (x_tail - xcg) / cbar
+        # XH/XV is the surface longitudinal reference location in /SYNTSS/.
+        # A translated aerodynamic-center offset may be supplied in length
+        # units; omitting it means the force is referenced at XH/XV.
+        xac_tail = x_tail + state.get(f'{tail_type}_xac_offset', 0.0)
+        moment_arm = (xac_tail - xcg) / cbar
         volume_coef = (area_tail / sref) * moment_arm
         
         # Tail moment
@@ -151,24 +174,38 @@ def calculate_total_pitching_moment(state: Dict, cl_wing: float,
         Dictionary with moment components
     """
     # Wing contribution
-    xac_wing = state.get('wing_xac', 0.25)  # Typical AC at 0.25c
     xcg = state.get('synths_xcg', 0.0) or 0.0
-    xw = state.get('synths_xw', 0.0) or 0.0  # Wing location
     cbar = state.get('options_cbarr', 1.0) or 1.0
     
-    # Wing AC location from nose
-    xac_abs = xw + xac_wing * cbar
+    # Callers with a translated dimensional result can provide the
+    # unambiguous absolute coordinate directly.  The older public key is
+    # retained as a reference-chord fraction for compatibility.
+    xac_abs = resolve_wing_xac(state)
+
+    cm_ac = state.get('wing_cm_ac')
+    if cm_ac is None:
+        # WGPLNF CMO is an airfoil/wing-reference coefficient.  Put it on
+        # the aircraft SREF/CBARR basis before adding it to aircraft Cm.
+        wing_cmo = state.get('wing_cmo', 0.0) or 0.0
+        wing_area = state.get('wing_area', state.get('options_sref', 1.0)) or 0.0
+        wing_mac = state.get('wing_mac', cbar) or cbar
+        sref = state.get('options_sref', wing_area) or wing_area
+        cm_ac = (wing_cmo * wing_area * wing_mac / (sref * cbar)
+                 if sref > 0.0 else 0.0)
     
     cm_wing = calculate_wing_moment_coefficient(
-        cl_wing, xac_abs, xcg, cbar, cbar
+        cl_wing, xac_abs, xcg, cbar, cbar, cm_ac
     )
     
     # Body contribution
     cm_body = calculate_body_pitching_moment(state, alpha_deg, mach)
     
-    # Tail contribution (simplified - assumes downwash effects included)
-    # Full implementation would calculate tail lift from downwash
-    cm_tail = 0.0  # Placeholder - Phase 5 will add tail effects
+    # W B TAIL computes the horizontal-tail load after downwash and
+    # interference.  Do not synthesize that load here.  Include it only when
+    # an upstream translated routine has supplied a tail lift coefficient.
+    cl_tail = state.get('aero_cl_tail')
+    cm_tail = (calculate_tail_moment_contribution(state, cl_tail)
+               if cl_tail is not None else 0.0)
     
     # Total moment
     cm_total = cm_wing + cm_body + cm_tail
@@ -180,6 +217,7 @@ def calculate_total_pitching_moment(state: Dict, cl_wing: float,
         'cm_tail': cm_tail,
         'xcg': xcg,
         'xac': xac_abs,
+        'tail_supported': cl_tail is not None,
     }
 
 
@@ -272,8 +310,14 @@ class MomentCalculator:
         """
         # Get neutral point and CG locations
         xcg = self.state.get('synths_xcg', 0.0)
-        xnp = self.state.get('wing_xnp', xcg + 0.1)  # Default slightly aft
         cbar = self.state.get('options_cbarr', 1.0)
+        xnp = self.state.get('wing_xnp_abs')
+        if xnp is None:
+            if 'wing_xnp' in self.state:
+                xw = self.state.get('synths_xw', 0.0) or 0.0
+                xnp = xw + self.state['wing_xnp'] * cbar
+            else:
+                xnp = resolve_wing_xac(self.state)
         
         # Get lift curve slope
         aspect_ratio = self.state.get('wing_aspect_ratio', 6.0)

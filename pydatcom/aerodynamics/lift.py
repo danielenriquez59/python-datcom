@@ -11,7 +11,7 @@ Reference: datcom.f lines 4122 (CLMCH0), 6549 (CSLOPE), 2589 (CALCA)
 """
 
 import numpy as np
-from typing import Dict, Tuple, Optional
+from typing import Dict, Optional, Sequence, Tuple, Union
 import logging
 
 from pydatcom.utils.constants import UNUSED
@@ -56,9 +56,10 @@ def calculate_lift_curve_slope_incompressible(aspect_ratio: float,
 def calculate_lift_curve_slope_compressible(aspect_ratio: float,
                                             taper_ratio: float,
                                             mach: float,
-                                            sweep_angle_deg: float = 0.0) -> float:
+                                            sweep_angle_deg: float = 0.0,
+                                            section_cla_per_deg: Optional[float] = None) -> float:
     """
-    Calculate compressible lift curve slope using Prandtl-Glauert.
+    Calculate the DATCOM linear finite-wing lift-curve slope.
     
     Args:
         aspect_ratio: Wing aspect ratio
@@ -68,24 +69,112 @@ def calculate_lift_curve_slope_compressible(aspect_ratio: float,
         
     Returns:
         Compressible lift curve slope (per radian)
+
+    Notes:
+        This is the analytic finite-wing expression used by ``TRSONI`` to
+        establish the subsonic lift-slope points.  ``sweep_angle_deg`` is the
+        half-chord sweep used by that expression.  DATCOM's optional section
+        ``CLALPA`` input is per degree; when supplied it defines the airfoil
+        factor ``K = CLALPA * RAD / (2*pi)``.
     """
-    # Get incompressible slope
-    cla_incomp = calculate_lift_curve_slope_incompressible(
-        aspect_ratio, taper_ratio, sweep_angle_deg
-    )
-    
-    # Prandtl-Glauert correction for subsonic
-    if mach < 0.9:
-        beta = np.sqrt(1.0 - mach**2)
-        if beta > 0.01:
-            cla_comp = cla_incomp / beta
-        else:
-            cla_comp = cla_incomp
+    del taper_ratio  # Taper enters other DATCOM corrections, not this equation.
+    if aspect_ratio <= 0.0:
+        return 0.0
+    if mach < 0.0 or mach >= 1.0:
+        raise ValueError("DATCOM subsonic lift slope requires 0 <= Mach < 1")
+
+    if section_cla_per_deg is None:
+        section_factor = 1.0
     else:
-        # Near or above Mach 1, use different method
-        cla_comp = cla_incomp
-    
-    return cla_comp
+        if section_cla_per_deg <= 0.0:
+            raise ValueError("section CLALPA must be positive")
+        section_factor = section_cla_per_deg * np.rad2deg(1.0) / (2.0 * np.pi)
+
+    beta_squared = 1.0 - mach**2
+    tan_half_chord_sweep = np.tan(np.deg2rad(sweep_angle_deg))
+    ar_over_k_squared = (aspect_ratio / section_factor) ** 2
+    denominator = 2.0 + np.sqrt(
+        4.0 + ar_over_k_squared *
+        (beta_squared + tan_half_chord_sweep**2)
+    )
+    return 2.0 * np.pi * aspect_ratio / denominator
+
+
+def _mach_indexed_value(
+    value: Union[float, Sequence[Optional[float]], None],
+    state: Dict,
+    mach: float,
+) -> Optional[float]:
+    """Resolve a scalar or Mach-indexed DATCOM input from the state."""
+    if value is None:
+        return None
+    if np.isscalar(value):
+        return float(value)
+
+    usable = [(index, item) for index, item in enumerate(value)
+              if item is not None and abs(float(item)) != UNUSED]
+    if not usable:
+        return None
+
+    mach_schedule = state.get('flight_mach') or []
+    candidates = [(index, item) for index, item in usable
+                  if index < len(mach_schedule) and mach_schedule[index] is not None]
+    if candidates:
+        _, item = min(candidates,
+                      key=lambda pair: abs(float(mach_schedule[pair[0]]) - mach))
+        return float(item)
+    return float(usable[0][1])
+
+
+def _half_chord_sweep_deg(state: Dict) -> float:
+    """Convert WGPLNF sweep at CHSTAT to the half-chord sweep used by DATCOM."""
+    sweep_reference = float(state.get('wing_savsi', 0.0) or 0.0)
+    chord_station = float(state.get('wing_chstat', 0.25) or 0.0)
+    root_chord = state.get('wing_chrdr')
+    tip_chord = state.get('wing_chrdtp')
+    semispan = state.get('wing_sspn')
+    if root_chord is None or tip_chord is None or not semispan:
+        return sweep_reference
+
+    chord_gradient = (float(tip_chord) - float(root_chord)) / float(semispan)
+    tangent = (np.tan(np.deg2rad(sweep_reference)) +
+               (0.5 - chord_station) * chord_gradient)
+    return float(np.rad2deg(np.arctan(tangent)))
+
+
+def resolve_wing_lift_inputs(state: Dict, mach: float) -> Dict[str, Optional[float]]:
+    """Resolve DATCOM section design-point and incidence inputs for wing lift."""
+    section_cla_per_deg = _mach_indexed_value(state.get('wing_clalpa'), state, mach)
+    if section_cla_per_deg is None:
+        section_cla_per_deg = 2.0 * np.pi / np.rad2deg(1.0)
+
+    design_cl = float(state.get('wing_cli', 0.0) or 0.0)
+    design_alpha_deg = float(state.get('wing_alphai', 0.0) or 0.0)
+    incidence_deg = float(state.get('synths_aliw', 0.0) or 0.0)
+    section_alpha_zero_deg = design_alpha_deg - design_cl / section_cla_per_deg
+    body_alpha_zero_deg = section_alpha_zero_deg - incidence_deg
+    return {
+        'section_cla_per_deg': section_cla_per_deg,
+        'design_cl': design_cl,
+        'design_alpha': design_alpha_deg,
+        'incidence': incidence_deg,
+        'section_alpha_zero': section_alpha_zero_deg,
+        'alpha_zero': body_alpha_zero_deg,
+    }
+
+
+def wing_reference_ratio(state: Dict) -> float:
+    """Return SW/SREF, the component-to-aircraft coefficient scale."""
+    wing_area = float(state.get('wing_area', 0.0) or 0.0)
+    sref = float(state.get('options_sref', wing_area) or wing_area)
+    if sref <= 0.0:
+        raise ValueError("options_sref must be positive")
+    if wing_area == 0.0:
+        # A standalone wing coefficient already uses its own implicit area.
+        wing_area = sref
+    if wing_area < 0.0:
+        raise ValueError("wing_area cannot be negative")
+    return wing_area / sref
 
 
 def calculate_lift_coefficient(alpha_deg: float,
@@ -132,7 +221,7 @@ def calculate_wing_lift_subsonic(state: Dict, alpha_deg: float, mach: float) -> 
     # Get wing geometry from state
     aspect_ratio = state.get('wing_aspect_ratio', 6.0)
     taper_ratio = state.get('wing_taper_ratio', 0.5)
-    sweep_deg = state.get('wing_savsi', 0.0)
+    sweep_deg = _half_chord_sweep_deg(state)
     
     # If not computed yet, try to calculate from planform
     if aspect_ratio is None or aspect_ratio == 6.0:
@@ -146,21 +235,32 @@ def calculate_wing_lift_subsonic(state: Dict, alpha_deg: float, mach: float) -> 
             aspect_ratio = 6.0
     
     # Calculate lift curve slope
+    section = resolve_wing_lift_inputs(state, mach)
     cla = calculate_lift_curve_slope_compressible(
-        aspect_ratio, taper_ratio, mach, sweep_deg
+        aspect_ratio, taper_ratio, mach, sweep_deg,
+        section['section_cla_per_deg'],
     )
+
+    alpha_zero = section['alpha_zero']
     
-    # Zero-lift angle (from camber or incidence)
-    alpha_zero = state.get('wing_alphai', 0.0) or 0.0
-    
-    # Calculate CL
-    cl = calculate_lift_coefficient(alpha_deg, alpha_zero, cla)
+    # DATCOM surface methods first produce coefficients on the exposed wing
+    # area, then multiply by SRSTAR/SR when assembling aircraft outputs.
+    reference_ratio = wing_reference_ratio(state)
+    cl_wing = calculate_lift_coefficient(alpha_deg, alpha_zero, cla)
+    cl = cl_wing * reference_ratio
+    cla_aircraft = cla * reference_ratio
     
     return {
         'cl': cl,
-        'cla': cla,
-        'cla_per_deg': np.rad2deg(cla),  # Per degree
+        'cl_wing': cl_wing,
+        'cla': cla_aircraft,
+        'cla_wing': cla,
+        'cla_per_deg': cla_aircraft * np.deg2rad(1.0),
+        'cla_wing_per_deg': cla * np.deg2rad(1.0),
+        'wing_reference_ratio': reference_ratio,
         'alpha_zero': alpha_zero,
+        'section_alpha_zero': section['section_alpha_zero'],
+        'incidence': section['incidence'],
     }
 
 
@@ -286,12 +386,19 @@ class LiftCalculator:
             # Subsonic
             return calculate_wing_lift_subsonic(self.state, alpha_deg, mach)
         elif mach < 1.2:
-            # Transonic (use subsonic with correction)
-            logger.warning("Transonic lift using subsonic approximation")
-            result = calculate_wing_lift_subsonic(self.state, alpha_deg, 0.85)
-            result['regime'] = 'transonic'
-            result['cl'] *= 0.9  # Rough transonic reduction
-            return result
+            # Match the public transonic calculator's endpoint convention so
+            # both APIs are continuous at Mach 0.9 and 1.2.
+            lower = calculate_wing_lift_subsonic(self.state, alpha_deg, 0.9)
+            upper = self._calculate_wing_lift_supersonic(alpha_deg, 1.2)
+            fraction = (mach - 0.9) / 0.3
+            return {
+                'cl': lower['cl'] + fraction * (upper['cl'] - lower['cl']),
+                'cla': lower['cla'] + fraction * (upper['cla'] - lower['cla']),
+                'cla_per_deg': (lower['cla_per_deg'] + fraction *
+                                (upper['cla_per_deg'] - lower['cla_per_deg'])),
+                'alpha_zero': lower['alpha_zero'],
+                'regime': 'transonic',
+            }
         else:
             # Supersonic
             return self._calculate_wing_lift_supersonic(alpha_deg, mach)
@@ -322,15 +429,20 @@ class LiftCalculator:
             ar_correction = aspect_ratio / (aspect_ratio + 2.0 / beta)
             cla *= ar_correction
         
-        # Calculate CL
-        alpha_zero = self.state.get('wing_alphai', 0.0) or 0.0
+        # Calculate CL on the wing reference, then assemble it on SREF.
+        section = resolve_wing_lift_inputs(self.state, mach)
+        alpha_zero = section['alpha_zero']
         alpha_eff_rad = np.deg2rad(alpha_deg - alpha_zero)
-        cl = cla * alpha_eff_rad
+        ratio = wing_reference_ratio(self.state)
+        cl_wing = cla * alpha_eff_rad
+        cla_aircraft = cla * ratio
+        cl = cl_wing * ratio
         
         return {
             'cl': cl,
-            'cla': cla,
-            'cla_per_deg': np.rad2deg(cla),
+            'cl_wing': cl_wing,
+            'cla': cla_aircraft,
+            'cla_per_deg': cla_aircraft * np.deg2rad(1.0),
             'alpha_zero': alpha_zero,
             'regime': 'supersonic',
             'beta': beta,
