@@ -16,6 +16,7 @@ from pydatcom.aerodynamics.supersonic import (
 from pydatcom.aerodynamics.hypersonic import calculate_hypersonic_coefficients
 from pydatcom.aerodynamics.stability import StabilityCalculator, calculate_all_stability_derivatives
 from pydatcom.aerodynamics.body_alone import has_wing_or_tail, calculate_body_alone_coefficients
+from pydatcom.aerodynamics.bodyrt import calculate_bodyrt
 from pydatcom.aerodynamics.downwash import (
     calculate_downwash, calculate_downwash_geometry,
     calculate_downwash_gradient_441, fig4417_68a, fig4417_68b,
@@ -44,6 +45,7 @@ __all__ = [
     'calculate_hypersonic_coefficients',
     'has_wing_or_tail',
     'calculate_body_alone_coefficients',
+    'calculate_bodyrt',
     'calculate_downwash',
     'calculate_downwash_geometry',
     'calculate_downwash_gradient_441',
