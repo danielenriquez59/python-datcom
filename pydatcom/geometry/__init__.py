@@ -16,3 +16,6 @@ __all__ = [
     'TailGeometry', 'calculate_horizontal_tail', 'calculate_vertical_tail',
 ]
 
+from pydatcom.geometry.cslope import calculate_cslope
+
+__all__ = list(__all__) + ['calculate_cslope']
