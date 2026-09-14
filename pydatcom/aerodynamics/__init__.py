@@ -43,6 +43,7 @@ from pydatcom.aerodynamics.tablec import calculate_tablec
 from pydatcom.aerodynamics.tbsub import calculate_tbsub
 from pydatcom.aerodynamics.tbsup import calculate_tbsup
 from pydatcom.aerodynamics.tbtrn import calculate_tbtrn
+from pydatcom.aerodynamics.hyprop import calculate_hyprop
 from pydatcom.aerodynamics.vertical_lift_figures import (
     fig4132_56a, fig4132_56g, fig4132_60a, fig4132_60b,
     fig4132_61, fig4132_62, fig4132_63,
@@ -104,6 +105,7 @@ __all__ = [
     'calculate_tbsub',
     'calculate_tbsup',
     'calculate_tbtrn',
+    'calculate_hyprop',
     'fig4132_56a', 'fig4132_56g',
     'fig4132_60a', 'fig4132_60b',
     'fig4132_61', 'fig4132_62', 'fig4132_63',
