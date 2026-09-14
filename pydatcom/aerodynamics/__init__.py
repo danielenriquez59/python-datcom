@@ -38,6 +38,7 @@ from pydatcom.aerodynamics.wbtcdo import (
 )
 from pydatcom.aerodynamics.subpaw import calculate_subpaw
 from pydatcom.aerodynamics.subwbt import calculate_subwbt
+from pydatcom.aerodynamics.sssym import calculate_sssym
 from pydatcom.aerodynamics.wingcl import (
     calculate_wingcl, calculate_wingcl_clb, calculate_wingcl_cdl,
 )
@@ -90,6 +91,7 @@ __all__ = [
     'calculate_drag_divergence_mach',
     'calculate_subpaw',
     'calculate_subwbt',
+    'calculate_sssym',
     'calculate_wingcl',
     'calculate_wingcl_clb',
     'calculate_wingcl_cdl',
