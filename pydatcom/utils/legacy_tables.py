@@ -135,3 +135,62 @@ def tlinex(x1, x2, y, query1: float, query2: float,
     columns = [tlin1x(x2, y[:, index], query2, lower2, upper2)
                for index in range(len(x1))]
     return tlin1x(x1, columns, query1, lower1, upper1)
+
+
+def tlin3x(x1, x2, x3, y, query1: float, query2: float, query3: float,
+           lower1: int = 0, lower2: int = 0, lower3: int = 0,
+           upper1: int = 0, upper2: int = 0, upper3: int = 0) -> float:
+    """TLIN3X: linear interpolation of Y = F(X1, X2, X3).
+
+    ``Y`` must have shape ``(len(x2), len(x1), len(x3))``.  The source
+    declares ``Y(NX1,NX2,NX3)`` but only ever touches it by handing slices to
+    ``TLINEX``, which declares ``Y(NX2,NX1)``, so the declaration is dead.
+    The effective layout was established by compiling and running the legacy
+    routine over an asymmetric table, and is confirmed independently by
+    ``tlin4x.f``, whose header states outright that the structure is
+    ``Y(NX2,NX1,NX3,NX4)``.
+
+    Each X3 slice is interpolated by :func:`tlinex`, then those results are
+    interpolated along X3 by :func:`tlin1x`.  The legacy label sequence
+    evaluates only the needed slices; this evaluates all of them before the
+    same outer operation, which is numerically equivalent for finite tables.
+    """
+    x1, x2, x3 = _grid(x1), _grid(x2), _grid(x3)
+    y = np.asarray(y, dtype=float)
+    if y.shape != (len(x2), len(x1), len(x3)) or not np.all(np.isfinite(y)):
+        raise ValueError(
+            "Y must be finite with shape (len(x2), len(x1), len(x3))")
+    slices = [tlinex(x1, x2, y[:, :, k], query1, query2,
+                     lower1, lower2, upper1, upper2)
+              for k in range(len(x3))]
+    return tlin1x(x3, slices, query3, lower3, upper3)
+
+
+def tlin4x(x1, x2, x3, x4, y, query1: float, query2: float,
+           query3: float, query4: float,
+           lower1: int = 0, lower2: int = 0, lower3: int = 0, lower4: int = 0,
+           upper1: int = 0, upper2: int = 0, upper3: int = 0,
+           upper4: int = 0) -> float:
+    """TLIN4X: linear interpolation of Y = F(X1, X2, X3, X4).
+
+    ``Y`` must have shape ``(len(x2), len(x1), len(x3), len(x4))``, which the
+    source header states directly as ``Y(NX2,NX1,NX3,NX4)``.
+
+    ``INTERX`` cannot reach this routine -- its four-variable branch is
+    commented out with "TLIN4X CALL DELETED TO SAVE CORE" -- but the routine
+    itself is live, called directly by ``latflp.f``, ``sublat.f``,
+    ``trancm.f`` and ``trhtcm.f``.
+
+    Each X4 slice is interpolated by :func:`tlin3x`, then those results are
+    interpolated along X4.
+    """
+    x1, x2, x3, x4 = _grid(x1), _grid(x2), _grid(x3), _grid(x4)
+    y = np.asarray(y, dtype=float)
+    expected = (len(x2), len(x1), len(x3), len(x4))
+    if y.shape != expected or not np.all(np.isfinite(y)):
+        raise ValueError(
+            "Y must be finite with shape (len(x2), len(x1), len(x3), len(x4))")
+    slices = [tlin3x(x1, x2, x3, y[:, :, :, l], query1, query2, query3,
+                     lower1, lower2, lower3, upper1, upper2, upper3)
+              for l in range(len(x4))]
+    return tlin1x(x4, slices, query4, lower4, upper4)
