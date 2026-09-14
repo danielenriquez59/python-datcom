@@ -25,3 +25,7 @@ from pydatcom.geometry.section_params import (
 )
 
 __all__ = list(__all__) + ['calculate_dely', 'calculate_arclss']
+
+from pydatcom.geometry.ideal import calculate_ideal
+
+__all__ = list(__all__) + ['calculate_ideal']
