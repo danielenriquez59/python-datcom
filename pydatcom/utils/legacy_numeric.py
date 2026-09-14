@@ -146,3 +146,37 @@ def tbfunx(x, y, query: float, lower: int = 0, upper: int = 0):
     window = slice(start, start + 3)
     value = y[endpoint] if mode <= 0 else quad(x[window], y[window], query)
     return float(value), quad(x[window], y[window], query, derivative=True)
+
+
+def arccos(value: float) -> float:
+    """Translate ARCCOS, the source's "standard FORTRAN only" inverse cosine.
+
+    Inside ``[-1, 1]`` this is the ordinary inverse cosine, built from
+    ``atan(sqrt(1-a^2)/a)`` with ``pi`` added when that lands negative, and
+    ``pi/2`` at exactly zero.
+
+    Outside ``[-1, 1]`` it is *not* an inverse cosine at all: the source
+    returns ``log|a + sqrt(a^2-1)|``, the inverse hyperbolic cosine.  For
+    ``a > 1`` the true ``arccos`` is imaginary and this is its magnitude, so
+    the continuation is deliberate.  For ``a < -1`` the same expression is
+    evaluated on a quantity that shrinks toward zero, so the result turns
+    negative; that is the source's behaviour and is preserved.
+
+    At exactly ``a = -1`` the routine returns zero where the true inverse
+    cosine is ``pi``.  ``sqrt(1-a^2)/a`` is negative zero there, and the
+    source gates its ``pi`` correction on ``X .LT. 0.0``, which negative
+    zero does not satisfy.  Every other argument in ``(-1, 0)`` picks the
+    correction up normally, so the defect is confined to that one point.
+    It is reproduced rather than corrected.
+
+    Reference: datcom-legacy/datcom_2000/arccos.f
+    """
+    value = float(value)
+    if not np.isfinite(value):
+        raise ValueError("ARCCOS requires a finite argument")
+    if value == 0.0:
+        return float(np.pi / 2.0)
+    if abs(value) <= 1.0:
+        angle = float(np.arctan(np.sqrt(1.0 - value**2) / value))
+        return angle if angle >= 0.0 else float(np.pi + angle)
+    return float(np.log(abs(value + np.sqrt(value**2 - 1.0))))
