@@ -1,23 +1,27 @@
 """
-Supersonic zero-lift drag of a vertical tail or ventral fin.
+Zero-lift drag of a vertical tail or ventral fin.
 
-Translates ``VRTCDO`` and ``VFCDO``.  The two source routines are identical
-line for line apart from the COMMON block offsets that select which
-surface's geometry they read -- the ventral fin reads a later slice of
-``/VTI/`` and ``/VTDATA/`` -- so one translation serves both, with the
-surface passed in rather than selected by offset.
+Translates four source routines with two functions:
 
-The buildup is skin friction plus wave drag:
+- ``calculate_vertical_panel_cdo`` covers the supersonic ``VRTCDO`` and
+  ``VFCDO``: skin friction plus wave drag.
+- ``calculate_vertical_panel_drag`` covers the subsonic ``VTDRAG`` and
+  ``VFDRAG``: skin friction times a form factor and the Figure 4.1.5.1-28B
+  lifting-surface correction.
 
-- Skin friction uses the panel MAC Reynolds number capped by the Figure
-  4.1.5.1-27 roughness cutoff, then ``FIG26``.  A straight tapered panel
-  uses one MAC; any other planform uses inboard and outboard panels
-  separately and area-weights the result.
-- Wave drag takes the sharp leading-edge form when ``KSHARP`` is supplied
-  and the round leading-edge form otherwise, each selecting a ``beta`` or
-  ``tan(sweep)`` denominator on the sonic leading-edge condition.
+Within each pair the two source routines are identical apart from the COMMON
+block offsets that select which surface's geometry they read -- the ventral
+fin reads a later slice of ``/VTI/`` and ``/VTDATA/`` -- so one translation
+serves both, with the surface passed in rather than selected by offset.
+That equivalence was established by diffing the files, not assumed from
+their names.
 
-Reference: datcom-legacy/datcom_2000/vrtcdo.f, vfcdo.f
+Both supersonic and subsonic paths cap the panel MAC Reynolds number with
+the Figure 4.1.5.1-27 roughness cutoff before calling ``FIG26``, and both
+handle straight tapered and cranked planforms, the latter computing inboard
+and outboard panels separately.
+
+Reference: datcom-legacy/datcom_2000/vrtcdo.f, vfcdo.f, vtdrag.f, vfdrag.f
 """
 
 import numpy as np
@@ -194,4 +198,156 @@ def calculate_vertical_panel_cdo(
         'leading_edge': edge,
         'wave_drag_area': float(area),
         'method': 'legacy_vrtcdo',
+    }
+
+
+# Figure 4.1.5.1-28B: lifting-surface correction (R)LS.  vtdrag.f DATA
+# X128B / X228B / Y28B.  The Mach axis is descending in the source and is
+# kept that way; TLINEX handles either direction.
+_FIG_41510_28B_MACH = [0.9, .80, .60, .25]
+_FIG_41510_28B_COS = [0.5, .55, .60, .65, .70, .75, .80, .85, .90, .95, 1.0]
+_FIG_41510_28B = np.array([
+    [1.1, 1.13, 1.17, 1.20, 1.24, 1.27, 1.3, 1.33, 1.34, 1.35, 1.36],
+    [1.0, 1.04, 1.08, 1.11, 1.15, 1.18, 1.21, 1.23, 1.25, 1.25, 1.26],
+    [0.88, .92, .96, 1.0, 1.04, 1.08, 1.11, 1.13, 1.14, 1.14, 1.15],
+    [0.81, .85, .89, .925, .96, 1.0, 1.03, 1.05, 1.06, 1.06, 1.07],
+]).T
+
+# Figure 4.1.5.1-28B dashed: the inboard-panel variant.  The source writes
+# two repeated entries of the last column as "2*1.06".
+_FIG_41510_28BD_MACH = [0.9, .80, .60, .25]
+_FIG_41510_28BD_COS = [0.45, .65, .70, .75, .80, .85, .90, .95, 1.0]
+_FIG_41510_28BD = np.array([
+    [1.20, 1.20, 1.24, 1.27, 1.30, 1.33, 1.34, 1.35, 1.36],
+    [1.11, 1.11, 1.15, 1.18, 1.21, 1.23, 1.25, 1.25, 1.26],
+    [1.0, 1.0, 1.04, 1.08, 1.11, 1.13, 1.14, 1.14, 1.15],
+    [0.925, 0.925, .96, 1.0, 1.03, 1.05, 1.06, 1.06, 1.07],
+]).T
+
+# The form-factor coefficient switches on maximum-thickness chord station.
+_THICKNESS_STATION_SPLIT = 0.30
+
+
+def _lifting_surface_factor(mach: float, cos_sweep_tmax: float,
+                            dashed: bool) -> float:
+    """Figure 4.1.5.1-28B, solid or dashed variant."""
+    from pydatcom.utils.legacy_tables import tlinex
+    if dashed:
+        return float(tlinex(_FIG_41510_28BD_MACH, _FIG_41510_28BD_COS,
+                            _FIG_41510_28BD, mach, cos_sweep_tmax,
+                            0, 0, 0, 0))
+    return float(tlinex(_FIG_41510_28B_MACH, _FIG_41510_28B_COS,
+                        _FIG_41510_28B, mach, cos_sweep_tmax, 0, 2, 0, 2))
+
+
+def _form_factor(thickness_ratio: float, thickness_station: float) -> float:
+    """``1 + L*(t/c) + 100*(t/c)^4`` with the source's L switch."""
+    coefficient = (1.20 if thickness_station >= _THICKNESS_STATION_SPLIT
+                   else 2.00)
+    return 1.0 + coefficient * thickness_ratio + 100.0 * thickness_ratio**4
+
+
+def calculate_vertical_panel_drag(
+        mach: float, reynolds_per_length: float, sref: float,
+        mac: float, area: float, cos_sweep_tmax: float,
+        thickness_ratio: float, thickness_station: float,
+        roughness: float = 1.6e-4,
+        straight: bool = True,
+        mac_inboard: Optional[float] = None,
+        area_inboard: Optional[float] = None,
+        cos_sweep_tmax_inboard: Optional[float] = None,
+        mac_outboard: Optional[float] = None,
+        area_outboard: Optional[float] = None,
+        cos_sweep_tmax_outboard: Optional[float] = None,
+        thickness_ratio_outboard: Optional[float] = None,
+        thickness_station_outboard: Optional[float] = None
+) -> Dict[str, float]:
+    """Translate VTDRAG/VFDRAG: subsonic vertical panel zero-lift drag.
+
+    ``CDO = CF * (1 + L*(t/c) + 100*(t/c)^4) * (R)LS * 2*S/SREF``
+
+    As with VRTCDO and VFCDO, vtdrag.f and vfdrag.f are identical apart from
+    COMMON offsets and whitespace, so this covers both surfaces.
+
+    A cranked planform computes inboard and outboard panels separately and
+    sums them.  The inboard panel uses the dashed variant of Figure
+    4.1.5.1-28B; the outboard panel and any straight panel use the solid one.
+
+    Args:
+        mach: Free-stream Mach number, below one.
+        reynolds_per_length: Reynolds number per unit length.
+        sref: Aircraft reference area.
+        mac: Panel MAC, used when ``straight``.
+        area: Panel exposed area, used when ``straight``.
+        cos_sweep_tmax: Cosine of the sweep at maximum thickness.
+        thickness_ratio: ``t/c``.
+        thickness_station: Chord station of maximum thickness, ``XOVC``.
+        roughness: Surface roughness height.
+        straight: Whether the planform is straight tapered.
+        mac_inboard, area_inboard, cos_sweep_tmax_inboard: Inboard geometry.
+        mac_outboard, area_outboard, cos_sweep_tmax_outboard,
+        thickness_ratio_outboard, thickness_station_outboard: Outboard
+            geometry.  All are required when ``straight`` is false.
+
+    Returns:
+        Dictionary with ``cdo`` and, for a cranked panel, its two parts.
+
+    Raises:
+        ValueError: For supersonic Mach, nonpositive references, or missing
+            panel geometry.
+
+    Notes:
+        The source writes the L switch two different ways -- the straight
+        branch defaults to 2.0 and drops to 1.2 at or above a 0.30 station,
+        the inboard branch defaults to 1.2 and rises to 2.0 below it -- which
+        are logically identical.  One form is used here.
+    """
+    if mach >= 1.0:
+        raise ValueError("VTDRAG/VFDRAG are subsonic; Mach must be < 1")
+    if sref <= 0.0:
+        raise ValueError("VTDRAG/VFDRAG require a positive SREF")
+    if roughness <= 0.0:
+        raise ValueError("VTDRAG/VFDRAG require a positive roughness height")
+
+    def panel(panel_mac, panel_area, cosine, tc, station, dashed):
+        if min(panel_mac, panel_area) <= 0.0:
+            raise ValueError("panel MAC and area must be positive")
+        friction = _friction_coefficient(panel_mac, reynolds_per_length,
+                                         mach, roughness)
+        rls = _lifting_surface_factor(mach, cosine, dashed)
+        cdo = (friction["cf"] * _form_factor(tc, station) * rls *
+               2.0 * panel_area / sref)
+        return cdo, friction["cf"], rls
+
+    if straight:
+        cdo, cf, rls = panel(mac, area, cos_sweep_tmax, thickness_ratio,
+                             thickness_station, dashed=False)
+        return {
+            "cdo": float(cdo), "cf": cf, "lifting_surface_factor": rls,
+            "form_factor": _form_factor(thickness_ratio, thickness_station),
+            "method": "legacy_vtdrag",
+        }
+
+    required = (mac_inboard, area_inboard, cos_sweep_tmax_inboard,
+                mac_outboard, area_outboard, cos_sweep_tmax_outboard,
+                thickness_ratio_outboard, thickness_station_outboard)
+    if any(value is None for value in required):
+        raise ValueError(
+            "a cranked vertical panel needs inboard and outboard MAC, area, "
+            "max-thickness sweep cosine, thickness ratio and station")
+
+    inboard_cdo, inboard_cf, inboard_rls = panel(
+        mac_inboard, area_inboard, cos_sweep_tmax_inboard,
+        thickness_ratio, thickness_station, dashed=True)
+    outboard_cdo, outboard_cf, outboard_rls = panel(
+        mac_outboard, area_outboard, cos_sweep_tmax_outboard,
+        thickness_ratio_outboard, thickness_station_outboard, dashed=False)
+    return {
+        "cdo": float(inboard_cdo + outboard_cdo),
+        "cdo_inboard": float(inboard_cdo),
+        "cdo_outboard": float(outboard_cdo),
+        "cf_inboard": inboard_cf, "cf_outboard": outboard_cf,
+        "lifting_surface_factor_inboard": inboard_rls,
+        "lifting_surface_factor_outboard": outboard_rls,
+        "method": "legacy_vtdrag",
     }
