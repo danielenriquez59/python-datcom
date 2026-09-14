@@ -20,6 +20,9 @@ from pydatcom.aerodynamics.bodyrt import calculate_bodyrt
 from pydatcom.aerodynamics.dynbod import (
     calculate_dynbod_subsonic, calculate_dynbod_hypersonic,
 )
+from pydatcom.aerodynamics.dynamic_buildup import (
+    calculate_dnpawb, calculate_dnpwbt,
+)
 from pydatcom.aerodynamics.downwash import (
     calculate_downwash, calculate_downwash_geometry,
     calculate_downwash_gradient_441, fig4417_68a, fig4417_68b,
@@ -51,6 +54,8 @@ __all__ = [
     'calculate_bodyrt',
     'calculate_dynbod_subsonic',
     'calculate_dynbod_hypersonic',
+    'calculate_dnpawb',
+    'calculate_dnpwbt',
     'calculate_downwash',
     'calculate_downwash_geometry',
     'calculate_downwash_gradient_441',
