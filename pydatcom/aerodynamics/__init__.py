@@ -45,6 +45,7 @@ from pydatcom.aerodynamics.tbsup import calculate_tbsup
 from pydatcom.aerodynamics.tbtrn import calculate_tbtrn
 from pydatcom.aerodynamics.hyprop import calculate_hyprop
 from pydatcom.aerodynamics.vertical_lift import calculate_vtlift
+from pydatcom.aerodynamics.cdrag import calculate_cdrag
 from pydatcom.aerodynamics.ground_effect import (
     calculate_grdeff, ground_effect_geometry, ground_effect_incidence,
     ground_effect_tail, figure_4711_14, figure_4711_15, figure_4711_17,
@@ -112,6 +113,7 @@ __all__ = [
     'calculate_tbtrn',
     'calculate_hyprop',
     'calculate_vtlift',
+    'calculate_cdrag',
     'calculate_grdeff',
     'ground_effect_geometry',
     'ground_effect_incidence',
