@@ -19,3 +19,9 @@ __all__ = [
 from pydatcom.geometry.cslope import calculate_cslope
 
 __all__ = list(__all__) + ['calculate_cslope']
+
+from pydatcom.geometry.section_params import (
+    calculate_dely, calculate_arclss,
+)
+
+__all__ = list(__all__) + ['calculate_dely', 'calculate_arclss']
