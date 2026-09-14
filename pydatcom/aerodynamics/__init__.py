@@ -33,6 +33,9 @@ from pydatcom.aerodynamics.vortex_core import calculate_sddvc
 from pydatcom.aerodynamics.cnca import calculate_cnca
 from pydatcom.aerodynamics.maxcl import calculate_maxcl
 from pydatcom.aerodynamics.calca0 import calculate_calca0
+from pydatcom.aerodynamics.wbtcdo import (
+    calculate_wbtcdo, calculate_drag_divergence_mach,
+)
 from pydatcom.aerodynamics.wingcl import (
     calculate_wingcl, calculate_wingcl_clb, calculate_wingcl_cdl,
 )
@@ -81,6 +84,8 @@ __all__ = [
     'calculate_cnca',
     'calculate_maxcl',
     'calculate_calca0',
+    'calculate_wbtcdo',
+    'calculate_drag_divergence_mach',
     'calculate_wingcl',
     'calculate_wingcl_clb',
     'calculate_wingcl_cdl',
