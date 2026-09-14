@@ -23,7 +23,7 @@ import numpy as np
 from typing import Dict, Sequence
 import logging
 
-from pydatcom.utils.legacy_tables import tlin1x, tlinex
+from pydatcom.utils.legacy_tables import tlin1x, tlinex, tlin3x
 from pydatcom.utils.legacy_numeric import tbfunx
 
 logger = logging.getLogger(__name__)
@@ -114,14 +114,13 @@ def interx(n_independent: int, table, var: Sequence[float],
     if values.size < n1 * n2 * n3:
         raise ValueError(
             f"DEP needs {n1 * n2 * n3} values for a {n1}x{n2}x{n3} table")
-    # DEP(NX1,NX2,NX3) in column-major order, first variable fastest.
+    # DEP(NX1,NX2,NX3) in column-major order, first variable fastest.  That
+    # is exactly TLIN3X's (len(x2), len(x1), len(x3)) once INTERX's own
+    # first/second variable swap is applied.
     cube = values[:n1 * n2 * n3].reshape((n1, n2, n3), order='F')
-    # Each X3 slice is handled exactly as the two-variable case, then the
-    # slice results are interpolated along X3.
-    slices = [tlinex(grids[1], grids[0], cube[:, :, k],
-                     query[1], query[0], lx2l, lx1l, lx2u, lx1u)
-              for k in range(n3)]
-    return float(tlin1x(grids[2], slices, query[2], lx3l, lx3u))
+    return float(tlin3x(grids[1], grids[0], grids[2], cube,
+                        query[1], query[0], query[2],
+                        lx2l, lx1l, lx3l, lx2u, lx1u, lx3u))
 
 
 def _columns(table, n_independent: int, length: Sequence[int],

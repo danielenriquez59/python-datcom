@@ -12,7 +12,9 @@ from pydatcom.utils.table_lookup import (
     fig26, fig53a, fig60b, fig68, angdet, get_table_manager
 )
 from pydatcom.utils.legacy_numeric import quad, trapz, tbfunx, tranf
-from pydatcom.utils.legacy_tables import glook, switch, tlin1x, tlinex
+from pydatcom.utils.legacy_tables import (
+    glook, switch, tlin1x, tlinex, tlin3x, tlin4x,
+)
 from pydatcom.utils.legacy_interp import interx, eqspc1, eqspce
 from pydatcom.utils.tranac import tranac
 from pydatcom.utils.packed_tables import yup, unpack_table, tlip1x
@@ -23,7 +25,8 @@ __all__ = [
     'Atmosphere',
     'asmint', 'bilinear_interp', 'TableInterpolator',
     'fig26', 'fig53a', 'fig60b', 'fig68', 'angdet', 'get_table_manager',
-    'quad', 'trapz', 'tbfunx', 'tranf', 'glook', 'switch', 'tlin1x', 'tlinex',
+    'quad', 'trapz', 'tbfunx', 'tranf', 'glook', 'switch',
+    'tlin1x', 'tlinex', 'tlin3x', 'tlin4x',
     'interx', 'eqspc1', 'eqspce', 'tranac',
     'yup', 'unpack_table', 'tlip1x',
 ]
