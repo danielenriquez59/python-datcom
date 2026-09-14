@@ -36,6 +36,7 @@ from pydatcom.aerodynamics.calca0 import calculate_calca0
 from pydatcom.aerodynamics.wbtcdo import (
     calculate_wbtcdo, calculate_drag_divergence_mach,
 )
+from pydatcom.aerodynamics.subpaw import calculate_subpaw
 from pydatcom.aerodynamics.wingcl import (
     calculate_wingcl, calculate_wingcl_clb, calculate_wingcl_cdl,
 )
@@ -86,6 +87,7 @@ __all__ = [
     'calculate_calca0',
     'calculate_wbtcdo',
     'calculate_drag_divergence_mach',
+    'calculate_subpaw',
     'calculate_wingcl',
     'calculate_wingcl_clb',
     'calculate_wingcl_cdl',
