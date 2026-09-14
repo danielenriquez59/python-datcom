@@ -29,6 +29,7 @@ from pydatcom.aerodynamics.clrder import (
 from pydatcom.aerodynamics.vertical_panel import (
     calculate_vertical_panel_cdo, calculate_vertical_panel_drag,
 )
+from pydatcom.aerodynamics.vortex_core import calculate_sddvc
 from pydatcom.aerodynamics.downwash import (
     calculate_downwash, calculate_downwash_geometry,
     calculate_downwash_gradient_441, fig4417_68a, fig4417_68b,
@@ -66,6 +67,7 @@ __all__ = [
     'calculate_clr_panel_increment',
     'calculate_vertical_panel_cdo',
     'calculate_vertical_panel_drag',
+    'calculate_sddvc',
     'calculate_downwash',
     'calculate_downwash_geometry',
     'calculate_downwash_gradient_441',
