@@ -40,6 +40,7 @@ from pydatcom.aerodynamics.subpaw import calculate_subpaw
 from pydatcom.aerodynamics.subwbt import calculate_subwbt
 from pydatcom.aerodynamics.sssym import calculate_sssym
 from pydatcom.aerodynamics.tablec import calculate_tablec
+from pydatcom.aerodynamics.tbsub import calculate_tbsub
 from pydatcom.aerodynamics.wingcl import (
     calculate_wingcl, calculate_wingcl_clb, calculate_wingcl_cdl,
 )
@@ -94,6 +95,7 @@ __all__ = [
     'calculate_subwbt',
     'calculate_sssym',
     'calculate_tablec',
+    'calculate_tbsub',
     'calculate_wingcl',
     'calculate_wingcl_clb',
     'calculate_wingcl_cdl',
