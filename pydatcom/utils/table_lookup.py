@@ -324,3 +324,40 @@ def get_table_manager() -> DatcomTableManager:
     """Get the global table manager instance."""
     return _table_manager
 
+
+def angdet(mach: float) -> float:
+    """Translate ANGDET: the wedge turn angle at shock detachment.
+
+    Solves NACA TR 1135 equation 168 for the shock angle at maximum
+    deflection, then substitutes it into equation 138 to get that
+    deflection.  Complements :func:`fig68`, which returns the same limit
+    from its own tabulated cubic.
+
+    Args:
+        mach: Free-stream Mach number, above one.
+
+    Returns:
+        The detachment turn angle in radians.
+
+    Raises:
+        ValueError: For a subsonic or sonic Mach number.
+    """
+    import numpy as _np
+    gamma = 1.4
+    if mach <= 1.0:
+        raise ValueError("ANGDET requires supersonic Mach")
+
+    # Equation 168: sin^2 of the shock angle at maximum deflection.
+    sin2 = (((1.0 + gamma) * mach**2 - 4.0 +
+             _np.sqrt((gamma + 1.0) * ((gamma + 1.0) * mach**4 +
+                                       8.0 * (gamma - 1.0) * mach**2 + 16.0)))
+            / (4.0 * gamma * mach**2))
+    shock = _np.arcsin(_np.sqrt(sin2))
+
+    # Equation 138: the deflection that shock angle corresponds to.
+    denominator = mach**2 * _np.sin(shock)**2 - 1.0
+    if denominator == 0.0:
+        raise ValueError("ANGDET equation 138 divides by zero at this Mach")
+    cot_delta = _np.tan(shock) * (((gamma + 1.0) * mach**2) /
+                                  (2.0 * denominator) - 1.0)
+    return float(_np.arctan(1.0 / cot_delta))
