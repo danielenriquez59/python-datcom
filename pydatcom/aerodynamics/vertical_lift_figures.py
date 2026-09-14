@@ -3,13 +3,18 @@ Figures for the supersonic vertical panel lift routines.
 
 ``VTLIFT`` and ``VFLIFT`` are identical apart from whitespace and the COMMON
 offsets selecting the vertical tail or the ventral fin, so their figures are
-shared.  This module translates the figure layer: the tables and their
-lookups, each a complete unit of DATCOM Section 4.1.3.2.
+shared.  This module holds the figure layer: the tables and their lookups,
+each a complete unit of DATCOM Section 4.1.3.2.
 
 The branch logic that selects among these figures -- straight versus cranked
 planform, sonic versus supersonic leading edge, sharp versus round leading
-edge, and the glove case -- is **not** translated here.  That is the part of
-``vtlift.f`` that still needs doing.
+edge, and the glove case -- lives in :mod:`pydatcom.aerodynamics.vertical_lift`.
+
+Each lookup below carries the extrapolation end modes from its own call site
+in ``vtlift.f`` rather than the INTERX defaults.  That distinction is not
+cosmetic: figure 4.1.3.2-61 is called with quadratic extrapolation at both
+ends, and off the end of its grid that differs from clamping by a factor of
+four.
 
 Every table was extracted from the source DATA statements by parsing, and
 the shapes self-validate against the source INTERX calls: Figure 4.1.3.2-56A
@@ -286,39 +291,50 @@ _FIG_63 = [
 _FIG_63_SHAPE = [14, 10]
 
 
-def fig4132_56a(x1: float, x2: float, x3: float) -> float:
-    """Figure 4.1.3.2-56A, the three-variable normal-force parameter."""
-    return interx(3, _FIG_56A_GRID, [x1, x2, x3], _FIG_56A_SHAPE,
-                  _FIG_56A, lind=23)
+# Each lookup carries the end modes from its own INTERX call site in
+# vtlift.f.  They are not decorative: mode 2 extrapolates quadratically off
+# the end of a grid where the default mode 0 would clamp to the last
+# ordinate, and several of these figures are entered outside their tabulated
+# range in ordinary supersonic cases.
+def fig4132_56a(x1: float, x2: float, x3: float,
+                first_length: int = 23) -> float:
+    """Figure 4.1.3.2-56A, the three-variable normal-force parameter.
+
+    ``first_length`` is the source's ``LGB(1)``.  It is 23, the full grid,
+    at every call site but one; see ``calculate_vtlift`` for the exception.
+    """
+    return interx(3, _FIG_56A_GRID, [x1, x2, x3],
+                  [first_length] + _FIG_56A_SHAPE[1:], _FIG_56A, lind=23,
+                  lx1l=0, lx2l=2, lx1u=0, lx2u=2)
 
 
 def fig4132_56g(x: float) -> float:
-    """Figure 4.1.3.2-56G."""
+    """Figure 4.1.3.2-56G.  Called with every end mode zero."""
     return interx(1, _FIG_56G_GRID, [x], [9], _FIG_56G)
 
 
 def fig4132_60a(x1: float, x2: float) -> float:
     """Figure 4.1.3.2-60A, the subsonic leading-edge branch."""
     return interx(2, _FIG_60A_GRID, [x1, x2], _FIG_60A_SHAPE, _FIG_60A,
-                  lind=9)
+                  lind=9, lx1l=2, lx2l=2, lx1u=0, lx2u=2)
 
 
 def fig4132_60b(x1: float, x2: float) -> float:
     """Figure 4.1.3.2-60B, the supersonic leading-edge branch."""
     return interx(2, _FIG_60B_GRID, [x1, x2], _FIG_60B_SHAPE, _FIG_60B,
-                  lind=11)
+                  lind=11, lx1l=2, lx2l=2, lx1u=0, lx2u=2)
 
 
 def fig4132_61(x: float) -> float:
     """Figure 4.1.3.2-61."""
-    return interx(1, _FIG_61_GRID, [x], [12], _FIG_61)
+    return interx(1, _FIG_61_GRID, [x], [12], _FIG_61, lx1l=2, lx1u=2)
 
 
 def fig4132_62(x: float, sharp: bool = True) -> float:
     """Figure 4.1.3.2-62, leading-edge suction.
 
     The source keeps two separate curves and picks between them on whether
-    ``KSHARP`` was supplied.
+    ``KSHARP`` was supplied.  Both call sites use every end mode zero.
     """
     if sharp:
         return interx(1, _FIG_62_SHARP_GRID, [x], [12], _FIG_62_SHARP)
@@ -328,4 +344,4 @@ def fig4132_62(x: float, sharp: bool = True) -> float:
 def fig4132_63(x1: float, x2: float) -> float:
     """Figure 4.1.3.2-63."""
     return interx(2, _FIG_63_GRID, [x1, x2], _FIG_63_SHAPE, _FIG_63,
-                  lind=14)
+                  lind=14, lx1l=2, lx2l=2, lx1u=2, lx2u=2)
