@@ -44,6 +44,10 @@ from pydatcom.aerodynamics.tbsub import calculate_tbsub
 from pydatcom.aerodynamics.tbsup import calculate_tbsup
 from pydatcom.aerodynamics.tbtrn import calculate_tbtrn
 from pydatcom.aerodynamics.hyprop import calculate_hyprop
+from pydatcom.aerodynamics.ground_effect import (
+    calculate_grdeff, ground_effect_geometry, ground_effect_incidence,
+    ground_effect_tail, figure_4711_14, figure_4711_15, figure_4711_17,
+    figure_4711_18a, figure_4711_21)
 from pydatcom.aerodynamics.vertical_lift_figures import (
     fig4132_56a, fig4132_56g, fig4132_60a, fig4132_60b,
     fig4132_61, fig4132_62, fig4132_63,
@@ -106,6 +110,12 @@ __all__ = [
     'calculate_tbsup',
     'calculate_tbtrn',
     'calculate_hyprop',
+    'calculate_grdeff',
+    'ground_effect_geometry',
+    'ground_effect_incidence',
+    'ground_effect_tail',
+    'figure_4711_14', 'figure_4711_15', 'figure_4711_17',
+    'figure_4711_18a', 'figure_4711_21',
     'fig4132_56a', 'fig4132_56g',
     'fig4132_60a', 'fig4132_60b',
     'fig4132_61', 'fig4132_62', 'fig4132_63',
