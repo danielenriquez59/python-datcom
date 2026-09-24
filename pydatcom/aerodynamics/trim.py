@@ -145,9 +145,9 @@ def _series(gppa):
     """DRAGFP's two sums over the eleven span stations: (TCB, TCL)/A31422."""
     q = [0.0] * 13                   # Q(1..12): EN1, EN2, SM1..SM10
     k = l_ = 0
-    for i in range(1, 12):
-        g = gppa[i]
-        if i % 2 == 0:
+    for span_station in range(1, 12):
+        g = gppa[span_station]
+        if span_station % 2 == 0:
             q[1] += _TEC[k] * g
             for m, table in ((3, _SC1), (5, _SC3), (7, _SC5), (9, _SC7),
                              (11, _SC9)):
@@ -160,10 +160,11 @@ def _series(gppa):
             l_ += 1
     en1 = gppa[1] * (5.5 * gppa[1] - q[1])
     clsm = totsm = 0.0
-    for i in range(2, 12):
-        ii = 13 - i
-        temp = _SPU[i - 1] * gppa[ii]
-        totsm = temp * (_TOTC[i - 2] * gppa[ii] - q[i + 1]) + totsm
+    for span_station in range(2, 12):
+        mirror = 13 - span_station
+        temp = _SPU[span_station - 1] * gppa[mirror]
+        totsm = (temp * (_TOTC[span_station - 2] * gppa[mirror] -
+                         q[span_station + 1]) + totsm)
         clsm += temp
     return en1 + 2.0 * totsm, gppa[1] + 2.0 * clsm
 
@@ -213,33 +214,38 @@ def calculate_dragfp(alpha_deg: Sequence[float], flap: Dict[str, object],
     span_load_delta = gd3 - gd2
     pi_ar_over_22 = PI * aspect / 22.
     b49 = float(wing['b49'])
-    alpha = []
-    for j, alpha_deg_value in enumerate(alpha_deg):
+    effective_alpha = []
+    for angle_index, alpha_deg_value in enumerate(alpha_deg):
         value = float(alpha_deg_value) - b49
-        if float(tail['alpha'][j]) != UNUSED:
-            value = (float(tail['alpha'][j]) - b49 -
-                     float(tail['epsilon'][j]))
-        alpha.append(value)
-    nalpha = len(alpha)
+        if float(tail['alpha'][angle_index]) != UNUSED:
+            value = (float(tail['alpha'][angle_index]) - b49 -
+                     float(tail['epsilon'][angle_index]))
+        effective_alpha.append(value)
+    nalpha = len(effective_alpha)
     cd_base = np.zeros(nalpha)
     cd_by_delta = np.zeros((ndelta, nalpha))
     for deflection_slot in range(1, ndelta + 2):
         adaved = (float(flap['adave'][deflection_slot - 2]) *
                   delta[deflection_slot - 2] / RAD
                   if deflection_slot > 1 else 0.0)
-        for j in range(nalpha):
-            gppa = [0.0] + [span_load_slope[i] * alpha[j] -
-                            (span_load_delta[i] * adaved if deflection_slot > 1
-                             else 0.0)
-                            for i in range(11)]
+        for angle_index in range(nalpha):
+            gppa = [0.0] + [
+                span_load_slope[span_load_index] * effective_alpha[angle_index] -
+                (span_load_delta[span_load_index] * adaved
+                 if deflection_slot > 1 else 0.0)
+                for span_load_index in range(11)]
             induced = pi_ar_over_22 * _series(gppa)[0]
             if deflection_slot == 1:
-                cd_base[j] = induced * scale
+                cd_base[angle_index] = induced * scale
             else:
-                cd_by_delta[deflection_slot - 2, j] = induced * scale
+                cd_by_delta[deflection_slot - 2, angle_index] = induced * scale
     result: Dict[str, object] = {
-        'dcdi': (cd_by_delta - cd_base[None, :]).ravel(), 'alpha': alpha,
-        'scale': scale, 'aspect': aspect, 'method': 'legacy_dragfp'}
+        'dcdi': (cd_by_delta - cd_base[None, :]).ravel(),
+        'alpha': effective_alpha,
+        'scale': scale,
+        'aspect': aspect,
+        'method': 'legacy_dragfp',
+    }
     if ftype > 5.0:
         return result
     eta = flap['eta']
@@ -248,16 +254,17 @@ def calculate_dragfp(alpha_deg: Sequence[float], flap: Dict[str, object],
     kb = sum(float(r) for r in flap['rkb'][:4])
     arg1 = kprm / (aspect * PI)
     delcdf, delcdm = [], []
-    for j, d in enumerate(delta):
+    for deflection_index, deflection_deg in enumerate(delta):
         if ftype in (1.0, 5.0):
-            value = _tlinex(_X11722, _X21722, _Y11722, abs(d),
+            value = _tlinex(_X11722, _X21722, _Y11722, abs(deflection_deg),
                             float(flap['cfoca']), 2, 0, 0, 0)
         else:
-            value = _tlinex(_X11723, _X21723, _Y11723, abs(d),
+            value = _tlinex(_X11723, _X21723, _Y11723, abs(deflection_deg),
                             float(flap['cfoca']), 2, 0, 0, 0)
         delcdf.append(value)
-        delcdm.append(value * kb * scale +
-                      arg1 * float(flap['dcl'][j])**2 / scale)
+        delcdm.append(
+            value * kb * scale +
+            arg1 * float(flap['dcl'][deflection_index])**2 / scale)
     result.update({'kprm': kprm, 'kb': kb, 'delcdf': delcdf,
                    'delcdm': delcdm})
     return result
@@ -319,38 +326,44 @@ def calculate_trimrt(alpha_deg: Sequence[float], epsilon: Sequence[float],
     if cdi is not None and ftype <= 6.0:
         y_cdi = np.asarray(cdi, dtype=float)[:nalpha * ndelta].reshape(
             ndelta, nalpha).T
-    out = {k: [] for k in ('deltat', 'dclt', 'clmaxt', 'cdmint', 'chdt',
-                           'cdit')}
+    trimmed = {k: [] for k in ('deltat', 'dclt', 'clmaxt', 'cdmint', 'chdt',
+                               'cdit')}
     ntrim, tstop = nalpha, None
-    for j in range(nalpha):
-        if alpha[j] > alpha_clmax:
-            ntrim, tstop = j, 2.0
+    for angle_index in range(nalpha):
+        if alpha[angle_index] > alpha_clmax:
+            ntrim, tstop = angle_index, 2.0
             break
-        moment_to_cancel = -untrimmed_cm[j]
+        moment_to_cancel = -untrimmed_cm[angle_index]
         if moment_to_cancel < dcm_sorted[0] or moment_to_cancel > dcm_sorted[-1]:
-            ntrim, tstop = j, 1.0
+            ntrim, tstop = angle_index, 1.0
             break
         trim_delta = tbfunx(dcm_sorted, delta_sorted, moment_to_cancel,
                             0, 0, ordered=False)[0]
-        out['deltat'].append(trim_delta)
-        out['dclt'].append(tbfunx(delta, series['dcl'], trim_delta, 0, 0)[0])
+        trimmed['deltat'].append(trim_delta)
+        trimmed['dclt'].append(
+            tbfunx(delta, series['dcl'], trim_delta, 0, 0)[0])
         if ftype <= 5.0:
-            out['clmaxt'].append(tbfunx(delta, series['dclmax'], trim_delta,
-                                        0, 0)[0])
+            trimmed['clmaxt'].append(
+                tbfunx(delta, series['dclmax'], trim_delta, 0, 0)[0])
         if ftype <= 2.0:
-            out['cdmint'].append(tbfunx(delta, series['dcdmin'], trim_delta,
-                                        0, 0)[0])
+            trimmed['cdmint'].append(
+                tbfunx(delta, series['dcdmin'], trim_delta, 0, 0)[0])
         if ftype == 1.0:
-            out['chdt'].append(tbfunx(delta, series['chd'], trim_delta,
-                                      0, 0)[0])
+            trimmed['chdt'].append(
+                tbfunx(delta, series['chd'], trim_delta, 0, 0)[0])
         if y_cdi is not None:
-            out['cdit'].append(float(tlinex(delta, alpha, y_cdi, trim_delta,
-                                            alpha[j], 0, 0, 0, 0)))
-    return {'ntrim': ntrim, 'tstop': tstop, 'alpha': alpha,
-            'utcl': list(untrimmed['cl']), 'utcm': untrimmed_cm,
-            'utcd': list(untrimmed['cd']),
-            **{k: [float(x) for x in v] for k, v in out.items()},
-            'method': 'legacy_trimrt'}
+            trimmed['cdit'].append(float(tlinex(
+                delta, alpha, y_cdi, trim_delta, alpha[angle_index], 0, 0, 0, 0)))
+    return {
+        'ntrim': ntrim,
+        'tstop': tstop,
+        'alpha': alpha,
+        'utcl': list(untrimmed['cl']),
+        'utcm': untrimmed_cm,
+        'utcd': list(untrimmed['cd']),
+        **{k: [float(x) for x in v] for k, v in trimmed.items()},
+        'method': 'legacy_trimrt',
+    }
 
 
 def calculate_trimr2(alpha_deg: Sequence[float], epsilon: Sequence[float],
@@ -407,59 +420,73 @@ def calculate_trimr2(alpha_deg: Sequence[float], epsilon: Sequence[float],
     kk = float(wbt['kkwb']) + float(wbt['kkbw'])
     keys = ('aliht', 'clhtrm', 'cdhtrm', 'cmhtrm', 'hmtrm', 'hmunt',
             'clwbt', 'cdwbt')
-    out = {k: [] for k in keys}
+    trimmed = {k: [] for k in keys}
     nalpha = len(alpha)
     ntrim, tstop = nalpha, 1.0
-    for j in range(nalpha):
-        if tail_alpha_eff[j] > aclmax:
-            ntrim, tstop = j, 2.0
+    for angle_index in range(nalpha):
+        if tail_alpha_eff[angle_index] > aclmax:
+            ntrim, tstop = angle_index, 2.0
             break
-        cmwb = float(wing_body['cm'][j])
+        cmwb = float(wing_body['cm'][angle_index])
         if cmwb == 2.0 * UNUSED:
-            ntrim, tstop = j, 3.0
+            ntrim, tstop = angle_index, 3.0
             break
-        a_rad = tail_alpha_eff[j] / RAD
-        argl = -math.cos(a_rad) * xbar + math.sin(a_rad) * zbar
-        argd = math.sin(a_rad) * xbar + math.cos(a_rad) * zbar
-        if not -aclmax <= tail_alpha_with_incidence[j] <= aclmax:
+        tail_alpha_rad = tail_alpha_eff[angle_index] / RAD
+        argl = (-math.cos(tail_alpha_rad) * xbar +
+                math.sin(tail_alpha_rad) * zbar)
+        argd = (math.sin(tail_alpha_rad) * xbar +
+                math.cos(tail_alpha_rad) * zbar)
+        if not -aclmax <= tail_alpha_with_incidence[angle_index] <= aclmax:
             for k in keys:
-                out[k].append(None)
-            out['aliht'][-1] = out['clhtrm'][-1] = -1000.0
+                trimmed[k].append(None)
+            trimmed['aliht'][-1] = trimmed['clhtrm'][-1] = -1000.0
             continue
-        q = float(q_ratio[j])
-        tail_cl_num = 2. * ((cmwb + q * float(tail_inputs['cm0'])) / (argl * q) +
-                            float(tail_inputs['cd0']) * argd / argl)
-        tail_cl_den = 1. + _sqrt(1. - 4. * (argd / (argl * PI * ar * e) *
-                                            sref_over_tail_area) *
-                                 (tail_cl_num / 2.))
-        clh = tail_cl_num / tail_cl_den
-        cdh = float(tail_inputs['cd0']) + clh**2 / (PI * ar * e) * sref_over_tail_area
-        brackt = (float(wbt['f68'][j]) * float(wbt['f46'][j]) *
+        q_at_angle = float(q_ratio[angle_index])
+        tail_cl_num = 2. * (
+            (cmwb + q_at_angle * float(tail_inputs['cm0'])) / (argl * q_at_angle) +
+            float(tail_inputs['cd0']) * argd / argl)
+        tail_cl_den = 1. + _sqrt(
+            1. - 4. * (argd / (argl * PI * ar * e) * sref_over_tail_area) *
+            (tail_cl_num / 2.))
+        tail_cl = tail_cl_num / tail_cl_den
+        tail_cd = (float(tail_inputs['cd0']) +
+                   tail_cl**2 / (PI * ar * e) * sref_over_tail_area)
+        brackt = (float(wbt['f68'][angle_index]) *
+                  float(wbt['f46'][angle_index]) *
                   (float(tail_inputs['sspn']) - float(tail_inputs['sspne'])) /
                   float(tail_inputs['sspn']))
         clhp, clahp = tbfunx(tail_inputs['alpha'], tail_inputs['cl'],
-                             tail_alpha_eff[j], 1, 1)
-        aliht = ((clh - (kwb + kbw) * (clhp + clahp * brackt * tail_alpha_eff[j])) /
-                 (kk * (clahp + brackt * float(tail_inputs['cla']))))
-        ep, alp = eps[j] / RAD, alpha[j] / RAD
-        dcl = (clh * math.cos(ep) - cdh * math.sin(ep)) * q
-        dcd = (cdh * math.cos(ep) + clh * math.sin(ep)) * q
-        argl = math.cos(a_rad) * xbar + math.sin(a_rad) * zbar
-        argd = math.cos(a_rad) * zbar - math.sin(a_rad) * xbar
+                             tail_alpha_eff[angle_index], 1, 1)
+        aliht = (
+            (tail_cl - (kwb + kbw) * (clhp + clahp * brackt *
+                                      tail_alpha_eff[angle_index])) /
+            (kk * (clahp + brackt * float(tail_inputs['cla']))))
+        eps_rad = eps[angle_index] / RAD
+        alpha_rad = alpha[angle_index] / RAD
+        dcl = (tail_cl * math.cos(eps_rad) - tail_cd * math.sin(eps_rad)) * q_at_angle
+        dcd = (tail_cd * math.cos(eps_rad) + tail_cl * math.sin(eps_rad)) * q_at_angle
+        argl = (math.cos(tail_alpha_rad) * xbar +
+                math.sin(tail_alpha_rad) * zbar)
+        argd = (math.cos(tail_alpha_rad) * zbar -
+                math.sin(tail_alpha_rad) * xbar)
         arm = (float(position['hinax']) + float(position['xba']) -
                float(position['xcg'])) / cbarr
         values = {
-            'aliht': aliht, 'clhtrm': dcl, 'cdhtrm': dcd,
+            'aliht': aliht,
+            'clhtrm': dcl,
+            'cdhtrm': dcd,
             'cmhtrm': dcl * argl + dcd * argd,
-            'hmtrm': (dcl * math.cos(alp) + dcd * math.sin(alp)) * arm,
-            'hmunt': (float(tail_inputs['cl'][j]) * math.cos(alp) +
-                      float(tail_inputs['cd'][j]) * math.sin(alp)) * arm,
-            'clwbt': dcl + float(wbt['clbh'][j]) +
-            float(wing_body['cl'][j]),
-            'cdwbt': float(wing_body['cd'][j]) + dcd + float(wbt['cdov'])}
+            'hmtrm': (dcl * math.cos(alpha_rad) + dcd * math.sin(alpha_rad)) * arm,
+            'hmunt': (float(tail_inputs['cl'][angle_index]) * math.cos(alpha_rad) +
+                      float(tail_inputs['cd'][angle_index]) * math.sin(alpha_rad)) * arm,
+            'clwbt': (dcl + float(wbt['clbh'][angle_index]) +
+                      float(wing_body['cl'][angle_index])),
+            'cdwbt': (float(wing_body['cd'][angle_index]) + dcd +
+                      float(wbt['cdov'])),
+        }
         for k in keys:
-            out[k].append(float(values[k]))
-    return {'ntrim': ntrim, 'tstop': tstop, **out,
+            trimmed[k].append(float(values[k]))
+    return {'ntrim': ntrim, 'tstop': tstop, **trimmed,
             'method': 'legacy_trimr2'}
 
 

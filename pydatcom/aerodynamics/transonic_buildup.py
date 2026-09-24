@@ -958,8 +958,8 @@ def calculate_clbclc(data: Sequence[float], nalpha: int) -> float:
     """
     get = (data.__getitem__ if isinstance(data, Mapping)
            else (lambda k: data[k - 1]))
-    for j in range(1, nalpha + 1):
-        cl, clb = float(get(j + 20)), float(get(j + 180))
+    for angle_slot in range(1, nalpha + 1):
+        cl, clb = float(get(angle_slot + 20)), float(get(angle_slot + 180))
         if abs(cl) > UNUSED and abs(clb) != UNUSED:
             return clb / cl
     return UNUSED
@@ -1034,27 +1034,29 @@ def calculate_wbclb(alpha_deg: Sequence[float], body_alpha_deg: Sequence[float],
     cdwb = [float(v) for v in cd_wing_body]
     clbb = [float(v) for v in clb_wing_body]
     has_drag_sum = abs(cdwb[1]) != UNUSED
-    for j, alpha in enumerate(alpha_deg):
-        if abs(clwb[j]) == UNUSED:
+    for angle_index, alpha in enumerate(alpha_deg):
+        if abs(clwb[angle_index]) == UNUSED:
             value = (cla_body + (kwb + kbw) * cla_surface) * alpha
-            if abs(cl_body[j]) != UNUSED and abs(cl_surface[j]) != UNUSED:
-                value = (cl_body[j] + (kwb + kbw) *
-                         (cl_surface[j] - cl_incidence))
+            if abs(cl_body[angle_index]) != UNUSED and \
+                    abs(cl_surface[angle_index]) != UNUSED:
+                value = (cl_body[angle_index] + (kwb + kbw) *
+                         (cl_surface[angle_index] - cl_incidence))
             value += (kkwb + kkbw) * cl_incidence
             if ratio >= 1.0 / 3.0:
-                value += ratio * ivbw[j] * go2pav[j] * cla_surface * (
-                    alpha - incidence)
-            clwb[j] = value
-        if not has_drag_sum and abs(cd_surface[j]) != UNUSED and \
-                abs(cd_body[j]) != UNUSED:
-            cdwb[j] = cd_body[j] + cd_surface[j]
+                value += (ratio * ivbw[angle_index] * go2pav[angle_index] *
+                          cla_surface * (alpha - incidence))
+            clwb[angle_index] = value
+        if not has_drag_sum and abs(cd_surface[angle_index]) != UNUSED and \
+                abs(cd_body[angle_index]) != UNUSED:
+            cdwb[angle_index] = (cd_body[angle_index] +
+                                 cd_surface[angle_index])
     clb_inputs = {k: float(v) for k, v in clb_cl.items()}
     clbcl_at_mfb = clb_inputs['clb_mfb'] / clb_inputs['cla_mfb']**2
     clbcl = (((clb_inputs['clb_14'] / clb_inputs['cna_14']**2 - clbcl_at_mfb) *
               (mach - mfb) / (1.4 - mfb) + clbcl_at_mfb) * cla_wing_body**2)
-    for j in range(len(alpha_deg)):
-        if clwb[j] != UNUSED and clbb[j] == UNUSED:
-            clbb[j] = clbcl * clwb[j]
+    for angle_index in range(len(alpha_deg)):
+        if clwb[angle_index] != UNUSED and clbb[angle_index] == UNUSED:
+            clbb[angle_index] = clbcl * clwb[angle_index]
     return {'cl': clwb, 'cd': cdwb, 'clb': clbb, 'clbcl': float(clbcl),
             'kkwb': float(kkwb), 'kkbw': float(kkbw), 'ratio': float(ratio),
             'ivbw': ivbw, 'go2pav': go2pav, 'method': 'legacy_wbclb'}
@@ -1103,62 +1105,61 @@ def setup2_step(nf: int, state: Dict[str, object]) -> int:
     blocks ``wing``, ``ht``, ``bw``, ``bh`` for CLBCLC; ``bw101``,
     ``bh101``.
     """
-    st = state
-    sec = st['sec']
-    i = int(st.get('i', 1))
+    sec = state['sec']
+    i = int(state.get('i', 1))
     while True:
         step_num = -nf
         if step_num == 1:
-            sec[17] = st['mach']
-            st['subson'], st['transn'] = True, False
-            sec[18], sec[19] = st['tra6'], st['trah6']
-            _setup2_mach(st, 0.6, 0.8, i)
-            st['wingin'][i + 40] = st['wingin'][68]
-            st['htin'][i + 40] = st['htin'][68]
-            proceed = st['wgpl'] or st['htpl']
+            sec[17] = state['mach']
+            state['subson'], state['transn'] = True, False
+            sec[18], sec[19] = state['tra6'], state['trah6']
+            _setup2_mach(state, 0.6, 0.8, i)
+            state['wingin'][i + 40] = state['wingin'][68]
+            state['htin'][i + 40] = state['htin'][68]
+            proceed = state['wgpl'] or state['htpl']
         elif step_num == 2:
-            sec[11] = st['wbt67']
-            sec[1] = calculate_clbclc(st['wing'], st['nalpha'])
-            sec[3] = calculate_clbclc(st['ht'], st['nalpha'])
-            _setup2_mach(st, 0.7, 0.71414284, i)
-            proceed = st['bo'] and st['wgpl'] and st['htpl']
+            sec[11] = state['wbt67']
+            sec[1] = calculate_clbclc(state['wing'], state['nalpha'])
+            sec[3] = calculate_clbclc(state['ht'], state['nalpha'])
+            _setup2_mach(state, 0.7, 0.71414284, i)
+            proceed = state['bo'] and state['wgpl'] and state['htpl']
         elif step_num == 3:
-            sec[12] = st['wbt67']
+            sec[12] = state['wbt67']
             sec[18] = min(sec[18], 0.95)
-            _setup2_mach(st, sec[18], math.sqrt(1.0 - sec[18]**2), i)
-            proceed = st['bo'] and st['wgpl']
+            _setup2_mach(state, sec[18], math.sqrt(1.0 - sec[18]**2), i)
+            proceed = state['bo'] and state['wgpl']
         elif step_num == 4:
-            sec[5] = calculate_clbclc(st['bw'], st['nalpha'])
+            sec[5] = calculate_clbclc(state['bw'], state['nalpha'])
             sec[19] = min(sec[19], 0.95)
-            _setup2_mach(st, sec[19], math.sqrt(1.0 - sec[19]**2), i)
-            proceed = st['bo'] and st['htpl']
+            _setup2_mach(state, sec[19], math.sqrt(1.0 - sec[19]**2), i)
+            proceed = state['bo'] and state['htpl']
         elif step_num == 5:
-            sec[7] = calculate_clbclc(st['bh'], st['nalpha'])
-            st['subson'], st['supers'] = False, True
-            st['mach'] = 1.4
-            proceed = st['wgpl'] or st['htpl']
+            sec[7] = calculate_clbclc(state['bh'], state['nalpha'])
+            state['subson'], state['supers'] = False, True
+            state['mach'] = 1.4
+            proceed = state['wgpl'] or state['htpl']
         elif step_num == 6:
             for k, block in ((2, 'wing'), (4, 'ht'), (6, 'bw'), (8, 'bh')):
-                sec[k] = calculate_clbclc(st[block], st['nalpha'])
-            sec[9], sec[10], sec[14] = st['bw101'], st['bh101'], st['stp155']
-            st['mach'] = 1.1
-            proceed = st['bo'] and st['wgpl'] and st['htpl']
+                sec[k] = calculate_clbclc(state[block], state['nalpha'])
+            sec[9], sec[10], sec[14] = state['bw101'], state['bh101'], state['stp155']
+            state['mach'] = 1.1
+            proceed = state['bo'] and state['wgpl'] and state['htpl']
         elif step_num == 7:
-            sec[13] = st['stp155']
-            st['mach'] = sec[17]
-            st['nalpha'] = int(st['flc2'] + 0.5)
-            st['done'] = True
-            st['supers'], st['transn'] = False, True
+            sec[13] = state['stp155']
+            state['mach'] = sec[17]
+            state['nalpha'] = int(state['flc2'] + 0.5)
+            state['done'] = True
+            state['supers'], state['transn'] = False, True
             absent = []
-            if not st['wgpl']:
+            if not state['wgpl']:
                 absent += [1, 2]
-            if not st['htpl']:
+            if not state['htpl']:
                 absent += [3, 4]
-            if not (st['bo'] and st['wgpl']):
+            if not (state['bo'] and state['wgpl']):
                 absent += [5, 6, 9]
-            if not (st['bo'] and st['htpl']):
+            if not (state['bo'] and state['htpl']):
                 absent += [7, 8, 10]
-            if not (st['bo'] and st['wgpl'] and st['htpl']):
+            if not (state['bo'] and state['wgpl'] and state['htpl']):
                 absent += [11, 12, 13, 14]
             for k in absent + list(range(17, 24)):
                 sec[k] = UNUSED

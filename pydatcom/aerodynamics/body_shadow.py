@@ -46,12 +46,14 @@ def ptint2(xb: Sequence[float], rb: Sequence[float], a: Sequence[float],
                                     math.sin(-a[2] / RAD))
     x = [0.0] * 43
     y = [0.0] * 43
-    for i in range(1, nx + 2):
-        px, py = xp[i - 1], yp[i - 1]
-        x[i] = (px - a[0]) * cos_incidence + (py - a[1]) * sin_incidence
-        y[i] = (py - a[1]) * cos_incidence - (px - a[0]) * sin_incidence
-        x[i + 21] = (px - a[0]) * cos_incidence + (-py - a[1]) * sin_incidence
-        y[i + 21] = (-py - a[1]) * cos_incidence - (px - a[0]) * sin_incidence
+    for station in range(1, nx + 2):
+        px, py = xp[station - 1], yp[station - 1]
+        x[station] = (px - a[0]) * cos_incidence + (py - a[1]) * sin_incidence
+        y[station] = (py - a[1]) * cos_incidence - (px - a[0]) * sin_incidence
+        x[station + 21] = ((px - a[0]) * cos_incidence +
+                             (-py - a[1]) * sin_incidence)
+        y[station + 21] = ((-py - a[1]) * cos_incidence -
+                           (px - a[0]) * sin_incidence)
     nx22m1 = nx + 21
     if dx < x[nx] < 0.0:
         x[nx] = 0.0
@@ -60,35 +62,35 @@ def ptint2(xb: Sequence[float], rb: Sequence[float], a: Sequence[float],
     indexu = next((j for j in range(1, nx + 1) if 0.0 <= x[j]), nx + 1) - 1
     indexl = next((j for j in range(1, nx + 1) if 0.0 <= x[j + 21]),
                   nx + 1) + 20
-    out = {'x': x, 'y': y, 'inxuie': 0, 'inxlie': 0, 'abort': True}
+    intersection = {'x': x, 'y': y, 'inxuie': 0, 'inxlie': 0, 'abort': True}
 
     def run(first, last, slope, sign, below, tag):
-        for k in range(first, last + 1):
-            xdif, ydif = x[k + 1] - x[k], y[k + 1] - y[k]
+        for seg in range(first, last + 1):
+            xdif, ydif = x[seg + 1] - x[seg], y[seg + 1] - y[seg]
             if xdif == 0.0 and ydif == 0.0:
                 continue
-            xi[k] = (y[k] * xdif - x[k] * ydif) / (xdif * slope - ydif)
-            yi[k] = sign * xi[k] * tan_mach_angle
-            if k == first:
+            xi[seg] = (y[seg] * xdif - x[seg] * ydif) / (xdif * slope - ydif)
+            yi[seg] = sign * xi[seg] * tan_mach_angle
+            if seg == first:
                 if x[last] < 0.0:
                     return None
-                yin = (ydif / xdif) * (-x[k]) + y[k]
+                yin = (ydif / xdif) * (-x[seg]) + y[seg]
                 if (yin < 0.0) if below else (yin > 0.0):
                     return None
-            if x[k] <= xi[k] <= x[k + 1]:
-                return k
-            if k == last - 1 and xi[k] > x[k + 1]:
-                out[tag] = last - 1
+            if x[seg] <= xi[seg] <= x[seg + 1]:
+                return seg
+            if seg == last - 1 and xi[seg] > x[seg + 1]:
+                intersection[tag] = last - 1
         return last
 
     ku = run(indexu, nx, tan_mach_angle, 1.0, True, 'inxuie')
     if ku is None:
-        return out
+        return intersection
     kl = run(indexl, nx22m1, neg_tan_mach, -1.0, False, 'inxlie')
     if kl is None:
-        return out
-    out.update({'indxui': ku, 'indxli': kl, 'abort': False})
-    return out
+        return intersection
+    intersection.update({'indxui': ku, 'indxli': kl, 'abort': False})
+    return intersection
 
 
 def calculate_bdarea(xb: Sequence[float], rb: Sequence[float], mach: float,
@@ -110,29 +112,31 @@ def calculate_bdarea(xb: Sequence[float], rb: Sequence[float], mach: float,
         including it) and ``xbar`` (``HTIN(94+I)``, its centroid aft of
         the centre of gravity).
     """
-    s = {int(k): float(v) for k, v in syna.items()}
-    h = {int(k): float(v) for k, v in htin.items()}
-    t = {int(k): float(v) for k, v in aht.items()}
+    syna_local = {int(k): float(v) for k, v in syna.items()}
+    htin_local = {int(k): float(v) for k, v in htin.items()}
+    aht_local = {int(k): float(v) for k, v in aht.items()}
     nx = len(xb)
     amuu = math.atan(1. / math.sqrt(mach**2 - 1.))
-    rad8 = s[8] / RAD
-    a1 = s[6] + (h[4] - h[3]) * t[62] * math.cos(rad8)
-    a2 = s[7] - (a1 - s[6]) * math.sin(rad8) / math.cos(rad8)
+    rad8 = syna_local[8] / RAD
+    a1 = (syna_local[6] + (htin_local[4] - htin_local[3]) * aht_local[62] *
+          math.cos(rad8))
+    a2 = (syna_local[7] - (a1 - syna_local[6]) * math.sin(rad8) /
+          math.cos(rad8))
     xli, yli = [0.0] * 43, [0.0] * 43
     xti, yti = [0.0] * 43, [0.0] * 43
-    le = ptint2(xb, rb, [a1, a2, s[8]], amuu, xli, yli)
+    le = ptint2(xb, rb, [a1, a2, syna_local[8]], amuu, xli, yli)
     if le['abort']:
         return {'abort': True}
-    a1 += t[10] * math.cos(rad8)
-    a2 -= t[10] * math.sin(rad8)
-    te = ptint2(xb, rb, [a1, a2, s[8]], amuu, xti, yti)
+    a1 += aht_local[10] * math.cos(rad8)
+    a2 -= aht_local[10] * math.sin(rad8)
+    te = ptint2(xb, rb, [a1, a2, syna_local[8]], amuu, xti, yti)
     if te['abort']:
         return {'abort': True}
     xl, yl = le['x'], le['y']
-    c10 = t[10]
+    c10 = aht_local[10]
     parts = []
-    for k in (1, 2):
-        if k == 1:
+    for profile_pass in (1, 2):
+        if profile_pass == 1:
             ili, ilie = le['indxui'], le['inxuie']
             iti, itie = te['indxui'], te['inxuie']
             last = nx
@@ -208,7 +212,8 @@ def calculate_bdarea(xb: Sequence[float], rb: Sequence[float], mach: float,
     sb = aub + alb
     xcb = (sxu + sxl) / sb
     ycb = (syu + syl) / sb
-    xbarb = (xcb * math.cos(-rad8) - ycb * math.sin(-rad8) + s[6] +
-             (h[4] - h[3]) * t[62] * math.cos(rad8))
-    return {'abort': False, 'sb': sb, 's': au + al, 'xbar': xbarb - s[1],
+    xbarb = (xcb * math.cos(-rad8) - ycb * math.sin(-rad8) + syna_local[6] +
+             (htin_local[4] - htin_local[3]) * aht_local[62] * math.cos(rad8))
+    return {'abort': False, 'sb': sb, 's': au + al,
+            'xbar': xbarb - syna_local[1],
             'method': 'legacy_bdarea'}

@@ -154,24 +154,24 @@ def calculate_slope(weber: Dict, mach: float, reynolds: float,
 
     # Iterate the zero-lift angle until the lower angle carries no lift.
     alpha_zero = float(alpha_zero_lift)
-    cl_pair = cm_pair = None
+    lift_pair = moment_pair = None
     iterations = 0
     for iterations in range(1, _MAX_ITERATIONS + 1):
-        angles = (alpha_zero, alpha_zero + 1.0)
+        trial_angles = (alpha_zero, alpha_zero + 1.0)
         results = []
-        for angle in angles:
+        for angle_deg in trial_angles:
             cp_upper, cp_lower, cos_a, _ = _pressure_distribution(
-                angle, weber, mach, beta, tmach)
+                angle_deg, weber, mach, beta, tmach)
             results.append(_integrate(cp_upper, cp_lower, weber, cos_a))
-        cl_pair = [item[0] for item in results]
-        cm_pair = [item[1] for item in results]
-        if abs(cl_pair[0]) <= _LIFT_TOLERANCE:
+        lift_pair = [item[0] for item in results]
+        moment_pair = [item[1] for item in results]
+        if abs(lift_pair[0]) <= _LIFT_TOLERANCE:
             break
-        slope = cl_pair[1] - cl_pair[0]
-        if slope == 0.0:
+        lift_slope = lift_pair[1] - lift_pair[0]
+        if lift_slope == 0.0:
             raise ValueError("SLOPE's iteration stalled: the two angles "
                              "produced identical lift")
-        alpha_zero = alpha_zero - cl_pair[0] / slope
+        alpha_zero = alpha_zero - lift_pair[0] / lift_slope
     else:
         raise ValueError(
             f"SLOPE's zero-lift iteration did not converge in "
@@ -195,8 +195,8 @@ def calculate_slope(weber: Dict, mach: float, reynolds: float,
         (0.232 + 1.785 * phite - 2.950 * phite**2)
     correction = max(correction, _CORRECTION_FLOOR)
 
-    cla = (cl_pair[1] - cl_pair[0]) * correction * _SLOPE_FACTOR
-    cma = cm_pair[1] - cm_pair[0]
+    cla = (lift_pair[1] - lift_pair[0]) * correction * _SLOPE_FACTOR
+    cma = moment_pair[1] - moment_pair[0]
     if cla == 0.0:
         raise ValueError("SLOPE produced a zero lift-curve slope")
     xac = 0.25 - cma / cla
@@ -214,5 +214,5 @@ def calculate_slope(weber: Dict, mach: float, reynolds: float,
     }
     # The source stores the Mach-zero moment as the section CM0.
     if mach == 0.0:
-        result['cm_c4'] = float(cm_pair[0])
+        result['cm_c4'] = float(moment_pair[0])
     return result

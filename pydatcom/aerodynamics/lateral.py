@@ -455,20 +455,26 @@ def calculate_sublat(stb: Mapping[int, float],
             cnb_den = (a[120] * a[120] + 4.0 * a[120] * a[43] -
                        8.0 * a[43] * a[43])
             cyb, cnb = np.zeros(alpha_count), np.zeros(alpha_count)
-            for j in range(alpha_count):
-                cl_at_mach0 = b[j + 3]
-                stb[j + 16] = ((1.0 / RAD) * cl_at_mach0**2 * (stb16_num / stb16_den) -
-                               .0001 * abs(stb[122]))
+            for angle_index in range(alpha_count):
+                cl_at_mach0 = b[angle_index + 3]
+                stb[angle_index + 16] = (
+                    (1.0 / RAD) * cl_at_mach0**2 * (stb16_num / stb16_den) -
+                    .0001 * abs(stb[122]))
                 if cl_at_mach0 == 0.0:
-                    stb[j + 36] = 0.0
+                    stb[angle_index + 36] = 0.0
                 else:
-                    stb[j + 36] = (cyb36_num / cyb36_den) * (stb[j + 16] / cl_at_mach0)
-                    cyb[j] = stb[j + 36] * cl[j]
-                cm_arm_term = (0.0 if cn[j] == 0.0 else
-                               6.0 * (cm[j] / cn[j] / cbarr) * (abs(a[42]) / a[120]))
-                stb[j + 76] = (cnb_a - cnb_b * (cnb_c + cm_arm_term)) / RAD
-                cnb[j] = (cnb_e * (cnb_num / cnb_den) * stb[j + 76] * cl[j]**2 *
-                          double_span * sref / (blref * a[3]))
+                    stb[angle_index + 36] = (
+                        (cyb36_num / cyb36_den) *
+                        (stb[angle_index + 16] / cl_at_mach0))
+                    cyb[angle_index] = stb[angle_index + 36] * cl[angle_index]
+                cm_arm_term = (0.0 if cn[angle_index] == 0.0 else
+                               6.0 * (cm[angle_index] / cn[angle_index] / cbarr) *
+                               (abs(a[42]) / a[120]))
+                stb[angle_index + 76] = (
+                    (cnb_a - cnb_b * (cnb_c + cm_arm_term)) / RAD)
+                cnb[angle_index] = (
+                    cnb_e * (cnb_num / cnb_den) * stb[angle_index + 76] *
+                    cl[angle_index]**2 * double_span * sref / (blref * a[3]))
 
             if straight and a[120] < 1.0:
                 clb = ((-2.0 / (RAD * 3.0 * a[120]) * cl -
@@ -488,10 +494,12 @@ def calculate_sublat(stb: Mapping[int, float],
                                    0, 0, 0, 0)
                 ya['30b'] = tlinex(_X130B, _X230B, _FIG30B, a[118], a[120],
                                    0, 2, 0, 2)
-                for j in range(alpha_count):
-                    stb[j + 96] = ((ya['27'] * ya['28a'] + ya['28b']) * cl[j] *
-                                   sref / a[4] + win[11] * a[68] * ya['30b'])
-                base = np.array([stb[j + 96] for j in range(alpha_count)])
+                for angle_index in range(alpha_count):
+                    stb[angle_index + 96] = (
+                        (ya['27'] * ya['28a'] + ya['28b']) * cl[angle_index] *
+                        sref / a[4] + win[11] * a[68] * ya['30b'])
+                base = np.array([stb[angle_index + 96]
+                                 for angle_index in range(alpha_count)])
                 if win[12] != UNUSED and win[12] != 0.0:
                     stb[7] = a[131] / (2.0 * PI) * RAD
                     x1arg = math.atan(a[68] / b[2]) * RAD
@@ -807,7 +815,7 @@ def calculate_m17o21(alpha_count: int,
 
     body_block = {'cyb': body['cyb'], 'cnb': body['cnb'], 'clb': body['clb']}
     bwh = combine(wing_body, tail_surface)
-    out = {
+    combined = {
         'bv': combine(body_block, vertical_tail, ventral_fin),
         'bwh': bwh,
         'bwv': combine(wing_body, vertical_tail, ventral_fin),
@@ -818,6 +826,6 @@ def calculate_m17o21(alpha_count: int,
         # Cn_beta, which were summed before the overwrite.
         missing = np.full(alpha_count, UNUSED)
         for key in ('bv', 'bwh', 'bwhv'):
-            out[key] = {'cyb': UNUSED, 'cnb': UNUSED, 'clb': missing.copy()}
-        out['bwv']['clb'] = missing.copy()
-    return out
+            combined[key] = {'cyb': UNUSED, 'cnb': UNUSED, 'clb': missing.copy()}
+        combined['bwv']['clb'] = missing.copy()
+    return combined

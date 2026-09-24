@@ -225,9 +225,9 @@ class BodyGeometry:
         
         # Find base of nose (first station with significant area)
         base_idx = 0
-        for i in range(self.nx):
-            if self.s[i] > 0.01 * self.max_area:
-                base_idx = i
+        for station in range(self.nx):
+            if self.s[station] > 0.01 * self.max_area:
+                base_idx = station
                 break
         
         base_area = self.s[base_idx] if base_idx < self.nx else 0.0

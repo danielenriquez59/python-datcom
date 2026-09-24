@@ -398,12 +398,13 @@ def calculate_prpwef(inputs: Mapping[str, object],
     power_in = {k: v for k, v in inputs['power'].items()}
     wing_in = inputs['wing']
     a_block = {int(k): float(v) for k, v in inputs['a'].items()}
-    pos = {k: float(v) for k, v in inputs['position'].items()}
+    position_in = {k: float(v) for k, v in inputs['position'].items()}
     tail_in, vertical_in, body_in = (inputs['tail'], inputs['vertical'],
                                      inputs['body'])
     dwash_in = inputs['dwash']
-    srw, cbarr, htpl = float(inputs['sref']), float(inputs['cbarr']), \
-        bool(inputs['htpl'])
+    sref = float(inputs['sref'])
+    cbarr = float(inputs['cbarr'])
+    htpl = bool(inputs['htpl'])
     alpha_schedule = [float(x) for x in inputs['alpha']]
     nalpha = len(alpha_schedule)
     stale_words = dict(stale or {})
@@ -415,8 +416,9 @@ def calculate_prpwef(inputs: Mapping[str, object],
     ct, bst0o2, bsto2, bo2 = (float(wing_in[k]) for k in ('ct', 'bst0o2', 'bsto2',
                                                           'bo2'))
     cb, cr = float(wing_in['cb']), float(wing_in['cr'])
-    xw, zw, aliw = pos['xw'], pos['zw'], pos['aliw']
-    xh, zh, alih, xcg = pos['xh'], pos['zh'], pos['alih'], pos['xcg']
+    xw, zw, aliw = (position_in['xw'], position_in['zw'], position_in['aliw'])
+    xh, zh, alih, xcg = (position_in['xh'], position_in['zh'],
+                         position_in['alih'], position_in['xcg'])
     ar, crstr, alpha0, xbarrw = a_block[120], a_block[10], a_block[134], a_block[161]
     argcs = zerang()
 
@@ -434,7 +436,7 @@ def calculate_prpwef(inputs: Mapping[str, object],
         deuda = _tlinex(_X14161, _X24161, _Y44161, ar, xbarp, 2, 2, 2, 2)
     cosaiw = math.cos(DEG * aliw)
     prprd2 = prprad**2
-    srtpco = srw * thstcp / (8.0 * prprd2)
+    srtpco = sref * thstcp / (8.0 * prprd2)
     kn = float(power_in['kn'])
     if kn == UNUSED:
         kn = float(power_in['nopbpe']) * (262.0 * float(power_in['bwapr3']) +
@@ -450,7 +452,7 @@ def calculate_prpwef(inputs: Mapping[str, object],
     c2 = _value(_X46113, _C26113, srtpco, 0, 1)
     depdap = c1 + c2 * cnap
     f = _value(_X6111A, _F6111A, srtpco, 0, 2)
-    combo1 = PI * nengsp * f * cnap * prprd2 / (RAD * srw)
+    combo1 = PI * nengsp * f * cnap * prprd2 / (RAD * sref)
     combo = nengsp * thstcp
     alphap = aietlp + deuda * (aliw - alpha0)
     alphap = alphap - depdap * alphap
@@ -500,9 +502,9 @@ def calculate_prpwef(inputs: Mapping[str, object],
         sweepa = a_block[112] if yp > bo2 - bst0o2 else a_block[106]
         cbarli = crp
         si = sstri
-        dcd0s = srtpco * 8.0 / (PI * srw) * (sstri * float(wing_in['cf']))
+        dcd0s = srtpco * 8.0 / (PI * sref) * (sstri * float(wing_in['cf']))
         if yp > bo2 - bst0o2:
-            dcd0s = srtpco * 8.0 / (PI * srw) * (sstri * float(wing_in['d12']))
+            dcd0s = srtpco * 8.0 / (PI * sref) * (sstri * float(wing_in['d12']))
     else:
         if bio2 > bo2 - bst0o2:
             bst0i2 = bst0o2 - (bo2 - bio2)
@@ -533,7 +535,7 @@ def calculate_prpwef(inputs: Mapping[str, object],
             powr_words['tri'] = tri
         astari = 4.0 * (bstio2**2) / sstri
         powr_words.update({'cti': cti, 'bstio2': bstio2})
-        dcd0s = (srtpco * 8.0 / (PI * srw)) * (
+        dcd0s = (srtpco * 8.0 / (PI * sref)) * (
             float(wing_in['cf']) * sstri + float(tail_in['cf']) * powr_words['sih'] +
             .50 * float(vertical_in['cf']) * float(vertical_in['area']) +
             float(body_in['cf']) * float(body_in['wetted_area']))
@@ -541,7 +543,7 @@ def calculate_prpwef(inputs: Mapping[str, object],
     rpnob = .5 * nengsp * prprad / bo2
     aak = _value(_X4648A, _Y4648A, srtpco, 0, 2)
     ebroep = _tlinex(_X1648B, _X2648B, _Y4648B, rpnob, srtpco, 2, 0, 2, 2)
-    dcmt = thstcp * (pos['zcg'] - phvloc) * nengsp / cbarr
+    dcmt = thstcp * (position_in['zcg'] - phvloc) * nengsp / cbarr
     cossw = math.cos(DEG * sweepa)
     cm0in, cm02 = float(wing_in['cmo']), float(wing_in['cmot'])
     cm0ova = cm0in
@@ -555,7 +557,7 @@ def calculate_prpwef(inputs: Mapping[str, object],
         cm0i = cm0te0 + float(tlin3x(_X11412, _X21412, _X31412, y, astari,
                                      sweepa, trpsi, 2, 0, 0, 2, 2,
                                      0)) * twista
-    dcmq = (srtpco * si / srw * cbarli / cbarr * cm0i) * 8.0 / PI
+    dcmq = (srtpco * si / sref * cbarli / cbarr * cm0i) * 8.0 / PI
     xbrsrr = a_block[16] / 4. + (a_block[1] * a_block[32] * a_block[62] + a_block[2] *
                            (a_block[23] * a_block[62] + (a_block[33] - a_block[23]) * a_block[86])) / a_block[3]
     powr_words.update({'sstri': sstri, 'astari': astari, 'trpsi': trpsi,
@@ -574,13 +576,13 @@ def calculate_prpwef(inputs: Mapping[str, object],
     cdl = [float(x) for x in wing_in['cdl']]
     cla = float(wing_in['cla'])
     dlh = float(stale_words.get('dlh', 0.0))
-    for j in range(nalpha):
-        alphat = alpha_schedule[j] + aietlp
+    for angle_index in range(nalpha):
+        alphat = alpha_schedule[angle_index] + aietlp
         cosat, sinat = math.cos(DEG * alphat), math.sin(DEG * alphat)
-        alphap = alphat + deuda * (aliw + alpha_schedule[j] - alpha0)
-        cnp = cnap * alphap / RAD * PI * prprad**2 / srw
+        alphap = alphat + deuda * (aliw + alpha_schedule[angle_index] - alpha0)
+        cnp = cnap * alphap / RAD * PI * prprad**2 / sref
         ebar = ebroep * depdap * alphap
-        arrays['dclnp'][j] = combo1 * alphap * cosat
+        arrays['dclnp'][angle_index] = combo1 * alphap * cosat
         ep = depdap * alphap
         alphap = alphap - ep
         sinap = math.sin(DEG * alphap)
@@ -619,18 +621,18 @@ def calculate_prpwef(inputs: Mapping[str, object],
             powr_words.update({'bs1': bs1, 'bs2': bs2, 'bs3': bs3, 'ak1': ak1})
             immersed = deuda != -1.0
         if immersed:
-            arrays['dclq'][j] = 8.0 * powr_words['ak1'] * srtpco * sstri / (
-                PI * srw) * cl_w[j]
+            arrays['dclq'][angle_index] = 8.0 * powr_words['ak1'] * srtpco * sstri / (
+                PI * sref) * cl_w[angle_index]
             delalp = -ep / (1.0 + deuda)
-            arrays['dclaw'][j] = cla * delalp * sstri * powr_words['ak1'] / srw * (
+            arrays['dclaw'][angle_index] = cla * delalp * sstri * powr_words['ak1'] / sref * (
                 1.0 + 8.0 * srtpco / PI)
             powr_words['delalp'] = delalp
-        arrays['dclt'][j] = combo * sinat
+        arrays['dclt'][angle_index] = combo * sinat
         if htpl:
             powr_words['dxhmac'] = xh + xbarrh * math.cos(DEG * alih) - phaloc
             zht = zh - phvloc + powr_words['dxhmac'] * math.tan(DEG * aietlp)
             zhtorp = zht / prprad
-            eps = float(dwash_in['epsilon'][j])
+            eps = float(dwash_in['epsilon'][angle_index])
             if nengsp > 1.0:
                 step1 = _tlinex(_X1639A, _X2639A, _Y4639A, eps, srtpco,
                                 2, 2, 2, 2)
@@ -642,7 +644,7 @@ def calculate_prpwef(inputs: Mapping[str, object],
                                 0, 0, 2, 2)
                 depowr = _tlinex(_X1638B, _X2638B, _Y4638B, zhtorp, step1,
                                  0, 1, 2, 1)
-            clh, clalph = tbfunx(alpha_schedule, tail_in['cl'], alpha_schedule[j], 1, 1)
+            clh, clalph = tbfunx(alpha_schedule, tail_in['cl'], alpha_schedule[angle_index], 1, 1)
             cosaih = math.cos(DEG * alih)
             tn = xh + xbarrh * cosaih - (xw + xbarrw * cosaih)
             epowr = eps + depowr
@@ -650,37 +652,37 @@ def calculate_prpwef(inputs: Mapping[str, object],
             zhorp = zheff / prprad
             dqhoqi = _tlinex(_XT4637, _Z24637, _YF4637, abs(zhorp),
                              powr_words['ytemp'], 0, 0, 2, 1)
-            arrays['dclhq'][j] = dqhoqi * clh
-            arrays['dclhe'][j] = -clalph * depowr * (
-                float(dwash_in['q_ratio'][j]) + dqhoqi)
+            arrays['dclhq'][angle_index] = dqhoqi * clh
+            arrays['dclhe'][angle_index] = -clalph * depowr * (
+                float(dwash_in['q_ratio'][angle_index]) + dqhoqi)
             dlh = xh + xbarrh * cosaih - xcg
-            arrays['dcmhe'][j] = -dlh * arrays['dclhe'][j] / cbarr
+            arrays['dcmhe'][angle_index] = -dlh * arrays['dclhe'][angle_index] / cbarr
             powr_words.update({'zht': zht, 'zhtorp': zhtorp, 'step1': step1,
                       'epowr': epowr, 'zheff': zheff, 'zhorp': zhorp,
                       'dqhoqi': dqhoqi})
-        arrays['dclpon'][j] = (arrays['dclt'][j] + arrays['dclnp'][j] +
-                               arrays['dclq'][j] + arrays['dclaw'][j] +
-                               arrays['dclhq'][j] + arrays['dclhe'][j])
-        arrays['dcmnp'][j] = arrays['dclnp'][j] * (xcg - phaloc) / (
+        arrays['dclpon'][angle_index] = (arrays['dclt'][angle_index] + arrays['dclnp'][angle_index] +
+                               arrays['dclq'][angle_index] + arrays['dclaw'][angle_index] +
+                               arrays['dclhq'][angle_index] + arrays['dclhe'][angle_index])
+        arrays['dcmnp'][angle_index] = arrays['dclnp'][angle_index] * (xcg - phaloc) / (
             cbarr * cosat)
         xcp = (xw + xbrsrr * cosaiw) - xcg
-        arrays['dcml'][j] = -(arrays['dclq'][j] + arrays['dclaw'][j]) * \
+        arrays['dcml'][angle_index] = -(arrays['dclq'][angle_index] + arrays['dclaw'][angle_index]) * \
             xcp / cbarr
-        arrays['dcmhq'][j] = -dlh * arrays['dclhq'][j] / cbarr
-        arrays['dcm'][j] = (dcmt + arrays['dcmnp'][j] + dcmq +
-                            arrays['dcml'][j] + arrays['dcmhq'][j] +
-                            arrays['dcmhe'][j])
+        arrays['dcmhq'][angle_index] = -dlh * arrays['dclhq'][angle_index] / cbarr
+        arrays['dcm'][angle_index] = (dcmt + arrays['dcmnp'][angle_index] + dcmq +
+                            arrays['dcml'][angle_index] + arrays['dcmhq'][angle_index] +
+                            arrays['dcmhe'][angle_index])
         clp = (thstcp * sinat + cnp * cosat) * nengsp
-        if cl_w[j] == 0.0:
+        if cl_w[angle_index] == 0.0:
             cdlrat = 0.0
         else:
-            clww = cl_w[j] + arrays['dclq'][j]
-            cdlrat = ((clww / cl_w[j])**2 *
+            clww = cl_w[angle_index] + arrays['dclq'][angle_index]
+            cdlrat = ((clww / cl_w[angle_index])**2 *
                       (1. + _PISQRD * ar * ebar / (180. * clww)) +
-                      aak * (bo2 / prprad * clp / cl_w[j])**2)
+                      aak * (bo2 / prprad * clp / cl_w[angle_index])**2)
             powr_words['clww'] = clww
-        cdlpow = cdlrat * cdl[j]
-        arrays['cdpow'][j] = dcd0s + cdlpow - cdl[j]
+        cdlpow = cdlrat * cdl[angle_index]
+        arrays['cdpow'][angle_index] = dcd0s + cdlpow - cdl[angle_index]
         powr_words.update({'alphat': alphat, 'cosat': cosat, 'sinat': sinat,
                   'alphap': alphap, 'cnp': cnp, 'ebar': ebar, 'ep': ep,
                   'sinap': sinap, 'zs': zs, 'bio2': bio2, 'sstri': sstri,
