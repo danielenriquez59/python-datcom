@@ -1,6 +1,7 @@
 """Analytic checks of the distinct QUAD/TRAPZ/TBFUNX legacy contracts."""
 
 import numpy as np
+import pytest
 
 from pydatcom.utils.legacy_numeric import quad, trapz, tbfunx
 
@@ -38,3 +39,31 @@ def test_tbfunx_values_are_linear_but_derivatives_quadratic():
     assert tbfunx([0], [7], 10) == (7., 0.)
     # Source's LE==NP3 condition is true at BOTH ends when NP=3.
     np.testing.assert_allclose(tbfunx([0, 1, 2], [0, 1, 4], -1, 1, 1), [-5, 3])
+
+
+def test_tbfunx_unordered_follows_the_source_search():
+    """With ordered=False the interior search takes the last point at or
+    below the query, and below XA(2) interpolates on XA(L-1), XA(L).
+
+    The table turns over, as a lift curve past the stall does.  Only the
+    end points 0.0 and 0.9 decide that a query is interior.
+    """
+    x = [0.0, 0.8, 1.1, 0.4, 0.9]
+    y = [0.0, 8.0, 12.0, 16.0, 20.0]
+    # 0.85: the last point at or below it is XA(4)=0.4 (L=4), and it is not
+    # below XA(2), so the source uses XX(2), XX(3) = XA(4), XA(5).
+    value, _ = tbfunx(x, y, 0.85, 1, 1, ordered=False)
+    assert value == pytest.approx(16.0 + 4.0 * (0.85 - 0.4) / (0.9 - 0.4))
+    # 0.5: still L=4, but below XA(2)=0.8, so the override interpolates on
+    # XX(1), XX(2) = XA(3), XA(4), not on the table's first pair.
+    value, _ = tbfunx(x, y, 0.5, 1, 1, ordered=False)
+    assert value == pytest.approx(12.0 + 4.0 * (0.5 - 1.1) / (0.4 - 1.1))
+    with pytest.raises(ValueError):
+        tbfunx(x, y, 0.5, 1, 1)
+
+
+def test_tbfunx_unordered_agrees_on_ordered_tables():
+    x = np.linspace(-4.0, 20.0, 9)
+    y = np.sin(x / 7.0)
+    for q in np.linspace(-6.0, 22.0, 57):
+        assert tbfunx(x, y, q, 1, 2, ordered=False) == tbfunx(x, y, q, 1, 2)

@@ -70,3 +70,5 @@ docs/_templates/
 
 implemenation documentation/*
 .cursor/*
+# Compiled FORTRAN parity harness artifacts
+build/
