@@ -479,36 +479,76 @@ def calculate_dyprls(state: Dict, alpha_deg: float, cd0_wing: float,
     if min(area, mac, sref) <= 0.0:
         raise ValueError("DYPRLS requires positive exposed area, MAC and SREF")
 
-    # GAMMA is the inclination of the line from the wing to the tail, the
-    # A(11) that INFTGM stores; I2 is that line's length.
-    gamma = geometry['tail_angle']
-    distance = geometry['tail_arm'] / np.cos(gamma) if np.cos(gamma) else 0.0
+    # GAMMA is A(11), the inclination of the line from the wing to the
+    # tail, and I2 is A(24), INFTGM's streamwise tail arm, exactly as
+    # M09O11 passes them.
+    curve = calculate_dyprls_curve(
+        cd0_wing, geometry['tail_arm'], mac, [0.0 if cl_wing is None
+                                             else float(cl_wing)],
+        wing['aspect_ratio'], geometry['tail_angle'], [float(alpha_deg)],
+        sref, area,
+        None if eps_rad is None else [float(eps_rad) * RAD])
+    return {key: (value[0] if isinstance(value, np.ndarray) else value)
+            for key, value in curve.items()}
 
-    if eps_rad is not None:
-        ej = float(eps_rad)
+
+def calculate_dyprls_curve(cdow: float, i2: float, cbar: float,
+                           cl_wing: Sequence[float], aspect_ratio: float,
+                           gamma: float, alpha_deg: Sequence[float],
+                           sref: float, area: float,
+                           downwash_deg: Optional[Sequence[float]] = None
+                           ) -> Dict[str, object]:
+    """Translate DYPRLS with its source arguments, at every angle.
+
+    ``q/q_inf = 1 - DQOQ0 * cos(pi/2 * ZOCB/ZWOCB)**2`` inside the wake and
+    1 outside it, with the wake deflection from the wing load,
+    ``1.62*CL/(pi*A)`` on the exposed-area basis, or from DWASH when
+    ``KEPSLN`` is set.
+
+    Args:
+        cdow: ``CDOW``, the wing zero-lift drag (M09O11 passes ``B(46)``).
+        i2: ``I2``, M09O11's ``A(24)``: INFTGM's streamwise tail arm.  The
+            routine forms the distance along the line to the tail itself,
+            through ``cos(GAMMA)``.
+        cbar: ``CBAR``, ``A(16)``, the exposed MAC.
+        cl_wing: ``CLJW``, ``WING(21)`` onward, on the SREF basis.
+        aspect_ratio: ``AW``, ``A(7)``.
+        gamma: ``GAMMA``, ``A(11)``, radians.
+        alpha_deg: ``ALPHA``, ``B(23)`` onward: the wing's local angles.
+        sref: ``SREF``.
+        area: ``A(3)``, the exposed area.
+        downwash_deg: ``DWASH(21)`` onward, which selects the ``KEPSLN``
+            branch.
+
+    Returns:
+        Dictionary of arrays: ``qoqi`` (``DWASH(1)`` onward) and the wake
+        quantities behind it.
+
+    Notes:
+        With zero drag the wake has no width and the source divides by
+        zero; outside or at its edge the result is 1, as here.
+    """
+    alpha = np.asarray(alpha_deg, dtype=float)
+    cl = np.asarray(cl_wing, dtype=float)
+    fact = 1.62 / (PI * aspect_ratio)
+    if downwash_deg is not None:
+        ej = np.asarray(downwash_deg, dtype=float) / RAD
     else:
-        ej = 1.62 / (np.pi * wing['aspect_ratio']) * float(cl_wing) * sref / area
-
-    alpha_rad = np.deg2rad(alpha_deg)
-    i2ocb = (distance * np.cos(gamma - alpha_rad + ej) /
-             (np.cos(gamma) * mac))
-    zwocb = 0.68 * np.sqrt(cd0_wing * (i2ocb + 0.15) * sref / area)
-    dqoq0 = 2.42 * np.sqrt(cd0_wing * sref / area) / (i2ocb + 0.3)
-    zocb = i2ocb * np.tan(ej + gamma - alpha_rad)
-
-    if zwocb == 0.0 or abs(zocb / zwocb) >= 1.0:
-        qoqi = 1.0
-    else:
-        qoqi = 1.0 - dqoq0 * np.cos(0.5 * np.pi * zocb / zwocb)**2
-
+        ej = fact * cl * sref / area
+    angle = alpha / RAD
+    i2ocb = i2 * np.cos(gamma - angle + ej) / (np.cos(gamma) * cbar)
+    zwocb = 0.68 * np.sqrt(cdow * (i2ocb + 0.15) * sref / area)
+    dqoq0 = 2.42 * np.sqrt(cdow * sref / area) / (i2ocb + 0.3)
+    zocb = i2ocb * np.tan(ej + gamma - angle)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        ratio = zocb / zwocb
+        inside = np.abs(ratio) < 1.0
+        qoqi = np.where(inside, 1.0 - dqoq0 * np.cos(0.5 * PI * ratio)**2,
+                        1.0)
     return {
-        'qoqi': float(qoqi),
-        'wake_half_width': float(zwocb),
-        'centerline_loss': float(dqoq0),
-        'surface_offset': float(zocb),
-        'streamwise_distance': float(i2ocb),
-        'wake_deflection': float(ej),
-        'in_wake': bool(zwocb != 0.0 and abs(zocb / zwocb) < 1.0),
+        'qoqi': qoqi, 'wake_half_width': zwocb, 'centerline_loss': dqoq0,
+        'surface_offset': zocb, 'streamwise_distance': i2ocb,
+        'wake_deflection': ej, 'in_wake': inside,
         'method': 'legacy_dyprls',
     }
 

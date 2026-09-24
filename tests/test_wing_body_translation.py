@@ -184,3 +184,61 @@ def test_wbcm0_returns_none_outside_its_range():
     # Reynolds number is clamped to 8e6.
     assert (calculate_wbcm0(**dict(args, reynolds=5e7)) ==
             calculate_wbcm0(**dict(args, reynolds=8e6)))
+
+
+# --------------------------------------------------------------------------
+# The horizontal-tail and body-vertical passes
+# --------------------------------------------------------------------------
+
+_TAIL_PROBE = json.loads(
+    (_ROOT / 'tests' / 'fixtures' / 'probes' / 'wbaero_tail.json').read_text())
+
+
+def _tail_pass(inputs):
+    t = module.tail_body_inputs(inputs['surface'], inputs['tail_alone'],
+                                inputs['synthesis'], inputs['bd63'],
+                                inputs['cbarr'])
+    return calculate_wbaero(inputs['alpha_deg'], t['surface'],
+                            t['surface_alone'], inputs['body'],
+                            t['synthesis'], inputs['flight'], inputs['cbarr'],
+                            moment_cutoff=False)
+
+
+@pytest.mark.parametrize("case", range(len(_TAIL_PROBE)))
+def test_tail_and_body_vertical_passes_match_compiled_routine(case):
+    probe = _TAIL_PROBE[case]
+    inputs, out = probe['inputs'], probe['outputs']
+    tail = _tail_pass(inputs)
+    body = module.calculate_body_vertical(inputs['alpha_deg'], inputs['body'],
+                                          inputs['vertical_cd0'])
+    for tag, key in _CURVES:
+        np.testing.assert_allclose(tail[key], out['BH' + tag], rtol=1e-9,
+                                   atol=1e-12, err_msg='BH' + tag)
+        np.testing.assert_allclose(body[key], out['BV' + tag], rtol=1e-9,
+                                   atol=1e-12, err_msg='BV' + tag)
+    for group, slots in _WB_SLOTS.items():
+        for key, slot in slots.items():
+            if key in tail[group]:
+                assert tail[group][key] == pytest.approx(
+                    out['HB'][slot - 1], rel=1e-9, abs=1e-12), key
+    assert out['FACT'][0] == pytest.approx(tail['vortex']['ratio'])
+
+
+def test_tail_pass_slopes_through_unavailable_moments():
+    """Unlike the wing pass, the tail pass has no CMa cutoff."""
+    probe = next(p for p in _TAIL_PROBE
+                 if NOT_AVAILABLE in p['inputs']['tail_alone']['cm'])
+    tail = _tail_pass(probe['inputs'])
+    assert NOT_AVAILABLE in tail['cm']
+    assert NOT_AVAILABLE not in tail['cma']
+
+
+def test_stale_tail_arm_reaches_only_the_zero_lift_moment():
+    """BD(63), a Mach late, changes HB(16) and nothing on the curves."""
+    inputs = json.loads(json.dumps(_TAIL_PROBE[0]['inputs']))
+    a = _tail_pass(inputs)
+    inputs['bd63'] = 0.0
+    b = _tail_pass(inputs)
+    assert a['moment']['cm0'] != b['moment']['cm0']
+    for key in ('cl', 'cm', 'cd', 'cla', 'cma'):
+        np.testing.assert_array_equal(a[key], b[key])
