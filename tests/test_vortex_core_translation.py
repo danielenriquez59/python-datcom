@@ -119,10 +119,16 @@ def test_both_stations_are_evaluated_independently():
     assert same['dhb'][0] == pytest.approx(same['dhb'][1])
 
 
+def test_case_four_runs_as_case_one():
+    """SDWASH's ICASE 4 (swept-back trailing edge) skips Figure 74B and
+    takes 74C, exactly as ICASE 1 does."""
+    np.testing.assert_array_equal(_run(icase=4)['dhb'], _run(icase=1)['dhb'])
+
+
 def test_rejects_bad_input():
     with pytest.raises(ValueError, match="two streamwise"):
         _run(x=[1.0, 2.0, 3.0])
     with pytest.raises(ValueError, match="ICASE"):
-        _run(icase=4)
+        _run(icase=5)
     with pytest.raises(ValueError, match="reference sweep"):
         _run(icase=3, sweep_reference=0.0)

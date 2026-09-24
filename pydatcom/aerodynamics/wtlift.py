@@ -248,8 +248,10 @@ def _slope(aspect_ratio: float, section_cla: float, beta: float,
     through the source's ``DEG``.
     """
     numerator = 2.0 * PI * aspect_ratio * DEG
-    ratio = (aspect_ratio * DEG * 2.0 * PI / section_cla)**2
-    return numerator / (2.0 + np.sqrt(ratio * (1.0 + tan_c2**2 / beta**2) + 4.0))
+    aspect_over_cla_squared = (aspect_ratio * DEG * 2.0 * PI / section_cla) ** 2
+    sweep_compressibility = 1.0 + tan_c2 ** 2 / beta ** 2
+    denominator = 2.0 + np.sqrt(aspect_over_cla_squared * sweep_compressibility + 4.0)
+    return numerator / denominator
 
 
 def calculate_clmxbs(c1p1ac: float, mach: float, a160: float,
@@ -274,15 +276,15 @@ def calculate_clmxbs(c1p1ac: float, mach: float, a160: float,
     """
     increment = tlinex(_AMN, _C2A, _columns(_DE, 15, 3), mach, a160,
                        -1, 2, 0, 2)
-    part = 'A' if xovc <= 0.35 else 'B'
-    block = _CBASE[:114] if part == 'A' else _CBASE[114:]
-    base = tlinex(_DYAG, _C1ABC, _columns(block, 19, 6), deltay, c1p1ac,
+    table_part = 'A' if xovc <= 0.35 else 'B'
+    cbase_block = _CBASE[:114] if table_part == 'A' else _CBASE[114:]
+    base = tlinex(_DYAG, _C1ABC, _columns(cbase_block, 19, 6), deltay, c1p1ac,
                   0, 0, -1, 0)
     return {
         'clmax': float((base + increment) * area / sref),
         'clmax_base': float(base),
         'clmax_increment': float(increment),
-        'part': part,
+        'part': table_part,
         'method': 'legacy_clmxbs',
     }
 
@@ -320,38 +322,43 @@ def calculate_wtlift(planform_type: float,
         4.1.3.4-25 without the zero-lift angle that the high-aspect-ratio
         path adds, since that figure gives the stall angle itself.
     """
-    kind = float(planform_type)
+    planform_kind = float(planform_type)
     area = float(geometry['area'])
     aspect_ratio = float(geometry['aspect_ratio'])
     taper = float(geometry['taper_ratio'])
     sweep_le = float(geometry['sweep_le_deg'])
+    tan_c2 = float(geometry['tan_c2'])
+    tan_le = float(geometry['tan_le'])
     cla_section = float(section['cla'])
     beta = float(flight['beta'])
     mach = float(flight['mach'])
     deltay = float(section['deltay'])
 
-    result = {'method': 'legacy_wtlift', 'computed': kind != CURVED}
-    if kind != STRAIGHT_TAPERED:
-        result['a172'] = float(_slope(geometry['aspect_ratio_outboard'],
-                                      cla_section, beta,
-                                      geometry['tan_c2_outboard']))
-        result['a171'] = float(_slope(geometry['aspect_ratio_inboard'],
-                                      cla_section, beta,
-                                      geometry['tan_c2_inboard']))
-    if kind == CURVED:
+    result = {'method': 'legacy_wtlift', 'computed': planform_kind != CURVED}
+    if planform_kind != STRAIGHT_TAPERED:
+        result['a172'] = float(_slope(
+            float(geometry['aspect_ratio_outboard']),
+            cla_section, beta,
+            float(geometry['tan_c2_outboard']),
+        ))
+        result['a171'] = float(_slope(
+            float(geometry['aspect_ratio_inboard']),
+            cla_section, beta,
+            float(geometry['tan_c2_inboard']),
+        ))
+    if planform_kind == CURVED:
         logger.warning("WTLIFT: no CLALPHA computation for a curved planform")
         return result
 
     low_aspect_ratio = aspect_ratio < float(geometry['arclss_ratio'])
     a159, _ = tbfunx(_TR, _C2, taper, 0, 0)
-    a160 = (a159 + 1.0) * float(geometry['tan_le']) * aspect_ratio
+    a160 = (a159 + 1.0) * tan_le * aspect_ratio
     a145 = tlinex(_DELTAY, _SALE, _columns(_CLL, 13, 7), deltay, sweep_le,
                   -1, 0, -1, 2)
     a144 = tlinex(_DY, _SALE, _columns(_DACLL, 13, 4), deltay, sweep_le,
                   -1, 0, -1, 2)
-    cla = _slope(aspect_ratio, cla_section, beta,
-                 float(geometry['tan_c2'])) * area / sref
-    if kind == CRANKED:
+    cla = _slope(aspect_ratio, cla_section, beta, tan_c2) * area / sref
+    if planform_kind == CRANKED:
         ratio, _ = tbfunx(_BA, _CLOVCL, aspect_ratio * beta, 2, 0)
         cla = ratio * cla
         result['cranked_ratio'] = float(ratio)
@@ -386,9 +393,10 @@ def calculate_wtlift(planform_type: float,
                             area, sref)
     alpha_base, _ = tbfunx(_C1ABCS, _ACLMX, c1p1ac, 0, 0)
     if a160 <= 4.5:
-        tmp = aspect_ratio * float(geometry['cos_le']) * (1.0 + 4.0 * taper**2)
+        low_ar_abscissa = (aspect_ratio * float(geometry['cos_le']) *
+                           (1.0 + 4.0 * taper ** 2))
         increment = tlinex(_ACLE, _C1TABO, _columns(_DACLO, 10, 10),
-                           tmp, a160, 0, 0, 2, 0)
+                           low_ar_abscissa, a160, 0, 0, 2, 0)
     else:
         increment = tlinex(_DMN, _C1TAB, _columns(_DACL, 20, 3),
                            mach, a160, -1, 0, 2, 0)

@@ -69,42 +69,66 @@ def calculate_surface_lift(planform_type: float,
         Dictionary with ``alpha_zero_lift`` (``B(49)``), and the CALCA0,
         WTLIFT and LIFTCF results under ``calca0``, ``wtlift``, ``liftcf``.
     """
-    g = {k: float(v) for k, v in geometry.items()}
-    a134 = section_alpha_zero(section['swafp'], section['alphai'],
-                              section['cli'], section['cla'])
-    calca0 = calculate_calca0(a134, g['a27'], g['a7'], g['a40'], g['a43'],
-                              float(flight['mach']),
-                              twist_deg=float(section['twista']),
-                              thickness_ratio=float(section['tovc']),
-                              camber=bool(section['camber']))
+    geom = {key: float(value) for key, value in geometry.items()}
+    section_alpha_zero_deg = section_alpha_zero(
+        section['swafp'], section['alphai'], section['cli'], section['cla'],
+    )
+    calca0 = calculate_calca0(
+        section_alpha_zero_deg,
+        geom['a27'], geom['a7'], geom['a40'], geom['a43'],
+        float(flight['mach']),
+        twist_deg=float(section['twista']),
+        thickness_ratio=float(section['tovc']),
+        camber=bool(section['camber']),
+    )
     alpha_zero = calca0['alpha_zero_lift']
     wing_flight = dict(flight, alpha_zero_lift=alpha_zero)
 
+    wtlift_geometry = {
+        'area': geom['a3'],
+        'aspect_ratio': geom['a7'],
+        'taper_ratio': geom['a27'],
+        'sweep_le_deg': geom['a34'],
+        'cos_le': geom['a37'],
+        'tan_le': geom['a38'],
+        'tan_c2': geom['a50'],
+        'arclss_classified': geom['a124'],
+        'arclss_ratio': geom['a125'],
+        'aspect_ratio_inboard': geom.get('a5'),
+        'tan_c2_inboard': geom.get('a74'),
+        'aspect_ratio_outboard': geom.get('a168'),
+        'tan_c2_outboard': geom.get('a98'),
+    }
     wtlift = calculate_wtlift(
-        planform_type,
-        {'area': g['a3'], 'aspect_ratio': g['a7'], 'taper_ratio': g['a27'],
-         'sweep_le_deg': g['a34'], 'cos_le': g['a37'], 'tan_le': g['a38'],
-         'tan_c2': g['a50'], 'arclss_classified': g['a124'],
-         'arclss_ratio': g['a125'],
-         'aspect_ratio_inboard': g.get('a5'), 'tan_c2_inboard': g.get('a74'),
-         'aspect_ratio_outboard': g.get('a168'),
-         'tan_c2_outboard': g.get('a98')},
-        section, wing_flight, sref)
-    result = {'alpha_zero_lift': alpha_zero, 'section_alpha_zero': a134,
-              'calca0': calca0, 'wtlift': wtlift,
-              'method': 'legacy_surface_lift'}
+        planform_type, wtlift_geometry, section, wing_flight, sref,
+    )
+    result = {
+        'alpha_zero_lift': alpha_zero,
+        'section_alpha_zero': section_alpha_zero_deg,
+        'calca0': calca0,
+        'wtlift': wtlift,
+        'method': 'legacy_surface_lift',
+    }
 
     # LIFTCF runs even when WTLIFT computed nothing: its curved-planform
     # method needs none of WTLIFT's results.
+    liftcf_geometry = {
+        'area': geom['a3'],
+        'aspect_ratio': geom['a7'],
+        'cos_le': geom['a37'],
+        'arclss_factor': geom['a123'],
+        'arclss_ratio': geom['a125'],
+        'a159': wtlift.get('a159'),
+        'a160': wtlift.get('a160'),
+        'inboard_span': geom.get('a23'),
+        'aspect_ratio_inboard': geom.get('a5'),
+        'tan_le': geom.get('a62'),
+        'planform_length': geom.get('a29'),
+    }
     liftcf = calculate_liftcf(
-        planform_type, alpha_deg,
-        {'area': g['a3'], 'aspect_ratio': g['a7'], 'cos_le': g['a37'],
-         'arclss_factor': g['a123'], 'arclss_ratio': g['a125'],
-         'a159': wtlift.get('a159'), 'a160': wtlift.get('a160'),
-         'inboard_span': g.get('a23'),
-         'aspect_ratio_inboard': g.get('a5'), 'tan_le': g.get('a62'),
-         'planform_length': g.get('a29')},
-        section, wtlift, wing_flight, sref, angle_state)
+        planform_type, alpha_deg, liftcf_geometry,
+        section, wtlift, wing_flight, sref, angle_state,
+    )
     result['liftcf'] = liftcf
     return result
 

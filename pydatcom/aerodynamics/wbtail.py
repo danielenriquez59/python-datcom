@@ -103,22 +103,27 @@ def calculate_wgeotl(alpha_deg: Sequence[float], wing: Dict[str, float],
         and ``vortex_span`` (``2*BVTO2``, which replaces ``FACT(82)``
         onward for a canard) or ``None``.
     """
-    ata = float(wing['a120']) * float(wing['a38'])
-    ba = float(wing['a120']) * float(wing['beta'])
-    yt = tlin3x(_X41601, _X41602, _X41603, _FIG_71, ata, ba,
-                float(wing['a118']), 0, 0, 2, 0, 1, 2)
+    aspect_tan_le = float(wing['a120']) * float(wing['a38'])
+    beta_aspect = float(wing['a120']) * float(wing['beta'])
+    yt = tlin3x(_X41601, _X41602, _X41603, _FIG_71,
+                aspect_tan_le, beta_aspect, float(wing['a118']),
+                0, 0, 2, 0, 1, 2)
     sspn, sspne = float(wing['sspn']), float(wing['sspne'])
     bvto2 = sspne * yt + (sspn - sspne)
-    radius = float(tail['sspn']) - float(tail['sspne'])
-    factors = []
-    for a in alpha_deg:
-        z0 = (float(wing['a12']) - (float(wing['a24']) - float(wing['a80']) *
-                                    bvto2) * math.tan((a + aliw) / RAD))
-        factors.append(ali(z0, bvto2, float(tail['sspn']), radius,
-                           float(tail['a27'])))
+    tail_radius = float(tail['sspn']) - float(tail['sspne'])
+    ali_factors = []
+    for angle_deg in alpha_deg:
+        z0 = (float(wing['a12']) -
+              (float(wing['a24']) - float(wing['a80']) * bvto2) *
+              math.tan((angle_deg + aliw) / RAD))
+        ali_factors.append(
+            ali(z0, bvto2, float(tail['sspn']), tail_radius, float(tail['a27'])),
+        )
     canard = float(wing.get('twash', 0.0)) > 2.5
     return {
-        'ali': np.array(factors), 'yt': float(yt), 'bvto2': float(bvto2),
+        'ali': np.array(ali_factors),
+        'yt': float(yt),
+        'bvto2': float(bvto2),
         'vortex_span': 2.0 * bvto2 if canard else None,
         'method': 'legacy_wgeotl',
     }
@@ -229,8 +234,10 @@ def calculate_wbtail(alpha_deg: Sequence[float],
     # in WBT(108).
     _, max_area, _ = getmax(body['x'], body['s'])
     radius = math.sqrt(max_area / PI)
-    vortex = [calculate_bodowg(a, wbt109, radius, sspn, float(tail['a27']))
-              for a in alpha]
+    vortex = [
+        calculate_bodowg(angle_deg, wbt109, radius, sspn, float(tail['a27']))
+        for angle_deg in alpha
+    ]
 
     incidence_shift = (akhbi + akbhi) / (wbt1 + wbt2) * float(synthesis['alih'])
     bd70 = float(body['bd70'])
@@ -278,23 +285,25 @@ def calculate_wbtail(alpha_deg: Sequence[float],
             out['cl'][j], out['tail_lift'][j] = cl, tail_lift
             out['vortex_lift'][j] = vortex_lift
 
-            sa, ca = math.sin(alpa / RAD), math.cos(alpa / RAD)
-            sf, cf = math.sin(alpha[j] / RAD), math.cos(alpha[j] / RAD)
+            sin_alpa = math.sin(alpa / RAD)
+            cos_alpa = math.cos(alpa / RAD)
+            sin_alpha = math.sin(alpha[j] / RAD)
+            cos_alpha = math.cos(alpha[j] / RAD)
             dxacwb = bw_cma / bw_cla
-            apart = dxacwb * ((-bw_cl[j] / RAD + bd94[j]) * sf +
-                              (bw_cla + bw_cd[j] / RAD) * cf)
-            bpart = (bd70 / cbarr) * ((bw_cla + bw_cd[j] / RAD) * sf +
-                                      (bw_cl[j] / RAD - bd94[j]) * cf)
+            apart = dxacwb * ((-bw_cl[j] / RAD + bd94[j]) * sin_alpha +
+                              (bw_cla + bw_cd[j] / RAD) * cos_alpha)
+            bpart = (bd70 / cbarr) * ((bw_cla + bw_cd[j] / RAD) * sin_alpha +
+                                      (bw_cl[j] / RAD - bd94[j]) * cos_alpha)
             cdht, dcdda = tbfunx(local, ht_cd, alpat, 0, 0)
             clht = (cl - bw_cl[j]) / qj
             dclda = wbt3 + wbt4
             if canard:
                 dclda = dclda + wbt25 / qj
-            cpart = (-clht / RAD + dcdda) * sa
-            dpart = (clht / RAD - dcdda) * ca
+            cpart = (-clht / RAD + dcdda) * sin_alpa
+            dpart = (clht / RAD - dcdda) * cos_alpa
             epart = qj * (1.0 - deda[j])
-            fpart = (dclda + cdht / RAD) * sa
-            gpart = (dclda + cdht / RAD) * ca
+            fpart = (dclda + cdht / RAD) * sin_alpa
+            gpart = (dclda + cdht / RAD) * cos_alpa
             wbt87 = ((bd63 / cbarr) * (cpart + gpart) * epart -
                      (bd64 / cbarr) * (fpart + dpart) * epart)
             if canard:
@@ -310,8 +319,8 @@ def calculate_wbtail(alpha_deg: Sequence[float],
                           cdh[j] * math.sin(eps[j] / RAD)) /
                          math.cos(eps[j] / RAD)) * qj
             cdhq = cdh[j] * qj
-            cm = (bw_cm[j] + (bd63 / cbarr) * (dclht * ca + cdhq * sa) +
-                  (bd64 / cbarr) * (cdhq * ca - dclht * sa) +
+            cm = (bw_cm[j] + (bd63 / cbarr) * (dclht * cos_alpa + cdhq * sin_alpa) +
+                  (bd64 / cbarr) * (cdhq * cos_alpa - dclht * sin_alpa) +
                   float(tail['cm0']) * qj)
             out['cm'][j] = NOT_AVAILABLE if bw_cm[j] == NOT_AVAILABLE else cm
 
@@ -371,7 +380,8 @@ def calculate_m10o12(alpha_deg: Sequence[float],
         before the first unavailable wing-body moment.
     """
     alpha = np.asarray(alpha_deg, dtype=float)
-    ca, sa = np.cos(alpha / RAD), np.sin(alpha / RAD)
+    cos_alpha = np.cos(alpha / RAD)
+    sin_alpha = np.sin(alpha / RAD)
     bw = {k: np.asarray(wing_body[k], dtype=float)
           for k in ('cd', 'cl', 'cm', 'cla', 'cma')}
     available = len(alpha)
@@ -383,15 +393,15 @@ def calculate_m10o12(alpha_deg: Sequence[float],
     bwv = {'cd': bw['cd'] + vertical_cd + ventral_cd, 'cl': bw['cl'].copy(),
            'cm': bw['cm'].copy(), 'cla': bw['cla'].copy(),
            'cma': bw['cma'].copy()}
-    bwv['cn'] = bwv['cl'] * ca + bwv['cd'] * sa
-    bwv['ca'] = bwv['cd'] * ca - bwv['cl'] * sa
+    bwv['cn'] = bwv['cl'] * cos_alpha + bwv['cd'] * sin_alpha
+    bwv['ca'] = bwv['cd'] * cos_alpha - bwv['cl'] * sin_alpha
     result = {'bwv': bwv}
 
     if tail is not None:
         bwh = {k: np.array(tail[k], dtype=float)
                for k in ('cd', 'cl', 'cm', 'cla', 'cma')}
-        bwh['cn'] = bwh['cl'] * ca + bwh['cd'] * sa
-        bwh['ca'] = bwh['cd'] * ca - bwh['cl'] * sa
+        bwh['cn'] = bwh['cl'] * cos_alpha + bwh['cd'] * sin_alpha
+        bwh['ca'] = bwh['cd'] * cos_alpha - bwh['cl'] * sin_alpha
         for j in range(1, len(alpha)):
             bwh['cla'][j] = tbfunx(alpha, bwh['cl'], alpha[j], 0, 0)[1]
             bwh['cma'][j] = (
@@ -400,8 +410,8 @@ def calculate_m10o12(alpha_deg: Sequence[float],
         bwhv = {'cd': np.array(tail['cd_with_vertical'], dtype=float),
                 'cl': bwh['cl'].copy(), 'cm': bwh['cm'].copy(),
                 'cla': bwh['cla'].copy(), 'cma': bwh['cma'].copy()}
-        bwhv['cn'] = bwhv['cl'] * ca + bwhv['cd'] * sa
-        bwhv['ca'] = bwhv['cd'] * ca - bwhv['cl'] * sa
+        bwhv['cn'] = bwhv['cl'] * cos_alpha + bwhv['cd'] * sin_alpha
+        bwhv['ca'] = bwhv['cd'] * cos_alpha - bwhv['cl'] * sin_alpha
         result.update({'bwh': bwh, 'bwhv': bwhv})
 
     missing = bw['cd'] == -UNUSED

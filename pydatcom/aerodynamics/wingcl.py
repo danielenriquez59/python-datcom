@@ -100,9 +100,9 @@ def calculate_wingcl(alpha_schedule: Sequence[float],
         corrected = True
 
     nonlinear = alpha_stall_onset != alpha_clmax
-    a0 = clmax
-    a1 = 0.0
-    a2 = cla * (alpha_stall_onset - alpha_zero_lift) - clmax
+    poly_a0 = clmax
+    poly_a1 = 0.0
+    poly_a2 = cla * (alpha_stall_onset - alpha_zero_lift) - clmax
     exponent = None
     if nonlinear:
         denominator = cla * (alpha_stall_onset - alpha_zero_lift) - clmax
@@ -128,9 +128,10 @@ def calculate_wingcl(alpha_schedule: Sequence[float],
         if angle <= alpha_stall_onset:
             cl[index] = cla * (angle - alpha_zero_lift)
         elif nonlinear:
-            cl[index] = (a0 + a1 * (angle - alpha_clmax) +
-                         a2 * ((angle - alpha_clmax) /
-                               (alpha_stall_onset - alpha_clmax))**exponent)
+            stall_fraction = ((angle - alpha_clmax) /
+                              (alpha_stall_onset - alpha_clmax))
+            cl[index] = (poly_a0 + poly_a1 * (angle - alpha_clmax) +
+                         poly_a2 * stall_fraction ** exponent)
 
     return {
         'cl': cl,
