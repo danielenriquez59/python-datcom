@@ -199,23 +199,26 @@ def calculate_jetfp(data: Mapping[str, object]) -> Dict[str, object]:
         jet_in['jeangl'] = 12.0
     result['jeangl'] = jet_in['jeangl']
     tanjet = math.tan(jet_in['jeangl'] * DEG)
-    c = chrdr + (spanfi + spanfo) * (chrdtp - chrdr) / (2.0 * sspn)
+    mean_chord = chrdr + (spanfi + spanfo) * (chrdtp - chrdr) / (2.0 * sspn)
     jetflp = int(flap_in[74] + .5)
     ndelta = int(flap_in[16] + .5)
     ftype = int(flap_in[17] + .5)
     etat = result['etat']
     claub = [float(v) for v in data['claub']]
-    for n in range(ndelta):
-        delflp, deljet, effjet = (flap_in[1 + n], flap_in[64 + n],
-                                  flap_in[75 + n])
-        cprmei, cprmeo = flap_in[39 + n], flap_in[49 + n]
+    for delta_index in range(ndelta):
+        delflp, deljet, effjet = (flap_in[1 + delta_index],
+                                  flap_in[64 + delta_index],
+                                  flap_in[75 + delta_index])
+        cprmei, cprmeo = (flap_in[39 + delta_index],
+                          flap_in[49 + delta_index])
         cprime = (cprmei + cprmeo) / 2.
         plain = ftype in (5, 1, 6)
         if plain:
-            cprime = c
-        tcprm = toc * c / cprime * 0.80
-        st_ = sw if plain else sw + 2.0 * (cprime - c) * (spanfo - spanfi)
-        at = ar * sw / st_
+            cprime = mean_chord
+        tcprm = toc * mean_chord / cprime * 0.80
+        effective_sw = (sw if plain else
+                        sw + 2.0 * (cprime - mean_chord) * (spanfo - spanfi))
+        at = ar * sw / effective_sw
         yi, yo = spanfi, spanfo
         if jetflp == 3:
             cosdf = math.cos(delflp * DEG) - 1.
@@ -231,40 +234,40 @@ def calculate_jetfp(data: Mapping[str, object]) -> Dict[str, object]:
             if yo > spanfo:
                 yo = spanfo
         sj = (yo - yi) * chrdr * (2. - (yi + yo) * (1. - tapr) / sspn)
-        mu = cmu * c / cprime
+        mu = cmu * mean_chord / cprime
         if jetflp not in (2, 3):
             cldj = _f149(mu, 0.0)
             delcl = ((1. + tcprm) * deljet * (cldj - mu) +
-                     mu * deljet) * cprime / (c * RAD)
+                     mu * deljet) * cprime / (mean_chord * RAD)
             delcl1 = delcl if jetflp == 4 else None
         if jetflp != 1:
             cldf = _f149(mu, cf / cprime)
             delcl = ((1. + tcprm) * delflp * (cldf - mu) +
-                     mu * delflp) * cprime / (c * RAD)
+                     mu * delflp) * cprime / (mean_chord * RAD)
             if jetflp == 4:
                 delcl += delcl1
-        cj = 2. / sref * c * cmu * (spanfo - spanfi)
+        cj = 2. / sref * mean_chord * cmu * (spanfo - spanfi)
         cjprm = cj * sref / sj
         if jetflp not in (2, 3):
             cldjt = _f149(cjprm, 0.0)
             delclt = ((1. + tcprm) * deljet * (cldjt - cjprm) +
-                      cjprm * deljet) * cprime / (c * RAD)
+                      cjprm * deljet) * cprime / (mean_chord * RAD)
             delcl2 = delclt if jetflp == 4 else None
         if jetflp != 1:
             cldft = _f149(cjprm, cf / cprime)
             delclt = ((1. + tcprm) * delflp * (cldft - cjprm) +
-                      cjprm * delflp) * cprime / (c * RAD)
+                      cjprm * delflp) * cprime / (mean_chord * RAD)
             if jetflp == 4:
                 delclt += delcl2
         if jetflp in (1, 2):
-            result['deccl'][n] = (delclt * sj / sref *
+            result['deccl'][delta_index] = (delclt * sj / sref *
                                   (at + 2. * cjprm / PI) /
                                   (at + 2. + .604 * math.sqrt(cjprm) +
                                    .876 * cjprm))
         if jetflp == 3:
             claprm = _f149(cjprm, 1.)
             pido4 = _fig(_X418, _Y418, [12, 4], 12, cjprm, cf / cprime)
-            result['deccl'][n] = (pido4 * effjet * sj / (sref * RAD) *
+            result['deccl'][delta_index] = (pido4 * effjet * sj / (sref * RAD) *
                                   (PI * at + 2. * cjprm) /
                                   (PI * at + claprm + 2.01 * cjprm))
         if jetflp == 4:
@@ -273,13 +276,13 @@ def calculate_jetfp(data: Mapping[str, object]) -> Dict[str, object]:
         atcjk = _fig(_X409, _Y409, [11, 10], 11, cjprm, at)
         bk = _f415(spanfo / sspn, 1.) - _f415(spanfi / sspn, 1.)
         term1k = (atcjk - 1.) * bk + 1.
-        result['clab'][n] = term1k * claub[n] + term2
+        result['clab'][delta_index] = term1k * claub[delta_index] + term2
         if jetflp == 3:
             etat = 0.0
             if ftype == 4:
                 etat = 1. - 2. * effjet / 300.
                 cons = etat * cj * math.sin(effjet * DEG)
-                result['dclmax'][n] = tbfunx(_X412, _Y412, cons, 1, 1)[0]
+                result['dclmax'][delta_index] = tbfunx(_X412, _Y412, cons, 1, 1)[0]
         if ftype > 5:
             continue
         if jetflp == 3:
@@ -291,12 +294,12 @@ def calculate_jetfp(data: Mapping[str, object]) -> Dict[str, object]:
                 break
         eta1, eta2, eta3, eta4 = (spanfi / sspn, yi / sspn, yo / sspn,
                                   spanfo / sspn)
-        at = ar * c / cprime
-        cmuprm = cj * sref / sj * c / cprime
-        ak2 = at / (2. + at) * cprime / c
+        at = ar * mean_chord / cprime
+        cmuprm = cj * sref / sj * mean_chord / cprime
+        ak2 = at / (2. + at) * cprime / mean_chord
         ak3 = ((at + 2. * cmuprm / PI) /
                (at + 2. + .604 * math.sqrt(cmuprm) + .876 * cmuprm) *
-               cprime / c)
+               cprime / mean_chord)
         ak1, ak4, ak5 = 0., ak2, 0.
         bk10 = _f415(eta1, tapr)
         bk22 = _f415(eta2, tapr)
@@ -326,14 +329,14 @@ def calculate_jetfp(data: Mapping[str, object]) -> Dict[str, object]:
         delc43 = al * ak3 * cla3 / RAD
         delc44 = al * ak4 * cla4 / RAD
         delc45 = al * ak5 * cla5 / RAD
-        x23 = xmoc - xacdd * cprime / c
+        x23 = xmoc - xacdd * cprime / mean_chord
         delcm4 = -cj * etat * sw / sj * xmoc * al / RAD
         dcmda1 = delc41 * xmoc
         dcmda2 = delc42 * xmoc
         dcmda3 = delc43 * x23 + delcm4
         dcmda4 = delc44 * xmoc
         dcmda5 = delc45 * xmoc
-        x5 = xmoc - xficdd * cprime / c
+        x5 = xmoc - xficdd * cprime / mean_chord
         cldfi = _f149(cmuprm, cf / cprime)
         delc5 = delflp * ak3 * cldfi / RAD
         dcmdf = delc5 * x5
@@ -342,7 +345,7 @@ def calculate_jetfp(data: Mapping[str, object]) -> Dict[str, object]:
         if jetflp < 5 and jetflp != 3:
             dj = deljet
         delc6 = dj * ak3 * cldji / RAD
-        x6 = xmoc - xjicdd * cprime / c
+        x6 = xmoc - xjicdd * cprime / mean_chord
         dcmdj = delc6 * x6
         cmm = (dcmdj * bk32 + dcmdf * (bk44 - bk10) + dcmda1 * bk10 +
                dcmda2 * bk21 + dcmda3 * bk32 + dcmda4 * bk43 +
@@ -353,8 +356,8 @@ def calculate_jetfp(data: Mapping[str, object]) -> Dict[str, object]:
         cl4 = bk43 * delc44
         cl5 = bk54 * delc45
         dxocb = (position['xw'] + xmoc * chrdr - position['xcg']) / cbarr
-        result['delcm'][n] = (cmm + etat * cj *
-                              (position['zcg'] - position['zw']) / c +
+        result['delcm'][delta_index] = (cmm + etat * cj *
+                              (position['zcg'] - position['zw']) / mean_chord +
                               dxocb * (-cl1 - cl2 - cl4 - cl5 - cl3 +
                                        cj * etat * sw / sj * al * sj /
                                        (RAD * sw)))

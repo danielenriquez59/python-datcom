@@ -224,3 +224,150 @@ def calculate_clr_panel_increment(alpha_deg: Sequence[float],
         ),
         'method': 'legacy_clrder_panel',
     }
+
+
+def _words(block):
+    return {int(k): float(v) for k, v in block.items()}
+
+
+def calculate_clrder(data: Dict[str, object]) -> Dict[str, object]:
+    """Translate CLRDER as executed, on its COMMON words.
+
+    Unlike :func:`calculate_clr_wing`, this follows the routine line for
+    line: the wing term, the vertical tail and ventral fin increments, and
+    the body-combination sums.
+
+    Args:
+        data: By name: the flags ``bo``, ``subson``, ``transn``,
+            ``supers``, ``wgpl``, ``htpl``, ``vtpl``, ``vfpl``;
+            ``nalpha``, ``mach`` (``FLC(I+2)``), ``alpha`` (``FLC(23..)``),
+            ``blref``; ``a`` (``WINGD`` words 7, 27, 41), ``wingin``
+            (word 11, the twist), ``stb`` (words 11, 12, 122), ``stbh``
+            (11, 12), ``wbt`` (1, 2, 65, 66), ``shb`` (11, 35); and the
+            result blocks ``wing``, ``body``, ``bw``, ``bwhv``, ``bwv``,
+            ``vt``, ``vf``, ``ht``, ``bh``, ``bv`` as ``{word: value}``
+            maps holding the words the routine reads or may write.
+            ``state`` may carry the saved locals ``akhb`` and ``akbh``.
+
+    Returns:
+        The result blocks as ``{word: value}`` maps, and ``state``.
+
+    Notes:
+        Kept as executed: the ventral fin's ``VF(J+280)`` is formed with
+        the vertical tail's ``DCYBV``; with a forward-swept wing the wing
+        term and both panel loops are skipped, leaving their words as they
+        stood; the panel increments add to ``WING(361..)`` whether or not
+        the wing term was formed; and outside the three speed regimes the
+        horizontal-tail carryover factors keep the previous call's values.
+    """
+    blk = {name: _words(data[name]) for name in
+           ('wing', 'body', 'bw', 'bwhv', 'bwv', 'vt', 'vf', 'ht', 'bh',
+            'bv')}
+    wing, body, vt, vf = blk['wing'], blk['body'], blk['vt'], blk['vf']
+    ht, bh, bv = blk['ht'], blk['bh'], blk['bv']
+    a, stb, stbh = _words(data['a']), _words(data['stb']), \
+        _words(data['stbh'])
+    wbt, shb = _words(data['wbt']), _words(data['shb'])
+    nalpha, blref = int(data['nalpha']), float(data['blref'])
+    alpha = [0.0] + [float(v) for v in data['alpha']]
+    state = dict(data.get('state', {}))
+    akhb, akbh = state.get('akhb', 0.0), state.get('akbh', 0.0)
+    deg = 0.01745329
+    unused = 1.e-30
+    if data['bo']:
+        for j in range(1, nalpha + 1):
+            body[j + 360] = 0.0
+    if data['subson']:
+        mach = float(data['mach'])
+        swec4, tapre, ar = a[41], a[27], a[7]
+        gamma = stb[122] / RAD
+        twist = _words(data['wingin'])[11]
+        lp, zp, lpf, zpf = stb[11], stb[12], stbh[11], stbh[12]
+        dcybv, dcybf = vt[141], vf[141]
+        if data['wgpl']:
+            bee = np.sqrt(1. - (mach * np.cos(swec4)) ** 2)
+            ab = ar * bee
+            cs, ts = np.cos(swec4), np.tan(swec4)
+            con = ((1. + (ar * (1. - bee ** 2) / (2. * bee * (ab + 2. * cs)))
+                    + (ab + 2. * cs) / (ab + 4. * cs) * ts ** 2 / 8.) /
+                   (1. + (ar + 2. * cs) / (ar + 4. * cs) * ts ** 2 / 8.))
+            dclrg = PI * ar * np.sin(swec4) / (12. * (ar + 4. * cs))
+            unit = interx(2, _FIG_71320_10_AR + _FIG_71320_10_TAPER +
+                          [0.0] * 6, [ar, tapre], [10, 4], _FIG_71320_10_DEP,
+                          lind=10, lx1l=1, lx2l=1, lx1u=1, lx2u=1)
+            jj = 0
+            for j in range(1, 5):
+                if swec4 * RAD >= _SWEEP_GRID[j - 1]:
+                    jj = j
+            if swec4 >= 0.:
+                clrclo = ((_UNITI[jj] - _UNITI[jj - 1]) / 15. *
+                          (_SWEEP_GRID[jj] - swec4 * RAD) - _UNITI[jj] +
+                          ((_UNITS[jj] - _UNITS[jj - 1]) / 15. *
+                           (_SWEEP_GRID[jj] - swec4 * RAD) - _UNITS[jj]) *
+                          unit)
+                dclrt = interx(2, _FIG_71320_11_AR + _FIG_71320_11_TAPER +
+                               [0.0] * 5, [ar, tapre], [9, 4],
+                               _FIG_71320_11_DEP, lind=9)
+                clrclm = -clrclo * con
+                for j in range(1, nalpha + 1):
+                    wing[j + 360] = float(
+                        (wing[j + 20] * clrclm + dclrg * gamma +
+                         dclrt * twist) / RAD)
+                    if data['bo']:
+                        blk['bw'][j + 360] = wing[j + 360]
+        if data['vtpl'] or data['vfpl']:
+            b2 = blref ** 2
+            for j in range(1, nalpha + 1):
+                sa, ca = np.sin(alpha[j] * deg), np.cos(alpha[j] * deg)
+                if swec4 < 0.:
+                    continue
+                clrwbt = wing[j + 360]
+                if data['vtpl']:
+                    clrwbt = clrwbt - 2. * dcybv * (lp * ca + zp * sa) * \
+                        (zp * ca - lp * sa) / b2
+                if data['vfpl']:
+                    clrwbt = clrwbt - 2. * dcybf * (lpf * ca + zpf * sa) * \
+                        (zpf * ca - lpf * sa) / b2
+                blk['bwhv'][j + 360] = float(clrwbt)
+                if data['vtpl']:
+                    vt[j + 280] = float(2. * dcybv * (zp * ca - lp * sa) *
+                                        (zp * ca - lp * sa - zp) / b2)
+                if data['vfpl']:
+                    # The source forms the fin's term with DCYBV.
+                    vf[j + 280] = float(2. * dcybv * (zpf * ca - lpf * sa) *
+                                        (zpf * ca - lpf * sa - zpf) / b2)
+                blk['bwv'][j + 360] = float(clrwbt)
+                if data['vtpl']:
+                    vt[j + 360] = float(-2. * dcybv * (lp * ca + zp * sa) *
+                                        (zp * ca - lp * sa) / b2)
+                if data['vfpl']:
+                    vf[j + 360] = float(-2. * dcybf * (lpf * ca + zpf * sa)
+                                        * (zpf * ca - lpf * sa) / b2)
+    if data['bo']:
+        if data['htpl']:
+            if data['subson']:
+                akhb, akbh = wbt[1], wbt[2]
+            if data['transn']:
+                akhb, akbh = shb[35], shb[11]
+            if data['supers']:
+                akhb, akbh = wbt[66], wbt[65]
+            if not (akhb == unused or akbh == unused):
+                for k in range(1, 5):
+                    kk = (k - 1) * 20 + 1 + 200
+                    if ht[kk] == unused or body[kk] == unused:
+                        continue
+                    bh[kk] = (akbh + akhb) * ht[kk] + body[kk]
+            for k in range(1, 4):
+                kk = (k - 1) * 20 + 1 + 300
+                if ht[kk] == unused or body[kk] == unused:
+                    continue
+                bh[kk] = ht[kk] + body[kk]
+        if data['vtpl']:
+            for k in range(1, 9):
+                kk = (k - 1) * 20 + 1 + 200
+                if (vt[kk] == unused and vf[kk] == unused) or \
+                        body[kk] == unused:
+                    continue
+                bv[kk] = vt[kk] + body[kk] + vf[kk]
+    state.update(akhb=akhb, akbh=akbh)
+    return dict(blk, state=state)

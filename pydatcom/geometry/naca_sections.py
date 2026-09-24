@@ -78,13 +78,13 @@ def _five_digit_mean(zp: float):
     return d + e + 1.
 
 
-def _surfaces(coords, m, x, yc, yt, alpha):
-    coords['xu'][m] = x - yt * math.sin(alpha)
-    coords['yun'][m] = yc + yt * math.cos(alpha)
-    coords['xl'][m] = x + yt * math.sin(alpha)
-    coords['yln'][m] = yc - yt * math.cos(alpha)
-    coords['cam'][m] = 0.0 if yc < 1.e-05 else yc
-    coords['thn'][m] = yt
+def _surfaces(coords, station_index, chord_fraction, yc, yt, alpha):
+    coords['xu'][station_index] = chord_fraction - yt * math.sin(alpha)
+    coords['yun'][station_index] = yc + yt * math.cos(alpha)
+    coords['xl'][station_index] = chord_fraction + yt * math.sin(alpha)
+    coords['yln'][station_index] = yc - yt * math.cos(alpha)
+    coords['cam'][station_index] = 0.0 if yc < 1.e-05 else yc
+    coords['thn'][station_index] = yt
 
 
 def _start(x, prev):
@@ -116,17 +116,20 @@ def coord4(digits: Mapping[str, int], x: Sequence[float],
     t = ak * .1 + aii * .01 + ajj * .001 + akk * .0001
     coords = _start(x, prev)
     yc = alpha = 0.0
-    for m, xm in enumerate(x):
-        yt = _four_digit_thickness(t, xm)
-        if xm == zp:
+    for station_index, chord_fraction in enumerate(x):
+        yt = _four_digit_thickness(t, chord_fraction)
+        if chord_fraction == zp:
             yc, alpha = zm, 0.0
-        if xm < zp:
-            yc = (2. * zp * xm - xm**2) * zm / zp**2
-            alpha = math.atan((2. * zm / (zp**2)) * (zp - xm))
-        if xm > zp:
-            yc = (zm / ((1. - zp)**2)) * (1. - 2. * zp + 2. * zp * xm - xm**2)
-            alpha = math.atan((2. * zm / ((1. - zp)**2)) * (zp - xm))
-        _surfaces(coords, m, xm, yc, yt, alpha)
+        if chord_fraction < zp:
+            yc = ((2. * zp * chord_fraction - chord_fraction**2) * zm /
+                  zp**2)
+            alpha = math.atan((2. * zm / (zp**2)) * (zp - chord_fraction))
+        if chord_fraction > zp:
+            yc = (zm / ((1. - zp)**2) * (1. - 2. * zp + 2. * zp *
+                  chord_fraction - chord_fraction**2))
+            alpha = math.atan((2. * zm / ((1. - zp)**2)) *
+                              (zp - chord_fraction))
+        _surfaces(coords, station_index, chord_fraction, yc, yt, alpha)
     _close(coords, len(x))
     coords.update({'rho': 1.1019 * t**2, 't': t, 'zm': zm, 'zp': zp})
     return coords
@@ -148,39 +151,39 @@ def coord5(digits: Mapping[str, int], x: Sequence[float],
     stale_state = dict(stale or {})
     yc, alpha = float(stale_state.get('yc', 0.0)), float(stale_state.get('alpha', 0.0))
     coords = _start(x, prev)
-    for m, xm in enumerate(x):
-        yt = _four_digit_thickness(t, xm)
+    for station_index, chord_fraction in enumerate(x):
+        yt = _four_digit_thickness(t, chord_fraction)
         if ak == 0.:
-            if xm < zm:
-                yc = (1. / 6.) * xk * (xm**3 - 3. * zm * xm**2 +
-                                       zm**2 * (3. - zm) * xm)
-                alpha = math.atan((1. / 6.) * xk * (3. * xm**2 - 6. * zm * xm +
+            if chord_fraction < zm:
+                yc = (1. / 6.) * xk * (chord_fraction**3 - 3. * zm * chord_fraction**2 +
+                                       zm**2 * (3. - zm) * chord_fraction)
+                alpha = math.atan((1. / 6.) * xk * (3. * chord_fraction**2 - 6. * zm * chord_fraction +
                                                     zm**2 * (3. - zm)))
-            if xm == zp:
+            if chord_fraction == zp:
                 yc, alpha = ai * .01, 0.0
-            if xm > zm:
-                yc = (1. / 6.) * xk * zm**3 * (1. - xm)
+            if chord_fraction > zm:
+                yc = (1. / 6.) * xk * zm**3 * (1. - chord_fraction)
                 alpha = math.atan(-(1. / 6.) * xk * zm**3)
         else:
             rk = (3. * ((zm - zp)**2) - zm**3) / ((1. - zm)**3)
             xk = (6. * ai * .01) / ((zp - zm)**3 - rk * (1. - zm)**3 * zp -
                                     (zm**3) * zp + zm**3)
-            if xm < zm:
-                yc = (1. / 6.) * xk * ((xm - zm)**3 - rk * xm * (1. - zm)**3 -
-                                       zm**3 * xm + zm**3)
-                alpha = math.atan((1. / 6.) * xk * (3. * (xm - zm)**2 -
+            if chord_fraction < zm:
+                yc = (1. / 6.) * xk * ((chord_fraction - zm)**3 - rk * chord_fraction * (1. - zm)**3 -
+                                       zm**3 * chord_fraction + zm**3)
+                alpha = math.atan((1. / 6.) * xk * (3. * (chord_fraction - zm)**2 -
                                                     rk * (1. - zm)**3 -
                                                     zm**3))
-            if xm == zp:
+            if chord_fraction == zp:
                 yc, alpha = ai * .01, 0.0
-            if xm > zm:
-                yc = (1. / 6.) * xk * (rk * (xm - zm)**3 -
-                                       rk * xm * (1. - zm)**3 -
-                                       xm * zm**3 + zm**3)
-                alpha = math.atan((1. / 6.) * xk * (3. * rk * (xm - zm)**2 -
+            if chord_fraction > zm:
+                yc = (1. / 6.) * xk * (rk * (chord_fraction - zm)**3 -
+                                       rk * chord_fraction * (1. - zm)**3 -
+                                       chord_fraction * zm**3 + zm**3)
+                alpha = math.atan((1. / 6.) * xk * (3. * rk * (chord_fraction - zm)**2 -
                                                     rk * (1. - zm)**3 -
                                                     zm**3))
-        _surfaces(coords, m, xm, yc, yt, alpha)
+        _surfaces(coords, station_index, chord_fraction, yc, yt, alpha)
     _close(coords, len(x))
     coords.update({'rho': 1.1019 * t**2, 't': t, 'zm': zm, 'zp': zp,
                    'stale': {'yc': yc, 'alpha': alpha}})
@@ -212,17 +215,17 @@ def cord4m(digits: Mapping[str, int], x: Sequence[float],
     d2, d3, a1, a2, a3 = _modified_thickness(zt, t, d0, d1, a0)
     coords = _start(x, prev)
     yc = alpha = yt = 0.0
-    for m, xm in enumerate(x):
-        if xm == zp:
+    for station_index, chord_fraction in enumerate(x):
+        if chord_fraction == zp:
             yc, alpha = zm, 0.0
-        if xm < zp:
-            yc = (zm / zp**2) * (2. * zp * xm - xm**2)
-            alpha = math.atan((2. * zm / zp**2) * (zp - xm))
-        if xm > zp:
-            yc = (zm / ((1. - zp)**2)) * (1. - 2. * zp + 2. * zp * xm - xm**2)
-            alpha = math.atan((2. * zm / ((1. - zp)**2)) * (zp - xm))
-        yt = _yt_modified(xm, zt, t, d0, d1, d2, d3, a0, a1, a2, a3, yt)
-        _surfaces(coords, m, xm, yc, yt, alpha)
+        if chord_fraction < zp:
+            yc = (zm / zp**2) * (2. * zp * chord_fraction - chord_fraction**2)
+            alpha = math.atan((2. * zm / zp**2) * (zp - chord_fraction))
+        if chord_fraction > zp:
+            yc = (zm / ((1. - zp)**2)) * (1. - 2. * zp + 2. * zp * chord_fraction - chord_fraction**2)
+            alpha = math.atan((2. * zm / ((1. - zp)**2)) * (zp - chord_fraction))
+        yt = _yt_modified(chord_fraction, zt, t, d0, d1, d2, d3, a0, a1, a2, a3, yt)
+        _surfaces(coords, station_index, chord_fraction, yc, yt, alpha)
     _close(coords, len(x))
     coords.update({'rho': .5 * a0**2, 't': t, 'zm': zm, 'zp': zp,
                    'stale': {'d1': d1}})
@@ -250,52 +253,52 @@ def cord5m(digits: Mapping[str, int], x: Sequence[float],
     coords = _start(x, prev)
     yc, alpha = float(stale_state.get('yc', 0.0)), float(stale_state.get('alpha', 0.0))
     yt = 0.0
-    for m, xm in enumerate(x):
+    for station_index, chord_fraction in enumerate(x):
         if ak == 0.:
-            if xm == zt:
+            if chord_fraction == zt:
                 yt = t / 2.
-            if xm == zp:
+            if chord_fraction == zp:
                 yc, alpha = ai * .01, 0.0
-            if xm < zm:
-                yc = (1. / 6.) * xk * (xm**3 - 3. * zm * xm**2 +
-                                       zm**2 * (3. - zm) * xm)
-                alpha = math.atan((1. / 6.) * xk * (3. * xm**2 - 6. * zm * xm +
+            if chord_fraction < zm:
+                yc = (1. / 6.) * xk * (chord_fraction**3 - 3. * zm * chord_fraction**2 +
+                                       zm**2 * (3. - zm) * chord_fraction)
+                alpha = math.atan((1. / 6.) * xk * (3. * chord_fraction**2 - 6. * zm * chord_fraction +
                                                     zm**2 * (3. - zm)))
-            if xm < zt:
-                yt = a0 * xm**.5 + a1 * xm + a2 * xm**2 + a3 * xm**3
-            if xm > zt:
-                yt = d0 + d1 * (1. - xm) + d2 * (1. - xm)**2 + \
-                    d3 * (1. - xm)**3
-            if xm > zm:
-                yc = (1. / 6.) * xk * zm**3 * (1. - xm)
+            if chord_fraction < zt:
+                yt = a0 * chord_fraction**.5 + a1 * chord_fraction + a2 * chord_fraction**2 + a3 * chord_fraction**3
+            if chord_fraction > zt:
+                yt = d0 + d1 * (1. - chord_fraction) + d2 * (1. - chord_fraction)**2 + \
+                    d3 * (1. - chord_fraction)**3
+            if chord_fraction > zm:
+                yc = (1. / 6.) * xk * zm**3 * (1. - chord_fraction)
                 alpha = math.atan(-(1. / 6.) * xk * zm**3)
         else:
             rk = (3. * ((zm - zp)**2) - zm**3) / ((1. - zm)**3)
             xk = (6. * ai * .01) / ((zp - zm)**3 - rk * (1. - zm)**3 * zp -
                                     zm**3 * zp + zm**3)
-            if xm < zt:
-                yt = a0 * xm**.5 + a1 * xm + a2 * xm**2 + a3 * xm**3
-            if xm < zm:
-                yc = (1. / 6.) * xk * ((xm - zm)**3 - rk * xm * (1. - zm)**3 -
-                                       zm**3 * xm + zm**3)
-                alpha = math.atan((1. / 6.) * xk * (3. * (xm - zm)**2 -
+            if chord_fraction < zt:
+                yt = a0 * chord_fraction**.5 + a1 * chord_fraction + a2 * chord_fraction**2 + a3 * chord_fraction**3
+            if chord_fraction < zm:
+                yc = (1. / 6.) * xk * ((chord_fraction - zm)**3 - rk * chord_fraction * (1. - zm)**3 -
+                                       zm**3 * chord_fraction + zm**3)
+                alpha = math.atan((1. / 6.) * xk * (3. * (chord_fraction - zm)**2 -
                                                     rk * (1. - zm)**3 -
                                                     zm**3))
-            if xm == zt:
+            if chord_fraction == zt:
                 yt = t / 2.
-            if xm == zp:
+            if chord_fraction == zp:
                 yc, alpha = ai * .01, 0.0
-            if xm > zt:
-                yt = d0 + d1 * (1. - xm) + d2 * (1. - xm)**2 + \
-                    d3 * (1. - xm)**3
-            if xm > zm:
-                yc = (1. / 6.) * xk * (rk * (xm - zm)**3 -
-                                       rk * xm * (1. - zm)**3 -
-                                       xm * zm**3 + zm**3)
-                alpha = math.atan((1. / 6.) * xk * (3. * rk * (xm - zm)**2 -
+            if chord_fraction > zt:
+                yt = d0 + d1 * (1. - chord_fraction) + d2 * (1. - chord_fraction)**2 + \
+                    d3 * (1. - chord_fraction)**3
+            if chord_fraction > zm:
+                yc = (1. / 6.) * xk * (rk * (chord_fraction - zm)**3 -
+                                       rk * chord_fraction * (1. - zm)**3 -
+                                       chord_fraction * zm**3 + zm**3)
+                alpha = math.atan((1. / 6.) * xk * (3. * rk * (chord_fraction - zm)**2 -
                                                     rk * (1. - zm)**3 -
                                                     zm**3))
-        _surfaces(coords, m, xm, yc, yt, alpha)
+        _surfaces(coords, station_index, chord_fraction, yc, yt, alpha)
     _close(coords, len(x))
     coords.update({'rho': .5 * a0**2, 't': t, 'zm': zm, 'zp': zp,
                    'stale': {'d1': d1, 'yc': yc, 'alpha': alpha}})
@@ -313,18 +316,18 @@ def coord1(digits: Mapping[str, int], x: Sequence[float],
     ``sm``, left unset for a series digit other than 6, 8 or 9."""
     ai, aj, ak, aii, ajj, akk, aiii, ajjj = _digits(digits)
     stale_state = dict(stale or {})
-    j = int(aj)
+    series_digit = int(aj)
     zt = aj * .1 - .1
     t = ajj * .1 + akk * .01 + aiii * .001 + ajjj * .0001
-    if j == 6:
+    if series_digit == 6:
         zt = aj * .1 - .2
     d0 = 0.0
     d1, sm = float(stale_state.get('d1', 0.0)), float(stale_state.get('sm', 0.0))
-    if j == 6:
+    if series_digit == 6:
         d1, sm = 2.157 * t, 4.
-    if j == 8:
+    if series_digit == 8:
         d1, sm = 3.6833 * t, 3.
-    if j == 9:
+    if series_digit == 9:
         d1, sm = 5.5283 * t, 3.
     a0 = math.sqrt(2. * 1.1019 * ((t * sm / 6.)**2))
     d2, d3, a1, a2, a3 = _modified_thickness(zt, t, d0, d1, a0)
@@ -332,14 +335,16 @@ def coord1(digits: Mapping[str, int], x: Sequence[float],
     coords = _start(x, prev)
     n = len(x)
     yt = float(stale_state.get('yt', 0.0))
-    for m in range(1, n - 1):
-        xm = x[m]
-        yc = -(cl / (4. * PI)) * ((1. - xm) * math.log(1. - xm) +
-                                  xm * math.log(xm))
-        alpha = math.atan((-cl / (4. * PI)) * (math.log(xm) -
-                                               math.log(1. - xm)))
-        yt = _yt_modified(xm, zt, t, d0, d1, d2, d3, a0, a1, a2, a3, yt)
-        _surfaces(coords, m, xm, yc, yt, alpha)
+    for station_index in range(1, n - 1):
+        chord_fraction = x[station_index]
+        yc = -(cl / (4. * PI)) * ((1. - chord_fraction) *
+                                  math.log(1. - chord_fraction) +
+                                  chord_fraction * math.log(chord_fraction))
+        alpha = math.atan((-cl / (4. * PI)) * (
+            math.log(chord_fraction) - math.log(1. - chord_fraction)))
+        yt = _yt_modified(chord_fraction, zt, t, d0, d1, d2, d3, a0, a1, a2,
+                          a3, yt)
+        _surfaces(coords, station_index, chord_fraction, yc, yt, alpha)
     _close(coords, n, lower_first=True)
     coords.update({'rho': .5 * a0**2, 't': t, 'alphai': 0.0,
                    'alphao': -RAD * cl / (2. * PI), 'aii': cl,
@@ -396,11 +401,11 @@ def coord6(digits: Mapping[str, int], x: Sequence[float],
     syu, syl = float(stale_state.get('syu', 0.)), float(stale_state.get('syl', 0.))
     smu, sml = float(stale_state.get('smu', 0.)), float(stale_state.get('sml', 0.))
     yt = float(stale_state.get('yt', 0.0))
-    for m in range(1, n - 1):
-        xm = x[m]
+    for station_index in range(1, n - 1):
+        chord_fraction = x[station_index]
         if za != 1.:
-            complement_x = 1. - xm
-            za_minus_x = za - xm
+            complement_x = 1. - chord_fraction
+            za_minus_x = za - chord_fraction
             if za_minus_x == 0.0:
                 za_minus_x = 1.0e-10
             yc = (cl / (2. * PI * (za + 1.))) * (
@@ -408,39 +413,46 @@ def coord6(digits: Mapping[str, int], x: Sequence[float],
                     (.5 * za_minus_x**2) * math.log(abs(za_minus_x)) -
                     (.5 * complement_x**2) * math.log(complement_x) +
                     .25 * complement_x**2 - .25 * za_minus_x**2) -
-                xm * math.log(xm) + mean_g - xm * mean_h)
+                chord_fraction * math.log(chord_fraction) + mean_g -
+                chord_fraction * mean_h)
             alpha = math.atan((cl / (2. * PI * (1. + za))) * (
                 (1. / mean_denominator) * (
                     -za_minus_x * math.log(abs(za_minus_x)) +
                     complement_x * math.log(complement_x)) -
-                math.log(xm) - 1. - mean_h))
+                math.log(chord_fraction) - 1. - mean_h))
         else:
-            yc = -(cl / (4. * PI)) * ((1. - xm) * math.log(1. - xm) +
-                                      xm * math.log(xm))
-            alpha = math.atan((-cl / (4. * PI)) * (math.log(xm) -
-                                                   math.log(1. - xm)))
-        yt = _yt_modified(xm, zt, t, d0, d1, d2, d3, a0, a1, a2, a3, yt)
-        coords['xu'][m] = xm - yt * math.sin(alpha)
-        coords['yun'][m] = yc + yt * math.cos(alpha)
-        coords['xl'][m] = xm + yt * math.sin(alpha)
-        coords['yln'][m] = yc - yt * math.cos(alpha)
-        if coords['xu'][m] >= .80 and subscript_digit > 0:
+            yc = -(cl / (4. * PI)) * ((1. - chord_fraction) *
+                                      math.log(1. - chord_fraction) +
+                                      chord_fraction *
+                                      math.log(chord_fraction))
+            alpha = math.atan((-cl / (4. * PI)) * (
+                math.log(chord_fraction) - math.log(1. - chord_fraction)))
+        yt = _yt_modified(chord_fraction, zt, t, d0, d1, d2, d3, a0, a1, a2,
+                          a3, yt)
+        coords['xu'][station_index] = chord_fraction - yt * math.sin(alpha)
+        coords['yun'][station_index] = yc + yt * math.cos(alpha)
+        coords['xl'][station_index] = chord_fraction + yt * math.sin(alpha)
+        coords['yln'][station_index] = yc - yt * math.cos(alpha)
+        if coords['xu'][station_index] >= .80 and subscript_digit > 0:
             if no == 1:
-                sxu, sxl = coords['xu'][m], coords['xl'][m]
-                syu, syl = coords['yun'][m], coords['yln'][m]
+                sxu, sxl = (coords['xu'][station_index],
+                            coords['xl'][station_index])
+                syu, syl = (coords['yun'][station_index],
+                            coords['yln'][station_index])
                 smu = -syu / (1. - sxu)
                 sml = -syl / (1. - sxl)
                 no = 2
             else:
-                xu_, xl_ = coords['xu'][m] - sxu, coords['xl'][m] - sxl
-                coords['yun'][m] = smu * xu_ + syu
-                coords['yln'][m] = sml * xl_ + syl
-                coords['xu'][m] = xu_ + sxu
-                coords['xl'][m] = xl_ + sxl
+                xu_, xl_ = (coords['xu'][station_index] - sxu,
+                            coords['xl'][station_index] - sxl)
+                coords['yun'][station_index] = smu * xu_ + syu
+                coords['yln'][station_index] = sml * xl_ + syl
+                coords['xu'][station_index] = xu_ + sxu
+                coords['xl'][station_index] = xl_ + sxl
         else:
             no = 1
-        coords['cam'][m] = 0.0 if yc < 1.e-05 else yc
-        coords['thn'][m] = yt
+        coords['cam'][station_index] = 0.0 if yc < 1.e-05 else yc
+        coords['thn'][station_index] = yt
     _close(coords, n)
     coords['xl'][0] = 0.0
     coords['yun'][0] = 0.0

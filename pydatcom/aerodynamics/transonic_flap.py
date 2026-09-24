@@ -84,9 +84,12 @@ def calculate_trnyrl(data: Mapping[str, object]) -> Dict[str, object]:
         return result
     sspn, sspne = float(data['sspn']), float(data['sspne'])
     exposed_span = sspn - sspne
-    tcd = [float(v) for v in data['bd']]
-    encepe = ((.352 * tcd[0] + .503 * tcd[1] + .344 * tcd[2] + .041 * tcd[3]) /
-              (.383 * tcd[0] + .707 * tcd[1] + .924 * tcd[2] + .5 * tcd[3]))
+    gdelta_words = [float(v) for v in data['bd']]
+    encepe = (
+        (.352 * gdelta_words[0] + .503 * gdelta_words[1] +
+         .344 * gdelta_words[2] + .041 * gdelta_words[3]) /
+        (.383 * gdelta_words[0] + .707 * gdelta_words[1] +
+         .924 * gdelta_words[2] + .5 * gdelta_words[3]))
     delta_left = [float(v) for v in flap_cfg['deltal'][:ndelta]]
     delta_right = [float(v) for v in flap_cfg['deltar'][:ndelta]]
     cnah = float(data['tail_cla'])
@@ -118,6 +121,6 @@ def m40o50_words(asyfp: bool) -> Dict[int, float]:
     are set UNUSED and ``WING(252..260)`` -UNUSED."""
     if asyfp:
         return {}
-    out = {220 + j: UNUSED for j in range(1, 11)}
-    out.update({250 + j: -UNUSED for j in range(2, 11)})
-    return out
+    cleared = {220 + word_index: UNUSED for word_index in range(1, 11)}
+    cleared.update({250 + word_index: -UNUSED for word_index in range(2, 11)})
+    return cleared

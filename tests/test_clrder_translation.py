@@ -5,14 +5,18 @@ Source of truth: datcom-legacy/datcom_2000/clrder.f.
 
 The figure lookups go through the already-tested INTERX, so these cover the
 tables CLRDER owns, the Section 7.1.3.2 compressibility correction, the
-sweep-bracket interpolation, and the panel increments.
+sweep-bracket interpolation, and the panel increments.  The whole routine
+is also checked against a compiled probe (tools/probes/clrder.py).
 """
+
+import json
+import pathlib
 
 import numpy as np
 import pytest
 
 from pydatcom.aerodynamics.clrder import (
-    calculate_clr_wing, calculate_clr_panel_increment,
+    calculate_clr_wing, calculate_clr_panel_increment, calculate_clrder,
     _FIG_71320_10_AR, _FIG_71320_10_TAPER, _FIG_71320_10_DEP,
     _FIG_71320_11_AR, _FIG_71320_11_TAPER, _FIG_71320_11_DEP,
     _SWEEP_GRID, _UNITS, _UNITI,
@@ -171,3 +175,45 @@ def test_panel_roll_damping_vanishes_at_zero_alpha():
 def test_panel_increment_rejects_bad_reference_length():
     with pytest.raises(ValueError):
         calculate_clr_panel_increment([0.0], -0.008, 20.0, 6.0, 0.0)
+
+
+# --- The whole routine, checked against a compiled probe -------------------
+# tools/probes/clrder.py runs its cases in one program, so the replay
+# carries the saved horizontal-tail carryover factors AKHB and AKBH.
+
+_PROBE = json.loads((pathlib.Path(__file__).resolve().parent / 'fixtures'
+                     / 'probes' / 'clrder.json').read_text())
+
+
+def _replay():
+    state, out = {}, []
+    for p in _PROBE:
+        r = calculate_clrder(dict(p['inputs'], state=state))
+        state = r['state']
+        out.append(r)
+    return out
+
+
+_WHOLE = _replay()
+
+
+@pytest.mark.parametrize("case", range(len(_PROBE)))
+def test_whole_routine_matches_compiled_clrder(case):
+    for name, values in _PROBE[case]['outputs'].items():
+        lo = 201 if len(values) == 180 else 361
+        ours = [_WHOLE[case][name.lower()][lo + i]
+                for i in range(len(values))]
+        np.testing.assert_allclose(ours, values, rtol=1e-9, atol=1e-14,
+                                   err_msg=name)
+
+
+def test_ventral_fin_damping_uses_the_tail_derivative():
+    """VF(J+280) is formed with the vertical tail's DCYBV."""
+    c = _PROBE[0]['inputs']
+    r = _WHOLE[0]
+    lpf, zpf = c['stbh']['11'], c['stbh']['12']
+    ca, sa = np.cos(c['alpha'][0] * .01745329), \
+        np.sin(c['alpha'][0] * .01745329)
+    arm = zpf * ca - lpf * sa
+    expected = 2. * c['vt']['141'] * arm * (arm - zpf) / c['blref'] ** 2
+    assert r['vf'][281] == pytest.approx(expected)

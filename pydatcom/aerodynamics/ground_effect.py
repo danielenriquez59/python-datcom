@@ -720,11 +720,13 @@ def calculate_grdeff(ground_height: float,
 
     aspect_ratio = float(wing_theoretical['aspect_ratio'])
     sigma = float(geometry['sigma'])
-    r, t = float(geometry['r']), float(geometry['t'])
+    mirror_r = float(geometry['r'])
+    mirror_t = float(geometry['t'])
     cd_wing = np.atleast_1d(np.asarray(wing_alone['cd'], dtype=float))
     cl_wing = np.atleast_1d(np.asarray(wing_alone['cl'], dtype=float))
     induced = sigma * cl_wing**2 / (PI * aspect_ratio)
-    dcdlwg = -induced - (cd_wing - induced) * r * t * cl_wing / RAD
+    dcdlwg = (-induced -
+              (cd_wing - induced) * mirror_r * mirror_t * cl_wing / RAD)
     bwi['cd'] = bwi['cd'] + dcdlwg
     if has_vertical_panel:
         bwv['cd'] = bwv['cd'] + dcdlwg

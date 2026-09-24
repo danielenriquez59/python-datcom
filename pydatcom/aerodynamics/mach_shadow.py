@@ -21,7 +21,7 @@ from pydatcom.utils.math_utils import area1
 
 
 def ptint1(xp: Sequence[float], yp: Sequence[float], a: Sequence[float],
-           amu: float, j: int, ncon: int, vertup: bool,
+           amu: float, edge_pass: int, ncon: int, vertup: bool,
            avt: Mapping[int, float], xi: List[float], yi: List[float]
            ) -> Dict[str, object]:
     """Translate PTINT1: the Mach line's crossings of a panel's sides.
@@ -30,7 +30,7 @@ def ptint1(xp: Sequence[float], yp: Sequence[float], a: Sequence[float],
         xp, yp: The panel's five corners (closed), in body axes.
         a: ``A(3)``: the surface edge's x, z and incidence (degrees).
         amu: The Mach angle, radians.
-        j: 1 for the leading edge, 2 for the trailing edge.
+        edge_pass: 1 for the leading edge, 2 for the trailing edge.
         ncon: 0 for the inboard panel, 1 for the outboard.
         vertup: The panel is above the body.
         avt: The *vertical tail's* ``AVT`` words 59, 77, 83, 101 (the
@@ -45,10 +45,10 @@ def ptint1(xp: Sequence[float], yp: Sequence[float], a: Sequence[float],
     """
     cos_incidence, sin_incidence = (math.cos(-a[2] / RAD),
                                     math.sin(-a[2] / RAD))
-    x = [(xp[n] - a[0]) * cos_incidence + (yp[n] - a[1]) * sin_incidence
-         for n in range(5)]
-    y = [(yp[n] - a[1]) * cos_incidence - (xp[n] - a[0]) * sin_incidence
-         for n in range(5)]
+    x = [(xp[corner] - a[0]) * cos_incidence + (yp[corner] - a[1]) * sin_incidence
+         for corner in range(5)]
+    y = [(yp[corner] - a[1]) * cos_incidence - (xp[corner] - a[0]) * sin_incidence
+         for corner in range(5)]
     half_pi = PI / 2.0
     inorot = 24 if ncon == 1 else 0
     le = avt[59 + inorot] + a[2] / RAD
@@ -76,10 +76,10 @@ def ptint1(xp: Sequence[float], yp: Sequence[float], a: Sequence[float],
                         if yi[0] >= y[1]:
                             crossed = True
                         elif not half_pi + amu < le:
-                            index += 1 if j != 2 else 0
+                            index += 1 if edge_pass != 2 else 0
                             exit_now = True
                     elif half_pi + amu < le:
-                        index += 1 if j != 2 else 0
+                        index += 1 if edge_pass != 2 else 0
                         exit_now = True
                 else:
                     if y[2] <= yi[2] <= y[3]:
@@ -87,7 +87,7 @@ def ptint1(xp: Sequence[float], yp: Sequence[float], a: Sequence[float],
                     elif yi[2] < y[2] and half_pi + amu > te:
                         pass
                     else:
-                        index += 1 if j == 2 else 0
+                        index += 1 if edge_pass == 2 else 0
                         exit_now = True
             else:
                 if k == 1:
@@ -95,10 +95,10 @@ def ptint1(xp: Sequence[float], yp: Sequence[float], a: Sequence[float],
                         if yi[0] <= y[1]:
                             crossed = True
                         elif not half_pi - amu < le_up:
-                            index += 1 if j != 2 else 0
+                            index += 1 if edge_pass != 2 else 0
                             exit_now = True
                     elif half_pi - amu < le_up:
-                        index += 1 if j != 2 else 0
+                        index += 1 if edge_pass != 2 else 0
                         exit_now = True
                 else:
                     if y[3] <= yi[2] <= y[2]:
@@ -106,7 +106,7 @@ def ptint1(xp: Sequence[float], yp: Sequence[float], a: Sequence[float],
                     elif yi[2] > y[2] and half_pi - amu > te_up:
                         pass
                     else:
-                        index += 1 if j == 2 else 0
+                        index += 1 if edge_pass == 2 else 0
                         exit_now = True
         if exit_now:
             break
@@ -209,7 +209,7 @@ def calculate_vtarea(vtin: Mapping[int, float], avt: Mapping[int, float],
             mach_angle = math.atan(1. / math.sqrt(mach**2 - 1.))
             area = [0.0, 0.0]
             done = False
-            for j in (1, 2):
+            for shadow_pass in (1, 2):
                 if not use_tail_shadow:
                     a1 = (syna_state[2] + (float(wing['span']) -
                                            float(wing['spans'])) *
@@ -217,7 +217,7 @@ def calculate_vtarea(vtin: Mapping[int, float], avt: Mapping[int, float],
                     a2 = (syna_state[3] - (a1 - syna_state[2]) *
                           math.sin(wing_incidence_rad) /
                           math.cos(wing_incidence_rad))
-                    if j == 2:
+                    if shadow_pass == 2:
                         a1 += float(wing['a10']) * math.cos(wing_incidence_rad)
                         a2 -= float(wing['a10']) * math.sin(wing_incidence_rad)
                 else:
@@ -236,13 +236,13 @@ def calculate_vtarea(vtin: Mapping[int, float], avt: Mapping[int, float],
                     a2 = (syna_state[7] - (a1 - syna_state[6]) *
                           math.sin(wing_incidence_rad) /
                           math.cos(wing_incidence_rad))
-                    if j == 2:
+                    if shadow_pass == 2:
                         a1 += float(tail['a10']) * math.cos(wing_incidence_rad)
                         a2 -= float(tail['a10']) * math.sin(wing_incidence_rad)
                 pt_result = ptint1(xp, yp, [a1, a2, syna_state[4]], mach_angle,
-                                    j, ncon, vertup, vt_common, xi, yi)
+                                    shadow_pass, ncon, vertup, vt_common, xi, yi)
                 if not pt_result['effect']:
-                    if j == 1:
+                    if shadow_pass == 1:
                         done = True
                         break
                     area[1] = avt_block[1 + ncon] if pt_result['k'] == 1 else 0.
@@ -250,13 +250,13 @@ def calculate_vtarea(vtin: Mapping[int, float], avt: Mapping[int, float],
                     continue
                 flip = False
                 if pt_result['nsum'] == 0:
-                    area[j - 1] = 0.
-                    flip = j != 1
+                    area[shadow_pass - 1] = 0.
+                    flip = shadow_pass != 1
                 else:
-                    area[j - 1], flip = _shadow(pt_result['nsum'], pt_result['k'],
-                                                pt_result['x'], pt_result['y'],
-                                                xi, yi)
-                if j == 1:
+                    area[shadow_pass - 1], flip = _shadow(
+                        pt_result['nsum'], pt_result['k'],
+                        pt_result['x'], pt_result['y'], xi, yi)
+                if shadow_pass == 1:
                     if flip:
                         area[0] = avt_block[1 + ncon] - area[0]
                     continue
