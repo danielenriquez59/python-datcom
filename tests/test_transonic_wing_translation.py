@@ -93,19 +93,24 @@ def test_slope_derivative_matches_a_finite_difference_of_the_fit():
 # --------------------------------------------------------------------------
 
 from pydatcom.aerodynamics import transonic_wing as module  # noqa: E402
-from pydatcom.aerodynamics.transonic_wing import calculate_trsoni  # noqa: E402
+from pydatcom.aerodynamics.transonic_wing import (  # noqa: E402
+    calculate_trsoni, calculate_trsonj,
+)
 
 _TRSONI = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'trsoni.json').read_text())
+# The same configurations run through TRSONJ on the tail's blocks.
+_TRSONJ = json.loads(
+    (_ROOT / 'tests' / 'fixtures' / 'probes' / 'trsonj.json').read_text())
 
 
-def _sequence(config):
+def _sequence(config, routine=calculate_trsoni):
     """Every Mach of a configuration, the stale TRA words carried over."""
     i = config['inputs']
     a = {int(k): v for k, v in i['a'].items()}
     stale, out = None, []
     for run in config['runs']:
-        r = calculate_trsoni(run['mach'], i['alpha'], i['wing'], a,
+        r = routine(run['mach'], i['alpha'], i['wing'], a,
                              i['sref'], i['roughness'], i['body'], stale,
                              i['nf'])
         out.append((run, r))
@@ -113,10 +118,14 @@ def _sequence(config):
     return out
 
 
-@pytest.mark.parametrize("config", range(len(_TRSONI)))
-def test_trsoni_matches_compiled_routine(config):
-    i = _TRSONI[config]['inputs']
-    for run, r in _sequence(_TRSONI[config]):
+@pytest.mark.parametrize("fixture,routine,config", [
+    (f, r, c) for f, r in ((_TRSONI, calculate_trsoni),
+                           (_TRSONJ, calculate_trsonj))
+    for c in range(len(f))])
+def test_trsoni_matches_compiled_routine(fixture, routine, config):
+    """TRSONI, and TRSONJ with TRNHT on the tail's blocks."""
+    i = fixture[config]['inputs']
+    for run, r in _sequence(fixture[config], routine):
         out = run['outputs']
         for index, value in r['tra'].items():
             assert value == pytest.approx(out['TRA'][index - 1], rel=1e-9,
@@ -148,6 +157,34 @@ def test_trsoni_probe_reaches_every_branch():
     assert any('body_cd' in r for r in results)
     machs = {run['mach'] for c in _TRSONI for run in c['runs']}
     assert min(machs) < 1.0 < 1.2 < max(machs)
+
+
+def test_tail_routines_share_the_wing_tables():
+    assert parse('trsonj') == parse('trsoni')
+    assert parse('trnht') == parse('tranwg')
+
+
+def test_trsonj_stores_the_points_trsoni_drops():
+    """TRSONJ's label 1090 sits on the store TRSONI's branch skips, so the
+    compiled tail pass differs from the wing pass only in the supersonic
+    wave-drag points and what depends on them."""
+    dependent = {('TRA', i) for i in (54, 55, 56, 57, 67, 73)}
+    dependent |= {('W', 2), ('B', 3)}
+    stored = 0
+    for wing, tail in zip(_TRSONI, _TRSONJ):
+        for w, t in zip(wing['runs'], tail['runs']):
+            for tag, values in w['outputs'].items():
+                for k, (x, y) in enumerate(zip(values, t['outputs'][tag])):
+                    if x != y:
+                        assert (tag, k + 1) in dependent
+                        stored += tag == 'TRA' and k + 1 == 54
+    assert stored > 0
+    i = _TRSONJ[0]['inputs']
+    a = {int(k): v for k, v in i['a'].items()}
+    r = calculate_trsonj(1.3, i['alpha'], i['wing'], a, i['sref'],
+                         i['roughness'], None)
+    assert 'stale_wave_points' not in r or r['stale_wave_points'] == []
+    assert r['wave_drag'] > 0.01
 
 
 def test_trsoni_tables_match_the_source():

@@ -769,6 +769,42 @@ def calculate_wbcdl(aspect_ratio: float, tan_le: float, tovc: float,
     return np.array(cdl, dtype=float)
 
 
+def surface_regression_drag(alpha_deg: Sequence[float],
+                            surface: Dict[str, float],
+                            body: Dict[str, float], x_surface: float,
+                            flight: Dict[str, float]):
+    """WBCDL as WBCD and TRANCD call it for one surface.
+
+    Forms the nose and afterbody lengths from the surface's position and
+    calls WBCDL.  Returns ``(cdl, ln, la)``, or ``None`` when the surface is
+    not straight tapered, the regression is out of range, or its first
+    angle has no data (the source's ``NA``).  Arguments are those of
+    :func:`calculate_wbcd`.
+    """
+    if float(surface['type']) != STRAIGHT_TAPERED_WB:
+        return None
+    db = 2.0 * (float(surface['sspn']) - float(surface['sspne']))
+    ln = (x_surface + 0.5 * db * float(surface['a38'])) / db
+    la = (x_surface + float(surface['chrdr']) +
+          0.5 * db * float(surface['a56'])) / db
+    if float(body['x_max_area']) < ln * db:
+        ln = ln * db / float(body['max_diameter'])
+    if float(body['x_max_area']) > la * db:
+        la = la * db / float(body['max_diameter'])
+    la = float(body['length']) / db - la
+    alpha = np.asarray(alpha_deg, dtype=float)
+    cdl = calculate_wbcdl(
+        float(surface['a120']), float(surface['a38']), float(surface['tovc']),
+        ln, la, float(surface['a118']), float(surface['ler']),
+        float(surface['twista']), float(surface['ycm']),
+        float(surface['cld']),
+        float(flight['reynolds_per_length']) * float(surface['a122']),
+        float(flight['tr']), float(flight['mach']), alpha)
+    if cdl is None or cdl[0] == UNUSED:
+        return None
+    return cdl, ln, la
+
+
 def calculate_wbcd(alpha_deg: Sequence[float], surface: Dict[str, float],
                    combination: Dict[str, Sequence[float]],
                    body: Dict[str, float], x_surface: float,
@@ -806,27 +842,12 @@ def calculate_wbcd(alpha_deg: Sequence[float], surface: Dict[str, float],
         ``DB``, and then forms the afterbody length as ``BD(1)/DB - LA``,
         mixing the two scales in one subtraction.  Kept.
     """
-    if float(surface['type']) != STRAIGHT_TAPERED_WB:
+    regression = surface_regression_drag(alpha_deg, surface, body, x_surface,
+                                         flight)
+    if regression is None:
         return None
-    db = 2.0 * (float(surface['sspn']) - float(surface['sspne']))
-    ln = (x_surface + 0.5 * db * float(surface['a38'])) / db
-    la = (x_surface + float(surface['chrdr']) +
-          0.5 * db * float(surface['a56'])) / db
-    if float(body['x_max_area']) < ln * db:
-        ln = ln * db / float(body['max_diameter'])
-    if float(body['x_max_area']) > la * db:
-        la = la * db / float(body['max_diameter'])
-    la = float(body['length']) / db - la
+    cdl, ln, la = regression
     alpha = np.asarray(alpha_deg, dtype=float)
-    cdl = calculate_wbcdl(
-        float(surface['a120']), float(surface['a38']), float(surface['tovc']),
-        ln, la, float(surface['a118']), float(surface['ler']),
-        float(surface['twista']), float(surface['ycm']),
-        float(surface['cld']),
-        float(flight['reynolds_per_length']) * float(surface['a122']),
-        float(flight['tr']), float(flight['mach']), alpha)
-    if cdl is None or cdl[0] == UNUSED:
-        return None
     cl = np.asarray(combination['cl'], dtype=float)
     cd = float(combination['cd0']) + cdl
     ca_, sa_ = np.cos(alpha / RAD), np.sin(alpha / RAD)
