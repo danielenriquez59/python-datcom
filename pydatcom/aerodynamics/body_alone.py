@@ -109,19 +109,18 @@ def calculate_body_alone_subsonic(state: Dict, alpha_deg: float,
     
     # Normal force at this alpha (line 2547)
     alpha_rad = np.deg2rad(alpha_deg)
-    sina = np.sin(alpha_rad)
-    sina2 = sina**2
-    
+    sin_alpha = np.sin(alpha_rad)
+    sin_alpha_squared = sin_alpha ** 2
+
     # Cross-flow drag term (line 2547)
     # BD(J+194) = 2 * sin²(α) * BD(76) * BD(J+134) * BD(88) / SREF * SGN
-    cn_crossflow = 2.0 * sina2 * k_fineness * k_mach * r_integral / sref
+    cn_crossflow = (
+        2.0 * sin_alpha_squared * k_fineness * k_mach * r_integral / sref
+    )
     if alpha_deg < 0:
         cn_crossflow *= -1.0
-    
-    # Potential flow normal force (line 2533)
+
     cn_potential = cna_per_rad * alpha_rad
-    
-    # Total normal force (line 2548)
     cn_total = cn_potential + cn_crossflow
     
     # Skin friction drag (lines 2508-2521)
@@ -168,9 +167,7 @@ def calculate_body_alone_subsonic(state: Dict, alpha_deg: float,
     cd0 = cd_friction + cd_base
     
     # Drag due to normal force (line 2557)
-    cd_normal = cn_total * sina
-    
-    # Total drag (line 2558)
+    cd_normal = cn_total * sin_alpha
     cd = cd0 + cd_normal
     
     # Lift (line 2559: CL = CN*cos(α) + CD*sin(α) but that's CN, we want CL)
@@ -181,8 +178,8 @@ def calculate_body_alone_subsonic(state: Dict, alpha_deg: float,
     
     # BODYRT stores CN first, adds its lift-dependent drag, and then applies
     # the exact orthogonal CN/CD -> CL/CA transform at labels 1100.
-    cl = (cn_total - cd * sina) / np.cos(alpha_rad)
-    ca = cd * np.cos(alpha_rad) - cl * sina
+    cl = (cn_total - cd * sin_alpha) / np.cos(alpha_rad)
+    ca = cd * np.cos(alpha_rad) - cl * sin_alpha
     
     # Pitching moment (lines 2484-2488, 2552-2553)
     # Calculate centroid moment arm effect
@@ -199,9 +196,11 @@ def calculate_body_alone_subsonic(state: Dict, alpha_deg: float,
     
     # Pitching moment at this alpha (line 2552-2553)
     sign = -1.0 if alpha_deg < 0.0 else 1.0
-    cm = (cma_per_rad * alpha_rad -
-          2.0 * sina2 * k_mach * k_fineness *
-          (rx_integral - xcg * r_integral) / (cbar * sref) * sign)
+    cm = (
+        cma_per_rad * alpha_rad
+        - 2.0 * sin_alpha_squared * k_mach * k_fineness
+        * (rx_integral - xcg * r_integral) / (cbar * sref) * sign
+    )
     
     # CLA per degree (line 2462 converted to per degree)
     cla_per_deg = cna_per_rad * np.deg2rad(1.0)
@@ -271,24 +270,23 @@ def calculate_body_alone_coefficients(state: Dict, alpha_deg: float,
     """
     # Estimate Reynolds if not provided
     if reynolds is None:
-        length = state.get('body_length') or state.get('body_x', [0])[-1] if state.get('body_x') else 10.0
-        reynolds = 1e6 * length * mach
+        body_length = state.get('body_length')
+        if body_length is None and state.get('body_x'):
+            body_length = state['body_x'][-1]
+        if body_length is None:
+            body_length = 10.0
+        reynolds = 1e6 * body_length * mach
     
-    # Route based on Mach number
     if mach < 0.9:
         return calculate_body_alone_subsonic(state, alpha_deg, mach, reynolds)
-    elif mach < 1.2:
-        # Transonic - use subsonic method with corrections
+    if mach < 1.2:
         result = calculate_body_alone_subsonic(state, alpha_deg, 0.85, reynolds)
         result['regime'] = 'body_alone_transonic'
         result['mach'] = mach
         return result
-    elif mach < 5.0:
-        # Supersonic - use simplified theory
+    if mach < 5.0:
         return calculate_body_alone_supersonic(state, alpha_deg, mach)
-    else:
-        # Hypersonic - use Newtonian
-        return calculate_body_alone_hypersonic(state, alpha_deg, mach)
+    return calculate_body_alone_hypersonic(state, alpha_deg, mach)
 
 
 def calculate_body_alone_supersonic(state: Dict, alpha_deg: float, mach: float) -> Dict[str, float]:
@@ -307,32 +305,26 @@ def calculate_body_alone_supersonic(state: Dict, alpha_deg: float, mach: float) 
     max_area = state.get('body_max_area', 0.0) or np.max(state.get('body_s', [0]))
     sref = state.get('options_sref', 1.0) or 1.0
     
-    # Supersonic slender body theory
     alpha_rad = np.deg2rad(alpha_deg)
-    sina = np.sin(alpha_rad)
-    
-    # Normal force (supersonic)
-    # Smaller than subsonic due to shock effects
+    sin_alpha = np.sin(alpha_rad)
+    cos_alpha = np.cos(alpha_rad)
+
+    # Normal force (supersonic slender body; reduced vs subsonic shock effects)
     cn = 1.5 * (max_area / sref) * np.sin(2.0 * alpha_rad)
-    
-    # Wave drag
+
     length = state.get('body_length', 10.0) or 10.0
-    d_max = np.sqrt(4.0 * max_area / np.pi)
-    fineness = length / d_max if d_max > 0 else 5.0
-    
-    # Supersonic wave drag
+    max_diameter = np.sqrt(4.0 * max_area / np.pi)
+    fineness = length / max_diameter if max_diameter > 0 else 5.0
+
     cd_wave = 0.15 / fineness**2 if fineness > 0 else 0.02
     cd_friction = 0.01  # Simplified
-    cd_normal = cn * sina
-    
+    cd_normal = cn * sin_alpha
     cd = cd_friction + cd_wave + cd_normal
-    
-    # Lift and axial force
-    ca = cd * np.cos(alpha_rad) - cn * sina
-    cl = cn * np.cos(alpha_rad) - ca * sina
-    
-    # Moment
-    xcg = state.get('synths_xcg', length/2.0) or 0.0
+
+    ca = cd * cos_alpha - cn * sin_alpha
+    cl = cn * cos_alpha - ca * sin_alpha
+
+    xcg = state.get('synths_xcg', length / 2.0) or 0.0
     cbar = state.get('options_cbarr', 1.0) or 1.0
     cm = -cn * (length/2.0 - xcg) / cbar if cbar > 0 else 0.0
     

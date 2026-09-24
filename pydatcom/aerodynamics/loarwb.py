@@ -308,12 +308,28 @@ def calculate_loarwb(alpha_deg: Sequence[float], lbin: Mapping[int, object],
         which ends as ``KCCA20``.  Kept.
     """
     v = {int(k): val for k, val in lbin.items()}
-    zb, sref, deltep, sfront, ar = (float(v[k]) for k in (1, 2, 3, 4, 5))
-    r3leob, deltal, length, swet = (float(v[k]) for k in (6, 7, 8, 9))
-    perbas, sbase, hb, bb = (float(v[k]) for k in (10, 11, 12, 13))
-    blf, xcg, thetad, roundn = bool(v[14]), float(v[15]), float(v[16]), \
-        bool(v[17])
-    sbs, sbslb, xcensb, xcenw = (float(v[k]) for k in (18, 19, 20, 21))
+    zb = float(v[1])
+    sref = float(v[2])
+    deltep = float(v[3])
+    sfront = float(v[4])
+    ar = float(v[5])
+    r3leob = float(v[6])
+    deltal = float(v[7])
+    length = float(v[8])
+    swet = float(v[9])
+    perbas = float(v[10])
+    sbase = float(v[11])
+    hb = float(v[12])
+    bb = float(v[13])
+    blf = bool(v[14])
+    xcg = float(v[15])
+    thetad = float(v[16])
+    roundn = bool(v[17])
+    sbs = float(v[18])
+    sbslb = float(v[19])
+    xcensb = float(v[20])
+    xcenw = float(v[21])
+
     alpha = np.asarray(alpha_deg, dtype=float)
     lb: Dict[int, float] = {}
 
@@ -367,14 +383,15 @@ def calculate_loarwb(alpha_deg: Sequence[float], lbin: Mapping[int, object],
     xocrt = 0.1020 * sfosr
     xcpoc = xocrd + xocrb + xocrt
     dx = xcg / length - xcpoc
-    cmp_ = cm0 + dx * cnp
+    cm_alphap = cm0 + dx * cnp
 
     cn = _at_flight_angles(alpha, alphap, cnp, alpha0)
     ca = _at_flight_angles(alpha, alphap, cxp, alpha0)
-    cm = _at_flight_angles(alpha, alphap, cmp_, alpha0)
-    sina, cosa = np.sin(alpha / RAD), np.cos(alpha / RAD)
-    cl = cn * cosa - ca * sina
-    cd = ca * cosa + cn * sina
+    cm = _at_flight_angles(alpha, alphap, cm_alphap, alpha0)
+    sin_alpha = np.sin(alpha / RAD)
+    cos_alpha = np.cos(alpha / RAD)
+    cl = cn * cos_alpha - ca * sin_alpha
+    cd = ca * cos_alpha + cn * sin_alpha
     cn = np.where(cn == 0.0, 1.0e-20, cn)
     xcp = cm / cn
 
@@ -416,7 +433,7 @@ def calculate_loarwb(alpha_deg: Sequence[float], lbin: Mapping[int, object],
     del lb[78]
     for j in range(len(alpha)):
         lb[2 + j], lb[35 + j], lb[55 + j] = alphap[j], alpapr[j], cnp[j]
-        lb[95 + j], lb[121 + j] = cxp[j], cmp_[j]
+        lb[95 + j], lb[121 + j] = cxp[j], cm_alphap[j]
         lb[141 + j], lb[161 + j], lb[181 + j] = kyb[j], knb[j], klb[j]
     return {
         'cl': cl, 'cd': cd, 'cn': cn, 'ca': ca, 'cm': cm, 'xcp': xcp,
@@ -440,10 +457,15 @@ def calculate_m14o16(alpha_deg: Sequence[float], lbin: Mapping[int, object],
     r = calculate_loarwb(alpha_deg, lbin, mach, reynolds_per_length,
                          roughness, stale_xocrb)
     alpha = np.asarray(alpha_deg, dtype=float)
-    ca_, sa_ = np.cos(alpha / RAD), np.sin(alpha / RAD)
-    r['cn'] = r['cl'] * ca_ + r['cd'] * sa_
-    r['ca'] = r['cd'] * ca_ - r['cl'] * sa_
-    r['cla'] = np.array([tbfunx(alpha, r['cl'], a, 0, 0)[1] for a in alpha])
-    r['cma'] = np.array([tbfunx(alpha, r['cm'], a, 0, 0)[1] for a in alpha])
+    cos_alpha = np.cos(alpha / RAD)
+    sin_alpha = np.sin(alpha / RAD)
+    r['cn'] = r['cl'] * cos_alpha + r['cd'] * sin_alpha
+    r['ca'] = r['cd'] * cos_alpha - r['cl'] * sin_alpha
+    r['cla'] = np.array([
+        tbfunx(alpha, r['cl'], angle_deg, 0, 0)[1] for angle_deg in alpha
+    ])
+    r['cma'] = np.array([
+        tbfunx(alpha, r['cm'], angle_deg, 0, 0)[1] for angle_deg in alpha
+    ])
     r['method'] = 'legacy_m14o16'
     return r

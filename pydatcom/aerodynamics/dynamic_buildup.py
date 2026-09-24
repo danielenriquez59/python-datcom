@@ -74,10 +74,11 @@ def calculate_dnpawb(clq_wing: float, cmq_wing: float,
         'method': 'legacy_dnpawb',
     }
 
-    # Outside supersonic flow the acceleration derivatives are restricted to
-    # BETA*AR within [0, 4] on an untapered wing.
+    # Outside supersonic flow: acceleration terms only for BETA*AR in [0, 4]
+    # on an untapered wing.
     if not supersonic:
-        if beta_aspect_ratio is not None and not 0.0 <= beta_aspect_ratio <= 4.0:
+        beta_ar = beta_aspect_ratio
+        if beta_ar is not None and not 0.0 <= beta_ar <= 4.0:
             result['acceleration_available'] = False
             result['acceleration_gate'] = 'beta_aspect_ratio_out_of_range'
             return result
@@ -91,6 +92,7 @@ def calculate_dnpawb(clq_wing: float, cmq_wing: float,
         result['acceleration_available'] = False
         result['acceleration_gate'] = 'transonic_cmad_unavailable'
         return result
+
     result['cmad'] = float(carryover * cmad_wing + cmad_body)
     result['acceleration_available'] = True
     return result
@@ -145,49 +147,61 @@ def calculate_dnpwbt(clq_wing_body: float, cmq_wing_body: float,
     qoqi = np.asarray(qoqi, dtype=float)
     deda = np.asarray(deda, dtype=float)
     if qoqi.shape != deda.shape or qoqi.ndim != 1 or qoqi.size == 0:
-        raise ValueError("DNPWBT needs matching nonempty q/q and de/da arrays")
+        raise ValueError(
+            "DNPWBT needs matching nonempty q/q and de/da arrays",
+        )
     if min(wing_span, tail_span, cbar) <= 0.0:
         raise ValueError("DNPWBT requires positive spans and reference chord")
-    jet = (np.zeros_like(qoqi) if jet_term is None
-           else np.asarray(jet_term, dtype=float))
+
+    if jet_term is None:
+        jet = np.zeros_like(qoqi)
+    else:
+        jet = np.asarray(jet_term, dtype=float)
     if jet.shape != qoqi.shape:
         raise ValueError("DNPWBT jet term must match the angle schedule")
 
     span_ratio = wing_span / tail_span
-    arm = -dxac / cbar                        # DXOCB
+    tail_arm_chords = -dxac / cbar
     carryover = kbh + khb
 
     result = {
         'span_ratio': float(span_ratio),
-        'tail_arm_chords': float(arm),
+        'tail_arm_chords': float(tail_arm_chords),
         'method': 'legacy_dnpwbt',
     }
 
     if span_ratio >= _SPAN_RATIO_SPLIT:
-        increment = 2.0 * carryover * qoqi * arm * cla_tail   # SAVTIM
-        moment_increment = increment * arm                     # SAVTIX
+        # BW/BH >= 1.5: arm folded into the tail increment (SAVTIM / SAVTIX).
+        tail_clq_increment = (
+            2.0 * carryover * qoqi * tail_arm_chords * cla_tail
+        )
+        tail_cmq_increment = tail_clq_increment * tail_arm_chords
         result['branch'] = 'wide_wing'
-        result['clq'] = clq_wing_body + increment
-        result['cmq'] = cmq_wing_body - moment_increment
-        result['clad'] = clad_wing_body + increment * deda
-        result['cmad'] = cmad_wing_body - moment_increment * deda
+        result['clq'] = clq_wing_body + tail_clq_increment
+        result['cmq'] = cmq_wing_body - tail_cmq_increment
+        result['clad'] = clad_wing_body + tail_clq_increment * deda
+        result['cmad'] = cmad_wing_body - tail_cmq_increment * deda
         result['acceleration_available'] = True
         return result
 
-    increment = 2.0 * carryover * qoqi * cla_tail              # SAVE
+    # BW/BH < 1.5: arm applied outside; jet term enters CMQ.
+    tail_force_increment = 2.0 * carryover * qoqi * cla_tail
+    tail_plus_jet = tail_force_increment + jet
     result['branch'] = 'narrow_wing'
-    result['clq'] = clq_wing_body + (increment + jet) * arm
-    result['cmq'] = cmq_wing_body - (increment + jet) * arm**2
+    result['clq'] = clq_wing_body + tail_plus_jet * tail_arm_chords
+    result['cmq'] = (
+        cmq_wing_body - tail_plus_jet * tail_arm_chords ** 2
+    )
 
-    # The acceleration derivatives of this branch come from the jet term
-    # alone, with the arm doubled first.
     if transonic or taper_ratio != 0.0:
         result['acceleration_available'] = False
-        result['acceleration_gate'] = ('transonic' if transonic
-                                       else 'tapered_wing')
+        result['acceleration_gate'] = (
+            'transonic' if transonic else 'tapered_wing'
+        )
         return result
-    doubled = arm * 2.0
-    result['clad'] = clad_wing_body - doubled * jet
-    result['cmad'] = cmad_wing_body + (doubled**2 / 2.0) * jet
+
+    doubled_arm = tail_arm_chords * 2.0
+    result['clad'] = clad_wing_body - doubled_arm * jet
+    result['cmad'] = cmad_wing_body + (doubled_arm ** 2 / 2.0) * jet
     result['acceleration_available'] = True
     return result

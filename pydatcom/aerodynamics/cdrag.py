@@ -321,7 +321,8 @@ def _cutoff_reynolds(mach: float, mac: float, roughness: float) -> float:
     capped by a cutoff built on a length it does not have.
     """
     intercept, _ = tbfunx(_F27_MACH, _F27_INTERCEPT, mach, 0, 0)
-    return float((12.0 * mac / roughness)**1.0482 * 10.0**intercept)
+    base = (12.0 * mac / roughness) ** 1.0482
+    return float(base * 10.0 ** intercept)
 
 
 def _zero_lift_drag(mach: float, reynolds: float, cutoff: float,
@@ -333,24 +334,39 @@ def _zero_lift_drag(mach: float, reynolds: float, cutoff: float,
     ``dashed`` selects the dashed variant of Figure 4.1.5.1-28B, which the
     source uses for the inboard panel of a non-straight planform.
     """
-    capped = min(reynolds, cutoff)
-    friction = float(fig26(capped, mach))
+    reynolds_used = min(reynolds, cutoff)
+    friction = float(fig26(reynolds_used, mach))
+
     if dashed:
         # The source passes LX1L=-1 here.  A negative mode differs from 0
         # only in whether a diagnostic is printed, which is omitted.
-        rls = float(tlinex(_F28BD_MACH, _F28BD_COS_SWEEP, _F28BD_RLS,
-                           mach, cos_max_thickness_sweep, -1, 0, 0, 0))
+        rls = float(tlinex(
+            _F28BD_MACH, _F28BD_COS_SWEEP, _F28BD_RLS,
+            mach, cos_max_thickness_sweep, -1, 0, 0, 0,
+        ))
     else:
-        rls = float(tlinex(_F28B_MACH, _F28B_COS_SWEEP, _F28B_RLS,
-                           mach, cos_max_thickness_sweep, 0, 2, -1, 2))
-    capl = (_CAPL_AFT if thickness_station >= _THICKNESS_STATION_SPLIT
-            else _CAPL_FORWARD)
+        rls = float(tlinex(
+            _F28B_MACH, _F28B_COS_SWEEP, _F28B_RLS,
+            mach, cos_max_thickness_sweep, 0, 2, -1, 2,
+        ))
+
+    if thickness_station >= _THICKNESS_STATION_SPLIT:
+        capl = _CAPL_AFT
+    else:
+        capl = _CAPL_FORWARD
     form = 1.0 + capl * thickness_ratio + 100.0 * thickness_ratio**4
-    cdo = friction * form * rls * (2.0 * area / sref)
-    return {'cdo': float(cdo), 'friction': friction, 'rls': rls,
-            'form_factor': float(form), 'capl': float(capl),
-            'reynolds_used': float(capped),
-            'reynolds_was_capped': bool(cutoff < reynolds)}
+    wetted_ratio = 2.0 * area / sref
+    cdo = friction * form * rls * wetted_ratio
+
+    return {
+        'cdo': float(cdo),
+        'friction': friction,
+        'rls': rls,
+        'form_factor': float(form),
+        'capl': float(capl),
+        'reynolds_used': float(reynolds_used),
+        'reynolds_was_capped': bool(cutoff < reynolds),
+    }
 
 
 def _suction_parameter(vortex_reynolds: float, argument: float) -> float:
@@ -445,24 +461,30 @@ def calculate_cdrag(mach: float,
     lift = np.atleast_1d(np.asarray(cl, dtype=float))
     if lift.shape != alpha.shape:
         raise ValueError("CDRAG needs a lift array matching the schedule")
+
     area = float(geometry['area'])
     if min(sref, roughness, area) <= 0.0:
         raise ValueError(
             "CDRAG requires a positive reference area, roughness and "
-            "exposed area")
+            "exposed area",
+        )
 
     # Figure 4.3.1.2-10A: the wing-body carryover factor.
     carryover = 1.0
     if body_present:
-        ratio = ((float(geometry['sspn']) - float(geometry['sspne'])) /
-                 float(geometry['sspn']))
-        value, _ = tbfunx(_F4312_10A_DIAMETER_RATIO, _F4312_10A_KWB,
-                          ratio, 0, 0)
+        diameter_ratio = (
+            (float(geometry['sspn']) - float(geometry['sspne']))
+            / float(geometry['sspn'])
+        )
+        value, _ = tbfunx(
+            _F4312_10A_DIAMETER_RATIO, _F4312_10A_KWB, diameter_ratio, 0, 0,
+        )
         carryover = float(value)
+
     lift = lift * carryover
     cla = float(cla_first) * carryover
 
-    # The source's zero-tangent guards, applied and later undone.
+    # Zero-tangent guards on leading-edge sweep (source replaces 0 with 1e-5).
     tan_le = float(sweep['tan_le']) or _ZERO_TANGENT
     tan_le_inboard = float(sweep['tan_le_inboard']) or _ZERO_TANGENT
     tan_le_outboard = float(sweep['tan_le_outboard']) or _ZERO_TANGENT
@@ -517,7 +539,8 @@ def calculate_cdrag(mach: float,
         'suction': result.get('suction'),
         'detail': result,
         'inboard_suction_argument_is_zero': result.get(
-            'inboard_suction_argument_is_zero', False),
+            'inboard_suction_argument_is_zero', False,
+        ),
         'oswald_carries_source_1_1_factor': kind == STRAIGHT_TAPERED,
         'method': 'legacy_cdrag',
     }
@@ -527,38 +550,56 @@ def _straight_lift_drag(mach, lift, cla, geometry, section, sweep, sref,
                         beta, reynolds_per_length, tan_le, area):
     """Labels 1010-1040: the straight tapered lift-dependent drag."""
     aspect_ratio = float(geometry['aspect_ratio'])
-    # The vortex Reynolds number uses the leading-edge radius as its length.
-    rler = (reynolds_per_length * float(section['leri']) *
-            float(geometry['mac']))
+    taper = float(geometry['taper_ratio'])
     cos_le = float(sweep['cos_le'])
-    vortex_reynolds = (rler / abs(tan_le) *
-                       np.sqrt(1.0 - mach**2 * cos_le**2))
-    argument = aspect_ratio * float(geometry['taper_ratio']) / cos_le
-    suction = _suction_parameter(float(vortex_reynolds), float(argument))
 
-    temp = (cla * sref / area) * RAD / aspect_ratio
+    # Vortex Reynolds number uses leading-edge radius times exposed MAC.
+    rler = reynolds_per_length * float(section['leri']) * float(geometry['mac'])
+    vortex_reynolds = (
+        rler / abs(tan_le) * np.sqrt(1.0 - mach**2 * cos_le**2)
+    )
+    suction_argument = aspect_ratio * taper / cos_le
+    suction = _suction_parameter(float(vortex_reynolds), float(suction_argument))
+
+    lift_slope_term = (cla * sref / area) * RAD / aspect_ratio
     # The 1.1 appears only on this path; see calculate_cdrag's notes.
-    oswald = 1.1 * temp / (suction * temp + (1.0 - suction) * PI)
+    oswald = (
+        1.1 * lift_slope_term
+        / (suction * lift_slope_term + (1.0 - suction) * PI)
+    )
 
     drag_factor = aspect_ratio * beta
     angle = float(np.arctan(float(sweep['tan_c4']) / beta) * RAD)
-    taper = float(geometry['taper_ratio'])
-    v42 = float(tlin3x(_F42_ANGLE, _F42_DRAG_FACTOR, _F42_TAPER, _F42,
-                       angle, drag_factor, taper, 0, 2, 0, 2, 2, 0))
-    v48 = float(tlin3x(_F48_ANGLE, _F48_DRAG_FACTOR, _F48_TAPER, _F48,
-                       angle, drag_factor, taper, 0, 2, 0, 2, 2, 0))
+    v42 = float(tlin3x(
+        _F42_ANGLE, _F42_DRAG_FACTOR, _F42_TAPER, _F42,
+        angle, drag_factor, taper, 0, 2, 0, 2, 2, 0,
+    ))
+    v48 = float(tlin3x(
+        _F48_ANGLE, _F48_DRAG_FACTOR, _F48_TAPER, _F48,
+        angle, drag_factor, taper, 0, 2, 0, 2, 2, 0,
+    ))
 
-    w = v48 / beta
+    fig48_over_beta = v48 / beta
     twist = PI * float(section['twista']) / RAD
-    twist2 = 2.0 * twist
-    cdl = (lift**2 / (PI * aspect_ratio * oswald) * sref / area +
-           twist2 * lift * v42 +
-           twist2**2 * w * area / sref)
-    return {'cdl': cdl, 'path': 'straight_tapered',
-            'oswald_efficiency': float(oswald),
-            'suction': float(suction),
-            'vortex_reynolds': float(vortex_reynolds),
-            'fig42': v42, 'fig48': v48, 'angle': angle}
+    twist_doubled = 2.0 * twist
+    sref_over_area = sref / area
+
+    cdl = (
+        lift**2 / (PI * aspect_ratio * oswald) * sref_over_area
+        + twist_doubled * lift * v42
+        + twist_doubled**2 * fig48_over_beta * area / sref
+    )
+
+    return {
+        'cdl': cdl,
+        'path': 'straight_tapered',
+        'oswald_efficiency': float(oswald),
+        'suction': float(suction),
+        'vortex_reynolds': float(vortex_reynolds),
+        'fig42': v42,
+        'fig48': v48,
+        'angle': angle,
+    }
 
 
 def _cranked_lift_drag(mach, lift, cla, geometry, section, sweep, sref,
@@ -566,42 +607,67 @@ def _cranked_lift_drag(mach, lift, cla, geometry, section, sweep, sref,
                        area):
     """Labels 1050-1100: the cranked-wing lift-dependent drag."""
     aspect_ratio = float(geometry['aspect_ratio'])
-    rler_inboard = (reynolds_per_length * float(section['leri']) *
-                    float(geometry['mac_inboard']))
-    rler_outboard = (reynolds_per_length * float(section['lero']) *
-                     float(geometry['mac_outboard']))
     cos_in = float(sweep['cos_le_inboard'])
     cos_out = float(sweep['cos_le_outboard'])
+    sref_over_area = sref / area
 
-    reynolds_in = (rler_inboard / abs(tan_le_inboard) *
-                   np.sqrt(1.0 - (mach * cos_in)**2))
+    rler_inboard = (
+        reynolds_per_length * float(section['leri'])
+        * float(geometry['mac_inboard'])
+    )
+    rler_outboard = (
+        reynolds_per_length * float(section['lero'])
+        * float(geometry['mac_outboard'])
+    )
+
+    reynolds_in = (
+        rler_inboard / abs(tan_le_inboard)
+        * np.sqrt(1.0 - (mach * cos_in) ** 2)
+    )
     # The source sets TEMPI to a literal 0.0 here.  See calculate_cdrag.
     suction_in = _suction_parameter(float(reynolds_in), 0.0)
 
-    reynolds_out = (rler_outboard / abs(tan_le_outboard) *
-                    np.sqrt(1.0 - (mach * cos_out)**2))
-    argument_out = (float(geometry['aspect_ratio_outboard']) *
-                    float(geometry['taper_ratio_outboard']) / cos_out)
-    suction_out = _suction_parameter(float(reynolds_out),
-                                     float(argument_out))
+    reynolds_out = (
+        rler_outboard / abs(tan_le_outboard)
+        * np.sqrt(1.0 - (mach * cos_out) ** 2)
+    )
+    argument_out = (
+        float(geometry['aspect_ratio_outboard'])
+        * float(geometry['taper_ratio_outboard'])
+        / cos_out
+    )
+    suction_out = _suction_parameter(float(reynolds_out), float(argument_out))
 
     span_fraction = float(geometry['span_inboard']) / float(geometry['sspne'])
-    suction = (suction_in * span_fraction +
-               suction_out * (1.0 - span_fraction))
-    temp = (cla * sref / area) * RAD / aspect_ratio
-    oswald = temp / (suction * temp + (1.0 - suction) * PI)
+    suction = (
+        suction_in * span_fraction + suction_out * (1.0 - span_fraction)
+    )
+
+    lift_slope_term = (cla * sref / area) * RAD / aspect_ratio
+    oswald = lift_slope_term / (
+        suction * lift_slope_term + (1.0 - suction) * PI
+    )
 
     increments = np.array([
-        float(tlinex(_F54_CL_OVER_AR, _F54_ASPECT_RATIO, _F54,
-                     float(abs(value) / aspect_ratio * sref / area),
-                     aspect_ratio, 0, 0, 0, 0))
-        for value in lift])
-    cdl = (lift**2 / (PI * oswald * aspect_ratio) * sref / area +
-           increments * area / sref)
-    return {'cdl': cdl, 'path': 'cranked',
-            'oswald_efficiency': float(oswald),
-            'suction': float(suction),
-            'suction_inboard': float(suction_in),
-            'suction_outboard': float(suction_out),
-            'fig54': increments,
-            'inboard_suction_argument_is_zero': True}
+        float(tlinex(
+            _F54_CL_OVER_AR, _F54_ASPECT_RATIO, _F54,
+            float(abs(value) / aspect_ratio * sref_over_area),
+            aspect_ratio, 0, 0, 0, 0,
+        ))
+        for value in lift
+    ])
+    cdl = (
+        lift**2 / (PI * oswald * aspect_ratio) * sref_over_area
+        + increments * area / sref
+    )
+
+    return {
+        'cdl': cdl,
+        'path': 'cranked',
+        'oswald_efficiency': float(oswald),
+        'suction': float(suction),
+        'suction_inboard': float(suction_in),
+        'suction_outboard': float(suction_out),
+        'fig54': increments,
+        'inboard_suction_argument_is_zero': True,
+    }

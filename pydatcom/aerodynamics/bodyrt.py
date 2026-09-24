@@ -65,8 +65,9 @@ def _body_reference_station(x, s):
     if not contracts:
         return float(x[-1]), False
     # BD(K+174) = -dS/dx at every station, with TBFUNX end modes 2 and 1.
-    slopes = np.array([-tbfunx(x, s, station, lower=2, upper=1)[1]
-                       for station in x])
+    slopes = np.array([
+        -tbfunx(x, s, station, lower=2, upper=1)[1] for station in x
+    ])
     x1, _, _ = getmax(x, slopes)
     return float(x1), True
 
@@ -116,6 +117,7 @@ def calculate_bodyrt(x: Sequence[float], s: Sequence[float],
     if roughness <= 0.0:
         raise ValueError("BODYRT requires a positive roughness height")
 
+    # --- Setup (source labels 1000–1090) ---
     length = float(x[-1])              # BD(1)
     base_area = float(s[-1])           # BD(57)
     roughness_length = 12.0 * length / roughness   # BD(55)
@@ -222,36 +224,53 @@ def calculate_bodyrt(x: Sequence[float], s: Sequence[float],
         # The source returns here for the transonic pass.
         return result
 
+    # --- Angle loop (source label 1100) ---
     angles = np.atleast_1d(np.asarray(alpha_deg, dtype=float))
     cn, cm, cd, cl, ca = (np.empty(len(angles)) for _ in range(5))
     cdc = np.empty(len(angles))
+
     # Figure 4.2.1.2-35A depends only on geometry, so it is read once.
-    crossflow_drag, _ = tbfunx(_FIG_42120_35A_X, _FIG_42120_35A_Y,
-                               fineness, lower=2, upper=2)          # BD(76)
+    crossflow_drag, _ = tbfunx(
+        _FIG_42120_35A_X, _FIG_42120_35A_Y, fineness, lower=2, upper=2,
+    )
 
     for j, angle in enumerate(angles):
         sin_a = np.sin(angle / RAD)
-        sin2 = sin_a**2
+        sin_a_squared = sin_a ** 2
+        cos_a = np.cos(angle / RAD)
+
         cn_potential = cla * angle                                  # BD(J+154)
-        eta, _ = tbfunx(_FIG_42120_35B_X, _FIG_42120_35B_Y,
-                        mach * abs(sin_a), lower=0, upper=0)        # BD(J+134)
+        eta, _ = tbfunx(
+            _FIG_42120_35B_X, _FIG_42120_35B_Y,
+            mach * abs(sin_a), lower=0, upper=0,
+        )
         cdc[j] = eta
         sign = 1.0 if angle >= 0.0 else -1.0
-        cn_viscous = (2.0 * sin2 * crossflow_drag * eta *
-                      planform_area / sref * sign)                  # BD(J+194)
+
+        cn_viscous = (
+            2.0 * sin_a_squared * crossflow_drag * eta
+            * planform_area / sref * sign
+        )
         cn[j] = cn_potential + cn_viscous
-        cm[j] = (cma * angle -
-                 2.0 * sin2 * eta * crossflow_drag *
-                 (planform_moment - xcg * planform_area) /
-                 (cbar * sref) * sign)
+        cm[j] = (
+            cma * angle
+            - 2.0 * sin_a_squared * eta * crossflow_drag
+            * (planform_moment - xcg * planform_area)
+            / (cbar * sref) * sign
+        )
         cd[j] = cd_zero_lift + (cn_potential + cn_viscous) * sin_a
+
         # Source labels 1100: the rotation as written.
-        cl[j] = cn[j] * np.cos(angle / RAD) + cd[j] * sin_a
-        ca[j] = cd[j] * np.cos(angle / RAD) - cn[j] * sin_a
+        cl[j] = cn[j] * cos_a + cd[j] * sin_a
+        ca[j] = cd[j] * cos_a - cn[j] * sin_a
 
     result.update({
         'alpha_deg': angles,
-        'cn': cn, 'cm': cm, 'cd': cd, 'cl': cl, 'ca': ca,
+        'cn': cn,
+        'cm': cm,
+        'cd': cd,
+        'cl': cl,
+        'ca': ca,
         'crossflow_drag_factor': float(crossflow_drag),
         # Under the source's own names, which BODYJM uses: ETA is BD(76),
         # read above as crossflow_drag, and CDC is BD(J+134), read above
@@ -295,52 +314,71 @@ def calculate_bodyjm(x: Sequence[float], s: Sequence[float],
     """
     x = np.asarray(x, dtype=float)
     req = np.sqrt(np.asarray(s, dtype=float) / PI)
+
     volume = trapz(req, x, -1)[0]
     moment = trapz(req * x, x, 1)[0]
     planform = 2.0 * trapz(req, x, 1)[0]
     centroid = 2.0 * moment / planform
+
     base = float(bodyrt['base_area'])
     a1 = (volume - base * (body_length - xcg)) / (sref * cbar)
     a2 = (planform * (xcg - centroid)) / (sref * cbar)
     a3 = base
+
     ellip = float(ellipticity)
     if ellip <= UNUSED:
         ellip = 1.0
     if ellip == 1.0:
         a1 = float(bodyrt['cma']) * RAD / 2.0
         a3 = float(bodyrt['cla']) * sref * RAD / 2.0
+
     aob = 1.0 / ellip if ellip < 1.0 else ellip
     cnocns = aob if ellip < 1.0 else 1.0 / aob
     cnocnn = 1.0
     if ellip < 1.0:
-        e = 1.0 - 1.0 / aob**2
+        e = 1.0 - 1.0 / aob ** 2
         cnocnn = 1.5 * np.sqrt(aob) * (
-            -1.0 / aob**2 / e**1.5 * np.log(aob * (1.0 + np.sqrt(e))) +
-            1.0 / e)
+            -1.0 / aob ** 2 / e ** 1.5 * np.log(aob * (1.0 + np.sqrt(e)))
+            + 1.0 / e
+        )
     elif ellip > 1.0:
         cnocnn = 1.5 * np.sqrt(1.0 / aob) * (
-            aob**2 / (aob**2 - 1.0)**1.5 * np.arctan(np.sqrt(aob**2 - 1.0))
-            - 1.0 / (aob**2 - 1.0))
+            aob ** 2 / (aob ** 2 - 1.0) ** 1.5
+            * np.arctan(np.sqrt(aob ** 2 - 1.0))
+            - 1.0 / (aob ** 2 - 1.0)
+        )
+
     eta = float(bodyrt['bd76_eta'])
     cdc = np.asarray(bodyrt['bd135_cdc'], dtype=float)
     cd0 = float(bodyrt['cd_zero_lift'])
     alp = np.asarray(alpha_deg, dtype=float) / RAD
-    sa, cs = np.sin(alp), np.cos(alp)
-    fa = np.sin(2.0 * alp) * np.cos(alp / 2.0)
-    cn_pot = a3 * fa * cnocns / sref
-    cn_vis = planform * eta * cdc * sa * np.abs(sa) * cnocnn / sref
-    cm_pot = a1 * fa * cnocns
-    cm_vis = a2 * eta * cdc * sa * np.abs(sa) * cnocnn
+    sin_alpha, cos_alpha = np.sin(alp), np.cos(alp)
+    jorgensen_f = np.sin(2.0 * alp) * np.cos(alp / 2.0)
+
+    cn_pot = a3 * jorgensen_f * cnocns / sref
+    cn_vis = (
+        planform * eta * cdc * sin_alpha * np.abs(sin_alpha) * cnocnn / sref
+    )
+    cm_pot = a1 * jorgensen_f * cnocns
+    cm_vis = a2 * eta * cdc * sin_alpha * np.abs(sin_alpha) * cnocnn
     cn = cn_pot + cn_vis
     cm = cm_pot + cm_vis
-    ca = cd0 * cs**2
+    ca = cd0 * cos_alpha ** 2
+
     return {
-        'cn': cn, 'cm': cm, 'ca': ca, 'cl': cn * cs - ca * sa,
-        'cd': ca * cs + cn * sa,
-        'cn_potential': cn_pot, 'cn_viscous': cn_vis,
-        'cm_potential': cm_pot, 'cm_viscous': cm_vis,
-        'volume': float(volume), 'centroid': float(centroid),
-        'planform_area': float(planform), 'ellipticity': ellip,
+        'cn': cn,
+        'cm': cm,
+        'ca': ca,
+        'cl': cn * cos_alpha - ca * sin_alpha,
+        'cd': ca * cos_alpha + cn * sin_alpha,
+        'cn_potential': cn_pot,
+        'cn_viscous': cn_vis,
+        'cm_potential': cm_pot,
+        'cm_viscous': cm_vis,
+        'volume': float(volume),
+        'centroid': float(centroid),
+        'planform_area': float(planform),
+        'ellipticity': ellip,
         'method': 'legacy_bodyjm',
     }
 
@@ -425,11 +463,19 @@ def body_slope_pass(alpha_deg: Sequence[float], cd: Sequence[float],
             continue
         cla[j] = tbfunx(alpha, cl, alpha[j], 0, 0)[1]
         cma[j] = tbfunx(alpha, cm, alpha[j], 0, 0)[1]
-    ca_, sa_ = np.cos(alpha / RAD), np.sin(alpha / RAD)
+
+    cos_alpha = np.cos(alpha / RAD)
+    sin_alpha = np.sin(alpha / RAD)
     result = {
-        'cd': cd, 'cl': cl, 'cm': cm,
-        'cn': cl * ca_ + cd * sa_, 'ca': cd * ca_ - cl * sa_,
-        'cla': cla, 'cma': cma, 'cyb': -cla, 'cnb': -(cbar / blref) * cma,
+        'cd': cd,
+        'cl': cl,
+        'cm': cm,
+        'cn': cl * cos_alpha + cd * sin_alpha,
+        'ca': cd * cos_alpha - cl * sin_alpha,
+        'cla': cla,
+        'cma': cma,
+        'cyb': -cla,
+        'cnb': -(cbar / blref) * cma,
         'clb': np.zeros(len(alpha)),
     }
     if cm0 is not None:

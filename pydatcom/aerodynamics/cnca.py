@@ -71,32 +71,46 @@ def calculate_cnca(alpha_deg: Sequence[float], cl: Sequence[float],
     alpha = np.atleast_1d(np.asarray(alpha_deg, dtype=float))
     lift = np.atleast_1d(np.asarray(cl, dtype=float))
     drag = np.atleast_1d(np.asarray(cd, dtype=float))
-    if alpha.size == 0 or lift.shape != alpha.shape or drag.shape != alpha.shape:
-        raise ValueError("CNCA requires matching nonempty angle, CL and CD arrays")
+    if (
+        alpha.size == 0
+        or lift.shape != alpha.shape
+        or drag.shape != alpha.shape
+    ):
+        raise ValueError(
+            "CNCA requires matching nonempty angle, CL and CD arrays",
+        )
 
     sin_a = np.sin(alpha / RAD)
     cos_a = np.cos(alpha / RAD)
 
     lift_set = _is_set(lift)
     drag_set = _is_set(drag)
-    both = lift_set & drag_set
+    has_lift_and_drag = lift_set & drag_set
 
     normal = np.full(alpha.shape, np.nan)
     axial = np.full(alpha.shape, np.nan)
-    normal[both] = lift[both] * cos_a[both] + drag[both] * sin_a[both]
-    axial[both] = drag[both] * cos_a[both] - lift[both] * sin_a[both]
+    normal[has_lift_and_drag] = (
+        lift[has_lift_and_drag] * cos_a[has_lift_and_drag]
+        + drag[has_lift_and_drag] * sin_a[has_lift_and_drag]
+    )
+    axial[has_lift_and_drag] = (
+        drag[has_lift_and_drag] * cos_a[has_lift_and_drag]
+        - lift[has_lift_and_drag] * sin_a[has_lift_and_drag]
+    )
 
-    # CLA: a TBFUNX slope over the schedule, skipped at the first angle.
-    slope = np.full(alpha.shape, np.nan)
-    if alpha.size >= 2 and np.all(np.diff(alpha) > 0) and np.all(lift_set):
+    # CLA: TBFUNX slope over the schedule; source skips the first angle.
+    cla = np.full(alpha.shape, np.nan)
+    monotonic = alpha.size >= 2 and np.all(np.diff(alpha) > 0)
+    if monotonic and np.all(lift_set):
         for index in range(1, alpha.size):
-            slope[index] = tbfunx(alpha, lift, alpha[index],
-                                  lower=0, upper=0)[1]
+            cla[index] = tbfunx(
+                alpha, lift, alpha[index], lower=0, upper=0,
+            )[1]
 
     result = {
         'cn': normal,
         'ca': axial,
-        'cla': slope,
+        'cla': cla,
         'method': 'legacy_cnca',
     }
 
@@ -104,13 +118,14 @@ def calculate_cnca(alpha_deg: Sequence[float], cl: Sequence[float],
         moment = np.atleast_1d(np.asarray(cm, dtype=float))
         if moment.shape != alpha.shape:
             raise ValueError("CNCA CM array must match the angle schedule")
-        moment_slope = np.full(alpha.shape, np.nan)
+
+        cma = np.full(alpha.shape, np.nan)
         # The source also tests element 2 of the array before proceeding.
-        if (alpha.size >= 2 and np.all(np.diff(alpha) > 0) and
-                np.all(_is_set(moment))):
+        if monotonic and np.all(_is_set(moment)):
             for index in range(alpha.size):
-                moment_slope[index] = tbfunx(alpha, moment, alpha[index],
-                                             lower=0, upper=0)[1]
-        result['cma'] = moment_slope
+                cma[index] = tbfunx(
+                    alpha, moment, alpha[index], lower=0, upper=0,
+                )[1]
+        result['cma'] = cma
 
     return result

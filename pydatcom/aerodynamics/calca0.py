@@ -111,15 +111,19 @@ def _bracket(grid: Sequence[float], value: float,
     previous = 0.0
     index = len(grid)
     skip = True
+
     for position, point in enumerate(grid, start=1):
         index = position
         residual = value - point
+
         if abs(residual) < _EXACT_TOLERANCE:
             return index, True, 0.0
+
         past = residual > 0.0 if descending else residual < 0.0
         if past:
             skip = False
             break
+
         previous = residual
     else:
         # Loop completed without finding a bracket: clamp to the last point.
@@ -127,6 +131,7 @@ def _bracket(grid: Sequence[float], value: float,
 
     if index == 1:
         return index, True, 0.0
+
     fraction = previous / (previous - residual)
     return index, skip, float(fraction)
 
@@ -134,11 +139,15 @@ def _bracket(grid: Sequence[float], value: float,
 def _twist_correction(taper_ratio: float, aspect_ratio: float,
                       sweep_c4_deg: float) -> Dict[str, float]:
     """Interpolate DA0OT over taper, aspect ratio and sweep."""
-    taper_index, taper_skip, taper_fraction = _bracket(_TAPER_GRID, taper_ratio)
-    aspect_index, aspect_skip, aspect_fraction = _bracket(_ASPECT_GRID,
-                                                          aspect_ratio)
-    sweep_index, sweep_skip, sweep_fraction = _bracket(_SWEEP_GRID,
-                                                       sweep_c4_deg)
+    taper_index, taper_skip, taper_fraction = _bracket(
+        _TAPER_GRID, taper_ratio,
+    )
+    aspect_index, aspect_skip, aspect_fraction = _bracket(
+        _ASPECT_GRID, aspect_ratio,
+    )
+    sweep_index, sweep_skip, sweep_fraction = _bracket(
+        _SWEEP_GRID, sweep_c4_deg,
+    )
 
     # The source carries IF(IAR.EQ.4 .AND. A(7).LE.0.5) IAR=3 here. The
     # condition is unreachable: the bracket search only returns index 4
@@ -164,12 +173,12 @@ def _twist_correction(taper_ratio: float, aspect_ratio: float,
         lower = column_value(taper_offset, aspect - 1)
         return lower + aspect_fraction * (value - lower)
 
-    offset = 3 * (taper_index - 1)
-    result = at_taper(offset, aspect_index)
+    taper_offset = 3 * (taper_index - 1)
+    result = at_taper(taper_offset, aspect_index)
     if not taper_skip:
         # Second pass at the taper group below, then blend.
         lower_aspect = 3 if aspect_index == 4 else aspect_index
-        lower = at_taper(offset - 3, lower_aspect)
+        lower = at_taper(taper_offset - 3, lower_aspect)
         result = lower + taper_fraction * (result - lower)
 
     return {
@@ -183,9 +192,10 @@ def _twist_correction(taper_ratio: float, aspect_ratio: float,
 def _camber_factor(thickness_percent: float, cos_sweep_c4: float,
                    mach: float) -> Dict[str, float]:
     """Read the camber curves at cos(sweep)*Mach, blending on thickness."""
-    index, skip, fraction = _bracket(_CAMBER_TOC, thickness_percent,
-                                     descending=True)
-    query = cos_sweep_c4 * mach
+    index, skip, fraction = _bracket(
+        _CAMBER_TOC, thickness_percent, descending=True,
+    )
+    compressibility_arg = cos_sweep_c4 * mach
 
     def curve(position: int) -> float:
         count = _CAMBER_NPT[position - 1]
@@ -193,16 +203,19 @@ def _camber_factor(thickness_percent: float, cos_sweep_c4: float,
         y_start = _CAMBER_LOCY[position - 1] - 1
         x = np.asarray(_CAMBER_CX[x_start:x_start + count], dtype=float)
         y = np.asarray(_CAMBER_CY[y_start:y_start + count], dtype=float)
-        return float(tbfunx(x, y, query, lower=-1, upper=0)[0])
+        return float(
+            tbfunx(x, y, compressibility_arg, lower=-1, upper=0)[0],
+        )
 
     value = curve(index)
     if not skip and index > 1:
-        above = curve(index - 1)
-        value = value + (above - value) * fraction
+        thicker_curve = curve(index - 1)
+        value = value + (thicker_curve - value) * fraction
+
     return {
         'factor': float(value),
         'thickness_index': index,
-        'query': float(query),
+        'query': float(compressibility_arg),
     }
 
 
@@ -242,6 +255,7 @@ def calculate_calca0(section_alpha_zero: float,
     """
     alpha_zero = float(section_alpha_zero)
     twist_term = None
+    camber_factor = None
 
     # The source skips the whole twist path below half a degree of twist.
     if abs(twist_deg) >= 0.5:
@@ -249,7 +263,6 @@ def calculate_calca0(section_alpha_zero: float,
         twist_term = twist['value']
         alpha_zero = twist_deg * twist_term + alpha_zero
 
-    camber_factor = None
     if camber:
         factor = _camber_factor(thickness_ratio * 100.0, cos_sweep_c4, mach)
         camber_factor = factor['factor']

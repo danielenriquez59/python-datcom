@@ -136,13 +136,12 @@ def calculate_body_pitching_moment(state: Dict, alpha_deg: float,
     if sref <= 0 or cbar <= 0:
         return 0.0
     
-    # Body normal force coefficient (simplified)
-    # CN_body ≈ k * (S_max / S_ref) * sin(2α)
     alpha_rad = np.deg2rad(alpha_deg)
+    sin_two_alpha = np.sin(2.0 * alpha_rad)
     k_body = 1.0  # Body shape factor
-    
+
     if max_area > 0 and sref > 0:
-        cn_body = k_body * (max_area / sref) * np.sin(2.0 * alpha_rad)
+        cn_body = k_body * (max_area / sref) * sin_two_alpha
     else:
         cn_body = 0.0
     
@@ -346,10 +345,9 @@ def calculate_normal_force_coefficient(cl: float, cd: float,
         Normal force coefficient
     """
     alpha_rad = np.deg2rad(alpha_deg)
-    
-    cn = cl * np.cos(alpha_rad) + cd * np.sin(alpha_rad)
-    
-    return cn
+    cos_alpha = np.cos(alpha_rad)
+    sin_alpha = np.sin(alpha_rad)
+    return cl * cos_alpha + cd * sin_alpha
 
 
 def calculate_axial_force_coefficient(cl: float, cd: float,
@@ -368,10 +366,9 @@ def calculate_axial_force_coefficient(cl: float, cd: float,
         Axial force coefficient
     """
     alpha_rad = np.deg2rad(alpha_deg)
-    
-    ca = cd * np.cos(alpha_rad) - cl * np.sin(alpha_rad)
-    
-    return ca
+    cos_alpha = np.cos(alpha_rad)
+    sin_alpha = np.sin(alpha_rad)
+    return cd * cos_alpha - cl * sin_alpha
 
 
 class MomentCalculator:

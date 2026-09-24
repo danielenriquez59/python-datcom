@@ -242,8 +242,10 @@ _TABLES = {
 
 
 def _lookup(table: str, curve: float, abscissa: float, taper: float) -> float:
-    return float(tlin3x(_CURVE, _ABSCISSA, _TAPER, _TABLES[table],
-                        curve, abscissa, taper, 2, 0, 0, 2, 0, 0))
+    return float(tlin3x(
+        _CURVE, _ABSCISSA, _TAPER, _TABLES[table],
+        curve, abscissa, taper, 2, 0, 0, 2, 0, 0,
+    ))
 
 
 def calculate_fwdxac(atnswp: float, taper: float, factor: float,
@@ -283,29 +285,31 @@ def calculate_fwdxac(atnswp: float, taper: float, factor: float,
         value only reaches a lookup when ``|FACTOR| > 1``, so it is never
         used.
     """
-    afact = abs(float(factor))
-    aatnsp = abs(float(atnswp))
+    abs_factor = abs(float(factor))
+    abs_atnswp = abs(float(atnswp))
     subsonic = float(mach) < 1.0
-    beyond = afact > 1.0
-    abscissa = 1.0 / afact if beyond else afact
+    beta_over_tan = abs_factor > 1.0
+    abscissa = 1.0 / abs_factor if beta_over_tan else abs_factor
 
-    if subsonic and not beyond:
+    if subsonic and not beta_over_tan:
         table = 'TYSUBL'
-    elif subsonic and beyond:
+    elif subsonic and beta_over_tan:
         table = 'TYSUPR'
-    elif beyond:
+    elif beta_over_tan:
         table = 'TYSUPL'
     else:
         table = 'TYSUPR'
 
+    taper = float(taper)
     result = {
-        'xac': _lookup(table, aatnsp, abscissa, float(taper)),
+        'xac': _lookup(table, abs_atnswp, abscissa, taper),
         'table': table,
         'abscissa': abscissa,
         'method': 'legacy_fwdxac',
     }
-    if subsonic and beyond:
+
+    if subsonic and beta_over_tan:
         result['source_defect'] = 'subsonic_beta_over_tan_reads_TYSUPR'
-        result['xac_tysubr'] = _lookup('TYSUBR', aatnsp, abscissa,
-                                       float(taper))
+        result['xac_tysubr'] = _lookup('TYSUBR', abs_atnswp, abscissa, taper)
+
     return result

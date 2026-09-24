@@ -98,10 +98,11 @@ def calculate_subpaw(mach: float, cla: float, section_cla_compressible: float,
         area / sref * (mac / cbarr)**2)
 
     if mach > _COMPRESSIBILITY_MACH:
-        bee = np.sqrt(1.0 - mach**2 * cos_sweep_c4**2)
-        swept = aspect_ratio**3 * tan_sweep_c4**2
-        cmq = ((swept / (aspect_ratio * bee + 6.0 * cos_sweep_c4) + 3.0 / bee) /
-               (swept / (aspect_ratio + 6.0 * cos_sweep_c4) + 3.0)) * \
+        beta_sweep = np.sqrt(1.0 - mach**2 * cos_sweep_c4**2)
+        swept_cubic = aspect_ratio**3 * tan_sweep_c4**2
+        cmq = ((swept_cubic / (aspect_ratio * beta_sweep + 6.0 * cos_sweep_c4)
+                + 3.0 / beta_sweep) /
+               (swept_cubic / (aspect_ratio + 6.0 * cos_sweep_c4) + 3.0)) * \
             cmq_incompressible
     else:
         cmq = cmq_incompressible
@@ -135,16 +136,16 @@ def calculate_subpaw(mach: float, cla: float, section_cla_compressible: float,
     # The source guards both figure results against a zero beta.
     clg = (lift_factor * PI * aspect_ratio / (-2.0 * beta**2)
            if beta != 0.0 else 0.0)
-    expid = area * mac / (sref * cbarr)
+    surface_to_ref = area * mac / (sref * cbarr)
     clad = (1.5 * xac_root_fraction * cla * sref / area +
-            clg / 19.1) * expid
+            clg / 19.1) * surface_to_ref
 
     moment_factor = interx(1, _FIG_71420_8_X, [beta_aspect], [9],
                            _FIG_71420_8_Y)
     cmog = (moment_factor * aspect_ratio * 0.5 * PI / beta**2
             if beta != 0.0 else 0.0)
     cmad_plain = ((-2.53125 * xac_root_fraction**2 * cla * sref / area +
-                   0.078532 * cmog) * expid * mac / cbarr)
+                   0.078532 * cmog) * surface_to_ref * mac / cbarr)
     cmad = cmad_plain + (dxcg / cbarr) * clad
 
     result.update({
