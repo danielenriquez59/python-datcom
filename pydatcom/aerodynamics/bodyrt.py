@@ -19,7 +19,7 @@ import numpy as np
 from typing import Dict, Sequence
 import logging
 
-from pydatcom.utils.constants import PI, RAD
+from pydatcom.utils.constants import PI, RAD, UNUSED
 from pydatcom.utils.legacy_numeric import tbfunx, trapz
 from pydatcom.utils.legacy_interp import eqspc1
 from pydatcom.utils.table_lookup import fig26
@@ -168,8 +168,11 @@ def calculate_bodyrt(x: Sequence[float], s: Sequence[float],
     moment_integral = float(trapz(area['dsedx'] * area['xe'], area['xe'])[0])
     cma = (xcg * cla / cbar) - const * moment_integral            # BODY(121)
 
-    # Planform integrals aft of the reference station, for crossflow.
-    planform = eqspc1(x[index:], r[index:], _STATIONS)
+    # Planform integrals aft of the reference station, for crossflow.  The
+    # source calls EQSPC1(X(L),R(L),...) while X(L) still holds the
+    # substituted TMP5 (it is restored only after the drag buildup), so the
+    # integral starts at TMP5, with the station's own radius.
+    planform = eqspc1(x_work[index:], r[index:], _STATIONS)
     planform_area = float(trapz(planform['se'], planform['xe'])[0])   # BD(88)
     planform_moment = float(
         trapz(planform['se'] * planform['xe'], planform['xe'])[0])    # RXDFI
@@ -198,6 +201,7 @@ def calculate_bodyrt(x: Sequence[float], s: Sequence[float],
     result = {
         'cla': float(cla),
         'cma': float(cma),
+        'base_area': float(base_area),                              # BD(57)
         'cd_zero_lift': float(cd_zero_lift),
         'cd_friction': float(cd_friction),
         'cd_base': float(cd_base),
@@ -220,6 +224,7 @@ def calculate_bodyrt(x: Sequence[float], s: Sequence[float],
 
     angles = np.atleast_1d(np.asarray(alpha_deg, dtype=float))
     cn, cm, cd, cl, ca = (np.empty(len(angles)) for _ in range(5))
+    cdc = np.empty(len(angles))
     # Figure 4.2.1.2-35A depends only on geometry, so it is read once.
     crossflow_drag, _ = tbfunx(_FIG_42120_35A_X, _FIG_42120_35A_Y,
                                fineness, lower=2, upper=2)          # BD(76)
@@ -230,6 +235,7 @@ def calculate_bodyrt(x: Sequence[float], s: Sequence[float],
         cn_potential = cla * angle                                  # BD(J+154)
         eta, _ = tbfunx(_FIG_42120_35B_X, _FIG_42120_35B_Y,
                         mach * abs(sin_a), lower=0, upper=0)        # BD(J+134)
+        cdc[j] = eta
         sign = 1.0 if angle >= 0.0 else -1.0
         cn_viscous = (2.0 * sin2 * crossflow_drag * eta *
                       planform_area / sref * sign)                  # BD(J+194)
@@ -247,5 +253,167 @@ def calculate_bodyrt(x: Sequence[float], s: Sequence[float],
         'alpha_deg': angles,
         'cn': cn, 'cm': cm, 'cd': cd, 'cl': cl, 'ca': ca,
         'crossflow_drag_factor': float(crossflow_drag),
+        # Under the source's own names, which BODYJM uses: ETA is BD(76),
+        # read above as crossflow_drag, and CDC is BD(J+134), read above
+        # per angle as eta.
+        'bd76_eta': float(crossflow_drag),
+        'bd135_cdc': cdc,
     })
+    return result
+
+
+def calculate_bodyjm(x: Sequence[float], s: Sequence[float],
+                     alpha_deg: Sequence[float], bodyrt: Dict[str, object],
+                     body_length: float, xcg: float, sref: float,
+                     cbar: float, ellipticity: float = UNUSED
+                     ) -> Dict[str, object]:
+    """Translate BODYJM: body forces by Jorgensen's method.
+
+    ``CN = (A3*F(a)*CN/CNS + SP*eta*cdc*sin|sin|*CN/CNN)/SREF`` with
+    ``F(a) = sin(2a)*cos(a/2)``, the axial force ``CD0*cos(a)**2``, and CL
+    and CD by rotation.  A circular section (``ELLIP`` unset or one) takes
+    its potential terms from BODYRT's slopes; an elliptic one from the
+    volume and base area, scaled by the Jorgensen cross-section ratios.
+
+    Args:
+        x, s: Body stations and areas; ``REQ = sqrt(S/pi)``.
+        alpha_deg: ``FLC(23)`` onward.
+        bodyrt: BODYRT's result, for ``cla`` and ``cma`` (``BODY(101)``,
+            ``BODY(121)``), ``base_area`` ``BD(57)``, ``cd_zero_lift``
+            ``BD(61)``, and ``bd76_eta`` and ``bd135_cdc``.
+        body_length: ``BD(1)``.
+        xcg: ``XCG`` from ``/SYNTSS/``; BODYRT uses ``BD(33)``.
+        sref, cbar: ``SREF``, ``CBARR``.
+        ellipticity: ``ELLIP``; ``UNUSED`` or less is taken as one, and
+            written back as such.
+
+    Returns:
+        Dictionary with ``cd``, ``cl``, ``cm``, ``cn``, ``ca`` (the
+        ``BODY`` slots it overwrites), their potential and viscous parts,
+        ``volume`` ``BD(34)``, ``centroid`` ``BD(35)``, ``planform_area``
+        ``BD(275)`` and the ``ellipticity`` left in COMMON.
+    """
+    x = np.asarray(x, dtype=float)
+    req = np.sqrt(np.asarray(s, dtype=float) / PI)
+    volume = trapz(req, x, -1)[0]
+    moment = trapz(req * x, x, 1)[0]
+    planform = 2.0 * trapz(req, x, 1)[0]
+    centroid = 2.0 * moment / planform
+    base = float(bodyrt['base_area'])
+    a1 = (volume - base * (body_length - xcg)) / (sref * cbar)
+    a2 = (planform * (xcg - centroid)) / (sref * cbar)
+    a3 = base
+    ellip = float(ellipticity)
+    if ellip <= UNUSED:
+        ellip = 1.0
+    if ellip == 1.0:
+        a1 = float(bodyrt['cma']) * RAD / 2.0
+        a3 = float(bodyrt['cla']) * sref * RAD / 2.0
+    aob = 1.0 / ellip if ellip < 1.0 else ellip
+    cnocns = aob if ellip < 1.0 else 1.0 / aob
+    cnocnn = 1.0
+    if ellip < 1.0:
+        e = 1.0 - 1.0 / aob**2
+        cnocnn = 1.5 * np.sqrt(aob) * (
+            -1.0 / aob**2 / e**1.5 * np.log(aob * (1.0 + np.sqrt(e))) +
+            1.0 / e)
+    elif ellip > 1.0:
+        cnocnn = 1.5 * np.sqrt(1.0 / aob) * (
+            aob**2 / (aob**2 - 1.0)**1.5 * np.arctan(np.sqrt(aob**2 - 1.0))
+            - 1.0 / (aob**2 - 1.0))
+    eta = float(bodyrt['bd76_eta'])
+    cdc = np.asarray(bodyrt['bd135_cdc'], dtype=float)
+    cd0 = float(bodyrt['cd_zero_lift'])
+    alp = np.asarray(alpha_deg, dtype=float) / RAD
+    sa, cs = np.sin(alp), np.cos(alp)
+    fa = np.sin(2.0 * alp) * np.cos(alp / 2.0)
+    cn_pot = a3 * fa * cnocns / sref
+    cn_vis = planform * eta * cdc * sa * np.abs(sa) * cnocnn / sref
+    cm_pot = a1 * fa * cnocns
+    cm_vis = a2 * eta * cdc * sa * np.abs(sa) * cnocnn
+    cn = cn_pot + cn_vis
+    cm = cm_pot + cm_vis
+    ca = cd0 * cs**2
+    return {
+        'cn': cn, 'cm': cm, 'ca': ca, 'cl': cn * cs - ca * sa,
+        'cd': ca * cs + cn * sa,
+        'cn_potential': cn_pot, 'cn_viscous': cn_vis,
+        'cm_potential': cm_pot, 'cm_viscous': cm_vis,
+        'volume': float(volume), 'centroid': float(centroid),
+        'planform_area': float(planform), 'ellipticity': ellip,
+        'method': 'legacy_bodyjm',
+    }
+
+
+def calculate_m06o06(x: Sequence[float], s: Sequence[float],
+                     p: Sequence[float], r: Sequence[float],
+                     alpha_deg: Sequence[float], alpha_zero: float,
+                     mach: float, reynolds_per_length: float, sref: float,
+                     cbar: float, blref: float, xcg_bd33: float,
+                     xcg: float, roughness: float = 1.6e-4,
+                     method: float = 1.0, ellipticity: float = UNUSED,
+                     experimental: bool = False) -> Dict[str, object]:
+    """Translate overlay M06O06: the subsonic axisymmetric body.
+
+    BODYRT, then BODYJM for ``METHOD`` above 1.5, then the slope pass:
+    CLa and CMa by TBFUNX over the schedule from the second angle (every
+    angle with experimental data), ``CY_b = -CLa``,
+    ``Cn_b = -(CBARR/BLREF)*CMa``, ``Cl_b = 0``, and CN and CA by rotation.
+
+    Args:
+        x, s, p, r: ``/BODYI/`` stations.
+        alpha_deg: ``FLC(23)`` onward.
+        alpha_zero: ``BD(81)``; BODYRT works at ``BD(J+254) = FLC+BD(81)``.
+        mach: ``B(1)``.
+        reynolds_per_length: ``FLC(M+42)``.
+        sref, cbar, blref: ``/OPTION/``.
+        xcg_bd33: ``BD(33)``, BODYRT's moment reference.
+        xcg: ``XCG``, BODYJM's.
+        roughness: ``ROUGFC``.
+        method: ``METHOD``, ``BODYIN(128)``.
+        ellipticity: ``ELLIP``, ``BODYIN(129)``.
+        experimental: ``KBODY``, which also retakes CM0 at zero lift.
+
+    Returns:
+        Dictionary with ``cd``, ``cl``, ``cm``, ``cn``, ``ca``, ``cla``,
+        ``cma``, ``cyb``, ``cnb``, ``clb`` (the ``BODY`` block), and the
+        ``bodyrt`` and ``bodyjm`` results.
+
+    Notes:
+        BODYRT stores its normal force in ``BODY(21)`` onward, the slot the
+        rest of the program reads as lift, and this overlay then rotates it
+        as lift.  With BODYJM the slot does hold lift.  Both are as
+        executed.
+    """
+    alpha = np.asarray(alpha_deg, dtype=float)
+    rt = calculate_bodyrt(x, s, p, r, alpha + alpha_zero, mach,
+                          reynolds_per_length, sref, cbar, xcg_bd33,
+                          roughness)
+    cd, cl, cm = (np.array(rt[k], dtype=float) for k in ('cd', 'cn', 'cm'))
+    jm = None
+    if method > 1.5:
+        jm = calculate_bodyjm(x, s, alpha, rt, float(np.asarray(x)[-1]), xcg,
+                              sref, cbar, ellipticity)
+        cd, cl, cm = jm['cd'].copy(), jm['cl'].copy(), jm['cm'].copy()
+    cla = np.zeros(len(alpha))
+    cma = np.zeros(len(alpha))
+    cla[0], cma[0] = rt['cla'], rt['cma']
+    cm0 = None
+    if experimental:
+        cm0 = tbfunx(cl, cm, 0.0, 1, 1, ordered=False)[0]
+    for j in range(len(alpha)):
+        if j == 0 and not experimental:
+            continue
+        cla[j] = tbfunx(alpha, cl, alpha[j], 0, 0)[1]
+        cma[j] = tbfunx(alpha, cm, alpha[j], 0, 0)[1]
+    ca_, sa_ = np.cos(alpha / RAD), np.sin(alpha / RAD)
+    result = {
+        'cd': cd, 'cl': cl, 'cm': cm,
+        'cn': cl * ca_ + cd * sa_, 'ca': cd * ca_ - cl * sa_,
+        'cla': cla, 'cma': cma, 'cyb': -cla, 'cnb': -(cbar / blref) * cma,
+        'clb': np.zeros(len(alpha)), 'bodyrt': rt, 'bodyjm': jm,
+        'method': 'legacy_m06o06',
+    }
+    if cm0 is not None:
+        result['cm0'] = float(cm0)
     return result
