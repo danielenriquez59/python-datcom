@@ -123,42 +123,45 @@ def calculate_ideal(x_section: Sequence[float],
 
     with np.errstate(divide='ignore', invalid='ignore'):
         for i in range(count):                     # zero-based; source I-1
-            for j in range(last):                  # zero-based; source J-1
-                sign = (-1.0)**((j + 1) - (i + 1))
-                same = (i == j)
-                delta = cos_mu[j] - cos_nu[i]
+            for mu_index in range(last):           # zero-based; source J-1
+                sign = (-1.0)**((mu_index + 1) - (i + 1))
+                same = (i == mu_index)
+                delta = cos_mu[mu_index] - cos_nu[i]
 
                 if same:
                     s1 = count / sin_nu[i]
                     s2 = cos_nu[i] / sin_nu[i]**2
                 else:
-                    s1 = (sign - 1.0) / count * 2.0 * sin_mu[j] / delta**2
-                    s2 = -2.0 * sign * sin_mu[j] / (sin_nu[i] * delta)
-                st1[i] += s1 * zt[j]
-                st2[i] += s2 * zt[j]
+                    s1 = ((sign - 1.0) / count * 2.0 * sin_mu[mu_index] /
+                          delta**2)
+                    s2 = (-2.0 * sign * sin_mu[mu_index] /
+                          (sin_nu[i] * delta))
+                st1[i] += s1 * zt[mu_index]
+                st2[i] += s2 * zt[mu_index]
 
                 if same:
                     s3 = count / sin_nu[i]
                 else:
-                    s3 = ((sign - 1.0) / count * 2.0 * sin_mu[j] / delta**2 +
-                          2.0 / count * (1.0 - sign) / (sin_mu[j] * delta))
-                st3[i] += s3 * zt[j]
+                    s3 = ((sign - 1.0) / count * 2.0 * sin_mu[mu_index] /
+                          delta**2 + 2.0 / count * (1.0 - sign) /
+                          (sin_mu[mu_index] * delta))
+                st3[i] += s3 * zt[mu_index]
 
-                sign_j = (-1.0)**(j + 1)
+                sign_mu = (-1.0)**(mu_index + 1)
                 if same:
                     s4 = (count / sin_nu[i] -
-                          2.0 * (sign_j - 1.0) /
+                          2.0 * (sign_mu - 1.0) /
                           (count * sin_nu[i] * (1.0 - cos_nu[i])))
                     s5 = -cos_nu[i] / sin_nu[i]**2
                 else:
                     s4 = (2.0 * (sign - 1.0) / (count * sin_nu[i]) *
-                          (1.0 - cos_mu[j] * cos_nu[i]) /
-                          (cos_nu[i] - cos_mu[j])**2 -
-                          2.0 * (sign_j - 1.0) /
-                          (count * sin_nu[i] * (1.0 - cos_mu[j])))
+                          (1.0 - cos_mu[mu_index] * cos_nu[i]) /
+                          (cos_nu[i] - cos_mu[mu_index])**2 -
+                          2.0 * (sign_mu - 1.0) /
+                          (count * sin_nu[i] * (1.0 - cos_mu[mu_index])))
                     s5 = -2.0 * sign / delta
-                st4[i] += s4 * zc[j]
-                st5[i] += s5 * zc[j]
+                st4[i] += s4 * zc[mu_index]
+                st5[i] += s5 * zc[mu_index]
 
         st1[count - 1] += count * a0
 
@@ -206,26 +209,27 @@ def calculate_ideal(x_section: Sequence[float],
 def _section_parameters(zc, theta_nu, st5, count: int) -> Dict[str, float]:
     """The source's ideal angle, zero-lift angle and ideal lift."""
     last = count - 1
-    jn = count - 4                          # one-based N-4
-    zc95 = zc[3]                            # ZCNU(4)
-    zc05 = zc[jn - 1]                       # ZCNU(N-4)
+    index_n_minus_4 = count - 4             # one-based N-4
+    camber_at_95 = zc[3]                    # ZCNU(4)
+    camber_at_05 = zc[index_n_minus_4 - 1]  # ZCNU(N-4)
     cos_nu = np.cos(theta_nu)
     sin_nu = np.sin(theta_nu)
 
-    dai05 = .3739 * zc05 + .04745 * st5[count - 2]    # ST5NU(N-1)
-    dai95 = -.3739 * zc95 + .04745 * st5[0]
-    da95 = -.7834 * zc95 + .09518 * st5[0]
+    dai05 = .3739 * camber_at_05 + .04745 * st5[count - 2]    # ST5NU(N-1)
+    dai95 = -.3739 * camber_at_95 + .04745 * st5[0]
+    da95 = -.7834 * camber_at_95 + .09518 * st5[0]
 
-    t1 = 0.5 * (-zc95 * cos_nu[3] / (sin_nu[3] / 2.0)**2 -
-                zc05 * cos_nu[jn - 1] / (sin_nu[jn - 1] / 2.0)**2)
-    t2 = 0.5 * zc95 / (1.0 - cos_nu[3])
+    t1 = 0.5 * (-camber_at_95 * cos_nu[3] / (sin_nu[3] / 2.0)**2 -
+                camber_at_05 * cos_nu[index_n_minus_4 - 1] /
+                (sin_nu[index_n_minus_4 - 1] / 2.0)**2)
+    t2 = 0.5 * camber_at_95 / (1.0 - cos_nu[3])
 
-    nm5 = count - 5
+    index_n_minus_5 = count - 5
     sum_ai = 0.0
     sum_al = 0.0
     for i in range(5, last + 1):            # source I = 5 .. L, one-based
         position = i - 1                    # zero-based
-        if i <= nm5:
+        if i <= index_n_minus_5:
             sum_ai += -zc[position] * cos_nu[position] / \
                 (sin_nu[position] / 2.0)**2
         sum_al += zc[position] / (1.0 - cos_nu[position])

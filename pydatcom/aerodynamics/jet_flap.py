@@ -173,40 +173,42 @@ def calculate_jetfp(data: Mapping[str, object]) -> Dict[str, object]:
         jet flap and IBF read the turning efficiency ``ETAT`` that only
         the EBF sets.
     """
-    f = {int(k): float(v) for k, v in data['f'].items()}
-    j = {k: float(v) for k, v in data['jet'].items()}
-    a = {int(k): float(v) for k, v in data['a'].items()}
-    w = {int(k): float(v) for k, v in data['win'].items()}
-    p = {k: float(v) for k, v in data['position'].items()}
-    st = data['stale']
-    out = {key: [float(v) for v in st[key]]
-           for key in ('deccl', 'delcm', 'dclmax', 'clab')}
-    out.update({'jeangl': j['jeangl'], 'etat': float(st['etat']),
-                'skipped': False, 'terminated': False,
-                'method': 'legacy_jetfp'})
-    cmu = f[63]
-    if cmu == UNUSED or f[74] == UNUSED:
-        out['skipped'] = True
-        return out
+    flap_in = {int(k): float(v) for k, v in data['f'].items()}
+    jet_in = {k: float(v) for k, v in data['jet'].items()}
+    a_block = {int(k): float(v) for k, v in data['a'].items()}
+    wing_in = {int(k): float(v) for k, v in data['win'].items()}
+    position = {k: float(v) for k, v in data['position'].items()}
+    stale = data['stale']
+    result = {key: [float(v) for v in stale[key]]
+              for key in ('deccl', 'delcm', 'dclmax', 'clab')}
+    result.update({'jeangl': jet_in['jeangl'], 'etat': float(stale['etat']),
+                   'skipped': False, 'terminated': False,
+                   'method': 'legacy_jetfp'})
+    cmu = flap_in[63]
+    if cmu == UNUSED or flap_in[74] == UNUSED:
+        result['skipped'] = True
+        return result
     sref, cbarr = float(data['sref']), float(data['cbarr'])
-    sw, tanle, tapr, ar = a[4], a[38], a[118], a[120]
-    chrdtp, sspn, chrdr = w[1], w[4], w[6]
-    twista, toc = w[11], w[16]
-    chrdfi, chrdfo, spanfi, spanfo = f[12], f[13], f[14], f[15]
+    sw, tanle, tapr, ar = (a_block[4], a_block[38], a_block[118], a_block[120])
+    chrdtp, sspn, chrdr = wing_in[1], wing_in[4], wing_in[6]
+    twista, toc = wing_in[11], wing_in[16]
+    chrdfi, chrdfo, spanfi, spanfo = (flap_in[12], flap_in[13],
+                                      flap_in[14], flap_in[15])
     cf = (chrdfi + chrdfo) / 2.
-    if j['jeangl'] == UNUSED:
-        j['jeangl'] = 12.0
-    out['jeangl'] = j['jeangl']
-    tanjet = math.tan(j['jeangl'] * DEG)
+    if jet_in['jeangl'] == UNUSED:
+        jet_in['jeangl'] = 12.0
+    result['jeangl'] = jet_in['jeangl']
+    tanjet = math.tan(jet_in['jeangl'] * DEG)
     c = chrdr + (spanfi + spanfo) * (chrdtp - chrdr) / (2.0 * sspn)
-    jetflp = int(f[74] + .5)
-    ndelta = int(f[16] + .5)
-    ftype = int(f[17] + .5)
-    etat = out['etat']
+    jetflp = int(flap_in[74] + .5)
+    ndelta = int(flap_in[16] + .5)
+    ftype = int(flap_in[17] + .5)
+    etat = result['etat']
     claub = [float(v) for v in data['claub']]
     for n in range(ndelta):
-        delflp, deljet, effjet = f[1 + n], f[64 + n], f[75 + n]
-        cprmei, cprmeo = f[39 + n], f[49 + n]
+        delflp, deljet, effjet = (flap_in[1 + n], flap_in[64 + n],
+                                  flap_in[75 + n])
+        cprmei, cprmeo = flap_in[39 + n], flap_in[49 + n]
         cprime = (cprmei + cprmeo) / 2.
         plain = ftype in (5, 1, 6)
         if plain:
@@ -219,11 +221,11 @@ def calculate_jetfp(data: Mapping[str, object]) -> Dict[str, object]:
             cosdf = math.cos(delflp * DEG) - 1.
             bk = (cprmei - cprmeo) / (spanfi - spanfo)
             fk = (chrdfi - chrdfo) / (spanfi - spanfo)
-            yi = (j['jelloc'] - j['jerad'] - tanjet *
-                  (p['xw'] - j['jealoc'] + cprmeo - bk * spanfo -
+            yi = (jet_in['jelloc'] - jet_in['jerad'] - tanjet *
+                  (position['xw'] - jet_in['jealoc'] + cprmeo - bk * spanfo -
                    fk * cosdf * spanfo + chrdfo)) / \
                 (1. + tanjet * (tanle - bk - fk * cosdf))
-            yo = 2. * j['jelloc'] - yi
+            yo = 2. * jet_in['jelloc'] - yi
             if yi < spanfi:
                 yi = spanfi
             if yo > spanfo:
@@ -255,36 +257,37 @@ def calculate_jetfp(data: Mapping[str, object]) -> Dict[str, object]:
             if jetflp == 4:
                 delclt += delcl2
         if jetflp in (1, 2):
-            out['deccl'][n] = (delclt * sj / sref * (at + 2. * cjprm / PI) /
-                               (at + 2. + .604 * math.sqrt(cjprm) +
-                                .876 * cjprm))
+            result['deccl'][n] = (delclt * sj / sref *
+                                  (at + 2. * cjprm / PI) /
+                                  (at + 2. + .604 * math.sqrt(cjprm) +
+                                   .876 * cjprm))
         if jetflp == 3:
             claprm = _f149(cjprm, 1.)
             pido4 = _fig(_X418, _Y418, [12, 4], 12, cjprm, cf / cprime)
-            out['deccl'][n] = (pido4 * effjet * sj / (sref * RAD) *
-                               (PI * at + 2. * cjprm) /
-                               (PI * at + claprm + 2.01 * cjprm))
+            result['deccl'][n] = (pido4 * effjet * sj / (sref * RAD) *
+                                  (PI * at + 2. * cjprm) /
+                                  (PI * at + claprm + 2.01 * cjprm))
         if jetflp == 4:
             continue
         term2 = cj * (math.cos((effjet + deljet) * DEG) - 1.) / RAD
         atcjk = _fig(_X409, _Y409, [11, 10], 11, cjprm, at)
         bk = _f415(spanfo / sspn, 1.) - _f415(spanfi / sspn, 1.)
         term1k = (atcjk - 1.) * bk + 1.
-        out['clab'][n] = term1k * claub[n] + term2
+        result['clab'][n] = term1k * claub[n] + term2
         if jetflp == 3:
             etat = 0.0
             if ftype == 4:
                 etat = 1. - 2. * effjet / 300.
                 cons = etat * cj * math.sin(effjet * DEG)
-                out['dclmax'][n] = tbfunx(_X412, _Y412, cons, 1, 1)[0]
+                result['dclmax'][n] = tbfunx(_X412, _Y412, cons, 1, 1)[0]
         if ftype > 5:
             continue
         if jetflp == 3:
-            eh = (j['jerad'] + tanjet * (cprime - cf + p['xw'] +
-                                         j['jelloc'] * tanle)) * \
-                math.cos(j['aietlj'] * DEG)
-            if eh < j['jevloc'] - p['zw']:
-                out['terminated'] = True
+            eh = (jet_in['jerad'] + tanjet * (cprime - cf + position['xw'] +
+                  jet_in['jelloc'] * tanle)) * \
+                math.cos(jet_in['aietlj'] * DEG)
+            if eh < jet_in['jevloc'] - position['zw']:
+                result['terminated'] = True
                 break
         eta1, eta2, eta3, eta4 = (spanfi / sspn, yi / sspn, yo / sspn,
                                   spanfo / sspn)
@@ -306,7 +309,7 @@ def calculate_jetfp(data: Mapping[str, object]) -> Dict[str, object]:
         if tapr != 1.:
             xmoc = (1. + tapr) * ar * tanle / (4. * (1. - tapr))
         else:
-            xmoc = (p['xw'] - p['xcg']) / chrdr
+            xmoc = (position['xw'] - position['xcg']) / chrdr
         xf2f = _f237(cmuprm, cf / cprime)
         x3d2f = _f568(1. / at, cf / cprime)
         xf2j = _f237(cmuprm, 0.)
@@ -349,10 +352,11 @@ def calculate_jetfp(data: Mapping[str, object]) -> Dict[str, object]:
         cl3 = bk32 * (delc43 + delc5 + delc6)
         cl4 = bk43 * delc44
         cl5 = bk54 * delc45
-        dxocb = (p['xw'] + xmoc * chrdr - p['xcg']) / cbarr
-        out['delcm'][n] = (cmm + etat * cj * (p['zcg'] - p['zw']) / c +
-                           dxocb * (-cl1 - cl2 - cl4 - cl5 - cl3 +
-                                    cj * etat * sw / sj * al * sj /
-                                    (RAD * sw)))
-    out['etat'] = etat
-    return out
+        dxocb = (position['xw'] + xmoc * chrdr - position['xcg']) / cbarr
+        result['delcm'][n] = (cmm + etat * cj *
+                              (position['zcg'] - position['zw']) / c +
+                              dxocb * (-cl1 - cl2 - cl4 - cl5 - cl3 +
+                                       cj * etat * sw / sj * al * sj /
+                                       (RAD * sw)))
+    result['etat'] = etat
+    return result

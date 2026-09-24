@@ -106,11 +106,11 @@ class BodyGeometry:
         
         # Calculate centroid (first moment / volume)
         if self.volume > 1e-10:
-            x_s = self.x * self.s  # x * area
+            x_times_area = self.x * self.s
             try:
-                first_moment = np.trapezoid(x_s, self.x)
+                first_moment = np.trapezoid(x_times_area, self.x)
             except AttributeError:
-                first_moment = np.trapz(x_s, self.x)
+                first_moment = np.trapz(x_times_area, self.x)
             self.centroid = first_moment / self.volume
         else:
             self.centroid = 0.0
@@ -139,28 +139,26 @@ class BodyGeometry:
         if self.nx < 2:
             return {}
         
-        # Calculate equivalent radius from cross-sectional area
-        req = np.sqrt(self.s / np.pi)
-        
-        # Calculate RX (weighted radius)
-        rx = req * self.x
-        
-        # Calculate planform area (integration of equivalent radius)
+        equiv_radius = np.sqrt(self.s / np.pi)
+        radius_times_x = equiv_radius * self.x
+
         try:
-            sp = 2.0 * np.trapezoid(req, self.x)
-            vb = np.trapezoid(req, self.x)
-            xc = 2.0 * np.trapezoid(rx, self.x) / sp if sp > 0 else 0.0
+            planform_area = 2.0 * np.trapezoid(equiv_radius, self.x)
+            volume_integrand = np.trapezoid(equiv_radius, self.x)
+            centroid_x = (2.0 * np.trapezoid(radius_times_x, self.x) /
+                          planform_area if planform_area > 0 else 0.0)
         except AttributeError:
-            sp = 2.0 * np.trapz(req, self.x)
-            vb = np.trapz(req, self.x)
-            xc = 2.0 * np.trapz(rx, self.x) / sp if sp > 0 else 0.0
-        
+            planform_area = 2.0 * np.trapz(equiv_radius, self.x)
+            volume_integrand = np.trapz(equiv_radius, self.x)
+            centroid_x = (2.0 * np.trapz(radius_times_x, self.x) /
+                          planform_area if planform_area > 0 else 0.0)
+
         return {
-            'equivalent_radius': req,
-            'rx': rx,
-            'planform_area': sp,
-            'volume_integration': vb,
-            'centroid': xc,
+            'equivalent_radius': equiv_radius,
+            'rx': radius_times_x,
+            'planform_area': planform_area,
+            'volume_integration': volume_integrand,
+            'centroid': centroid_x,
         }
     
     def is_asymmetric(self) -> bool:
@@ -334,18 +332,17 @@ def get_body_cross_section(state: Dict, x_location: float) -> Dict[str, float]:
     elif x_location >= body.x[-1]:
         return body.calculate_cross_sectional_properties(body.nx - 1)
     
-    # Interpolate
-    idx = np.searchsorted(body.x, x_location)
-    if idx >= body.nx:
-        idx = body.nx - 1
-    
+    station_index = np.searchsorted(body.x, x_location)
+    if station_index >= body.nx:
+        station_index = body.nx - 1
+
     # For now, return nearest station
     # Full implementation would interpolate
-    if idx > 0:
-        if abs(body.x[idx] - x_location) < abs(body.x[idx-1] - x_location):
-            return body.calculate_cross_sectional_properties(idx)
-        else:
-            return body.calculate_cross_sectional_properties(idx - 1)
-    
-    return body.calculate_cross_sectional_properties(idx)
+    if station_index > 0:
+        if (abs(body.x[station_index] - x_location) <
+                abs(body.x[station_index - 1] - x_location)):
+            return body.calculate_cross_sectional_properties(station_index)
+        return body.calculate_cross_sectional_properties(station_index - 1)
+
+    return body.calculate_cross_sectional_properties(station_index)
 

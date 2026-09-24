@@ -187,90 +187,97 @@ def calculate_vtarea(vtin: Mapping[int, float], avt: Mapping[int, float],
         incidence rewrites ``XH`` and ``ZH`` in ``/SYNTSS/`` for the rest
         of the run.
     """
-    v = {int(k): float(val) for k, val in vtin.items()}
-    g = {int(k): float(val) for k, val in avt.items()}
-    s = {int(k): float(val) for k, val in syna.items()}
+    vtin_block = {int(k): float(val) for k, val in vtin.items()}
+    avt_block = {int(k): float(val) for k, val in avt.items()}
+    syna_state = {int(k): float(val) for k, val in syna.items()}
     xi, yi = [0.0] * 4, [0.0] * 4
-    out = {'svhb': float(stale_vtin[134 + mach_index])}
-    htail = angchg = False
-    rad_w = s[4] / RAD
+    result = {'svhb': float(stale_vtin[134 + mach_index])}
+    use_tail_shadow = incidence_swapped = False
+    wing_incidence_rad = syna_state[4] / RAD
     while True:
         ncon = 0
         sv = [0.0, 0.0]
-        yp1 = v[4] - v[3] + zv if vertup else v[4] - v[3] - zv
-        xp1 = xv + (v[4] - v[3]) * g[62]
-        xp2 = xv + g[21] * g[62]
-        xp = [xp1, xp2, xp2 + v[5], xp1 + g[10], xp1]
-        yp = [yp1, g[21], g[21], yp1, yp1]
+        yp1 = (vtin_block[4] - vtin_block[3] + zv if vertup else
+               vtin_block[4] - vtin_block[3] - zv)
+        xp1 = xv + (vtin_block[4] - vtin_block[3]) * avt_block[62]
+        xp2 = xv + avt_block[21] * avt_block[62]
+        xp = [xp1, xp2, xp2 + vtin_block[5], xp1 + avt_block[10], xp1]
+        yp = [yp1, avt_block[21], avt_block[21], yp1, yp1]
         if not vertup:
             yp = [-y_ for y_ in yp]
         while True:
-            amuu = math.atan(1. / math.sqrt(mach**2 - 1.))
+            mach_angle = math.atan(1. / math.sqrt(mach**2 - 1.))
             area = [0.0, 0.0]
             done = False
             for j in (1, 2):
-                if not htail:
-                    a1 = s[2] + (float(wing['span']) - float(wing['spans'])) \
-                        * float(wing['a62']) * math.cos(rad_w)
-                    a2 = s[3] - (a1 - s[2]) * math.sin(rad_w) / \
-                        math.cos(rad_w)
+                if not use_tail_shadow:
+                    a1 = (syna_state[2] + (float(wing['span']) -
+                                           float(wing['spans'])) *
+                          float(wing['a62']) * math.cos(wing_incidence_rad))
+                    a2 = (syna_state[3] - (a1 - syna_state[2]) *
+                          math.sin(wing_incidence_rad) /
+                          math.cos(wing_incidence_rad))
                     if j == 2:
-                        a1 += float(wing['a10']) * math.cos(rad_w)
-                        a2 -= float(wing['a10']) * math.sin(rad_w)
+                        a1 += float(wing['a10']) * math.cos(wing_incidence_rad)
+                        a2 -= float(wing['a10']) * math.sin(wing_incidence_rad)
                 else:
-                    if not (s[4] == s[8] or angchg):
+                    if not (syna_state[4] == syna_state[8] or incidence_swapped):
                         hacle = (float(tail['span']) - float(tail['spans'])) \
                             * float(tail['a62']) + float(tail['a30']) - \
                             float(tail['a16']) / 4.
-                        xhac = s[6] + hacle * math.cos(s[8] / RAD)
-                        zhac = s[7] - hacle * math.sin(s[8] / RAD)
-                        s[6] = xhac - hacle * math.cos(rad_w)
-                        s[7] = zhac + hacle * math.sin(rad_w)
-                        angchg = True
-                    a1 = s[6] + (float(tail['span']) - float(tail['spans'])) \
-                        * float(tail['a62']) * math.cos(rad_w)
-                    a2 = s[7] - (a1 - s[6]) * math.sin(rad_w) / \
-                        math.cos(rad_w)
+                        xhac = syna_state[6] + hacle * math.cos(syna_state[8] / RAD)
+                        zhac = syna_state[7] - hacle * math.sin(syna_state[8] / RAD)
+                        syna_state[6] = xhac - hacle * math.cos(wing_incidence_rad)
+                        syna_state[7] = zhac + hacle * math.sin(wing_incidence_rad)
+                        incidence_swapped = True
+                    a1 = (syna_state[6] + (float(tail['span']) -
+                                           float(tail['spans'])) *
+                          float(tail['a62']) * math.cos(wing_incidence_rad))
+                    a2 = (syna_state[7] - (a1 - syna_state[6]) *
+                          math.sin(wing_incidence_rad) /
+                          math.cos(wing_incidence_rad))
                     if j == 2:
-                        a1 += float(tail['a10']) * math.cos(rad_w)
-                        a2 -= float(tail['a10']) * math.sin(rad_w)
-                p = ptint1(xp, yp, [a1, a2, s[4]], amuu, j, ncon, vertup,
-                           vt_common, xi, yi)
-                if not p['effect']:
+                        a1 += float(tail['a10']) * math.cos(wing_incidence_rad)
+                        a2 -= float(tail['a10']) * math.sin(wing_incidence_rad)
+                pt_result = ptint1(xp, yp, [a1, a2, syna_state[4]], mach_angle,
+                                    j, ncon, vertup, vt_common, xi, yi)
+                if not pt_result['effect']:
                     if j == 1:
                         done = True
                         break
-                    area[1] = g[1 + ncon] if p['k'] == 1 else 0.
-                    sv[ncon] = g[1 + ncon] - (area[0] + area[1])
+                    area[1] = avt_block[1 + ncon] if pt_result['k'] == 1 else 0.
+                    sv[ncon] = avt_block[1 + ncon] - (area[0] + area[1])
                     continue
                 flip = False
-                if p['nsum'] == 0:
+                if pt_result['nsum'] == 0:
                     area[j - 1] = 0.
                     flip = j != 1
                 else:
-                    area[j - 1], flip = _shadow(p['nsum'], p['k'], p['x'],
-                                                p['y'], xi, yi)
+                    area[j - 1], flip = _shadow(pt_result['nsum'], pt_result['k'],
+                                                pt_result['x'], pt_result['y'],
+                                                xi, yi)
                 if j == 1:
                     if flip:
-                        area[0] = g[1 + ncon] - area[0]
+                        area[0] = avt_block[1 + ncon] - area[0]
                     continue
                 if not flip:
-                    area[1] = g[1 + ncon] - area[1]
-                sv[ncon] = g[1 + ncon] - (area[0] + area[1])
-            if done or ncon == 1 or v[15] == 1.0:
+                    area[1] = avt_block[1 + ncon] - area[1]
+                sv[ncon] = avt_block[1 + ncon] - (area[0] + area[1])
+            if done or ncon == 1 or vtin_block[15] == 1.0:
                 break
             ncon = 1
             xp1, yp1 = xp[1], yp[1]
-            xp2 = xp[1] + v[2] * g[86]
-            xp = [xp1, xp2, xp2 + v[1], xp1 + v[5], xp1]
-            yp = [yp1, v[4], v[4], yp1, yp1]
-        if htail:
-            out['svhb'] = sv[0] + sv[1]
+            xp2 = xp[1] + vtin_block[2] * avt_block[86]
+            xp = [xp1, xp2, xp2 + vtin_block[1], xp1 + vtin_block[5], xp1]
+            yp = [yp1, vtin_block[4], vtin_block[4], yp1, yp1]
+        if use_tail_shadow:
+            result['svhb'] = sv[0] + sv[1]
             break
-        out['svwb'] = sv[0] + sv[1]
+        result['svwb'] = sv[0] + sv[1]
         if not htpl:
             break
-        htail = True
-    out['svb'] = g[3] - (out['svwb'] + out['svhb'])
-    out.update({'syna6': s[6], 'syna7': s[7], 'method': 'legacy_vtarea'})
-    return out
+        use_tail_shadow = True
+    result['svb'] = avt_block[3] - (result['svwb'] + result['svhb'])
+    result.update({'syna6': syna_state[6], 'syna7': syna_state[7],
+                   'method': 'legacy_vtarea'})
+    return result
