@@ -351,3 +351,19 @@ def calculate_vertical_panel_drag(
         "lifting_surface_factor_outboard": outboard_rls,
         "method": "legacy_vtdrag",
     }
+
+
+def m08o10_panel_block(cd0: float, alpha_count: int) -> Dict[str, np.ndarray]:
+    """Translate M08O10's output setup for a vertical panel (VT or VF).
+
+    After VTDRAG or VFDRAG, the panel's only first-angle data are its
+    zero-lift drag ``DVT(20)`` or ``DVF(20)``, with zero lift, moment,
+    normal force and slopes; every later angle is marked ``-UNUSED``.
+    """
+    unused = -1.0e-30
+    block = {key: np.full(alpha_count, unused)
+             for key in ('cd', 'cl', 'cm', 'cn', 'ca', 'cla', 'cma')}
+    block['cd'][0] = cd0
+    for key in ('cl', 'cm', 'cn', 'cla', 'cma'):
+        block[key][0] = 0.0
+    return block

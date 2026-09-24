@@ -395,9 +395,28 @@ def calculate_m06o06(x: Sequence[float], s: Sequence[float],
         jm = calculate_bodyjm(x, s, alpha, rt, float(np.asarray(x)[-1]), xcg,
                               sref, cbar, ellipticity)
         cd, cl, cm = jm['cd'].copy(), jm['cl'].copy(), jm['cm'].copy()
+    result = body_slope_pass(alpha, cd, cl, cm, rt['cla'], rt['cma'], cbar,
+                             blref, experimental)
+    result.update({'bodyrt': rt, 'bodyjm': jm, 'method': 'legacy_m06o06'})
+    return result
+
+
+def body_slope_pass(alpha_deg: Sequence[float], cd: Sequence[float],
+                    cl: Sequence[float], cm: Sequence[float], cla0: float,
+                    cma0: float, cbar: float, blref: float,
+                    experimental: bool = False) -> Dict[str, object]:
+    """The closing pass M04O04 and M06O06 share.
+
+    CLa and CMa by TBFUNX over the schedule from the second angle (every
+    angle with experimental data, which also retakes CM0 at zero lift),
+    the first keeping the method's analytic slopes; ``CY_b = -CLa``,
+    ``Cn_b = -(CBARR/BLREF)*CMa``, ``Cl_b = 0``; CN and CA by rotation.
+    """
+    alpha = np.asarray(alpha_deg, dtype=float)
+    cd, cl, cm = (np.asarray(v, dtype=float) for v in (cd, cl, cm))
     cla = np.zeros(len(alpha))
     cma = np.zeros(len(alpha))
-    cla[0], cma[0] = rt['cla'], rt['cma']
+    cla[0], cma[0] = cla0, cma0
     cm0 = None
     if experimental:
         cm0 = tbfunx(cl, cm, 0.0, 1, 1, ordered=False)[0]
@@ -411,8 +430,7 @@ def calculate_m06o06(x: Sequence[float], s: Sequence[float],
         'cd': cd, 'cl': cl, 'cm': cm,
         'cn': cl * ca_ + cd * sa_, 'ca': cd * ca_ - cl * sa_,
         'cla': cla, 'cma': cma, 'cyb': -cla, 'cnb': -(cbar / blref) * cma,
-        'clb': np.zeros(len(alpha)), 'bodyrt': rt, 'bodyjm': jm,
-        'method': 'legacy_m06o06',
+        'clb': np.zeros(len(alpha)),
     }
     if cm0 is not None:
         result['cm0'] = float(cm0)

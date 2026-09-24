@@ -241,3 +241,28 @@ def vertical_panel_adjustments(a: Mapping[int, float],
     for index in (130, 133, 136):
         out[index] = out.get(index, 0.0) + z_offset
     return out
+
+
+def calculate_setup1(alpha_deg, wing_incidence: float, tail_incidence: float,
+                     body_alpha_zero: float, xovc: float,
+                     savsi_deg: float, savso_deg: float,
+                     previous: Mapping[int, float] = None) -> Dict[str, object]:
+    """Translate SETUP1 for one lifting surface's block and the schedules.
+
+    SETUP1 sets ``A(174) = XOVC`` and completes the input sweep records
+    (:func:`sweep_records`) for each surface, and forms the local angle
+    schedules: ``B(23)`` onward ``= FLC + ALIW``, ``BHT(23)`` onward
+    ``= FLC + ALIH``, and the body's ``BD(255)`` onward ``= FLC + BD(81)``.
+    It also completes an ``A(138)`` record that no routine reads, which is
+    omitted.
+    """
+    alpha = np.asarray(alpha_deg, dtype=float)
+    records = sweep_records(savsi_deg, savso_deg, previous)
+    records[174] = float(xovc)
+    return {
+        'a': records,
+        'wing_local_alpha': alpha + float(wing_incidence),
+        'tail_local_alpha': alpha + float(tail_incidence),
+        'body_alpha': alpha + float(body_alpha_zero),
+        'method': 'legacy_setup1',
+    }
