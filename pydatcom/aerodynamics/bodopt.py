@@ -120,28 +120,33 @@ def calculate_bodopt(x: Sequence[float], s: Sequence[float],
     nx = len(x)
     length = x[-1]
 
-    # Drag, as in BODYRT.
+    # --- Zero-lift drag (same buildup as BODYRT) ---
     base = s[-1]
     _, max_area, _ = getmax(x, s)
     if base <= 0.3 * max_area:
         base = 0.30 * max_area
+
     cept, _ = tbfunx(_X27M, _X27I, mach, 0, 0)
-    cutoff = (12.0 * length / roughness)**1.0482 * 10.0**cept
+    cutoff = (12.0 * length / roughness) ** 1.0482 * 10.0 ** cept
     reynolds = reynolds_per_length * length
     cf = fig26(min(reynolds, cutoff), mach)
+
     resampled = eqspce(x, r, p, s, 20)
     wetted = trapz(resampled['pe'], resampled['xe'], 1)[0]
     base_diameter = np.sqrt(base * 4.0 / PI)
     max_diameter = np.sqrt(max_area * 4.0 / PI)
     fineness = length / max_diameter
-    friction = (cf * (1.0 + 60.0 / fineness**3 + 0.0025 * fineness) *
-                wetted / max_area)
-    base_drag = .029 * ((base_diameter / max_diameter)**3 /
-                        np.sqrt(friction) * max_area / sref)
+    friction = (
+        cf * (1.0 + 60.0 / fineness ** 3 + 0.0025 * fineness) * wetted / max_area
+    )
+    base_drag = (
+        0.029 * (base_diameter / max_diameter) ** 3
+        / np.sqrt(friction) * max_area / sref
+    )
     friction = friction * max_area / sref
     cd0 = friction + base_drag
 
-    # The camber line: contour midpoints less the chord joining the ends.
+    # --- Camber line: contour midpoints minus the chord through the ends ---
     z0 = 0.5 * (zu[0] + zl[0])
     znx = 0.5 * (zu[-1] + zl[-1])
     dzdx = (znx - z0) / (x[-1] - x[0])
@@ -152,20 +157,23 @@ def calculate_bodopt(x: Sequence[float], s: Sequence[float],
     xol = x / length
     grid = eqspce(x, xol, zpol, s, 20)
     xole, zpole = grid['re'], grid['pe']
-    alph = np.zeros(20)
-    cmp_ = np.zeros(20)
+    alpha_integrand = np.zeros(20)
+    cm_integrand = np.zeros(20)
     inner = slice(1, 19)
-    root = np.sqrt(xole[inner] - xole[inner]**2)
-    alph[inner] = zpole[inner] / ((1.0 - xole[inner]) * root)
-    cmp_[inner] = zpole[inner] * ((1.0 - 2.0 * xole[inner]) / root)
-    alzero = trapz(alph[:19], xole[:19], 1)[0]
+    root = np.sqrt(xole[inner] - xole[inner] ** 2)
+    alpha_integrand[inner] = zpole[inner] / ((1.0 - xole[inner]) * root)
+    cm_integrand[inner] = zpole[inner] * ((1.0 - 2.0 * xole[inner]) / root)
+    alzero = trapz(alpha_integrand[:19], xole[:19], 1)[0]
     alpha_zero = -alzero / PI * RAD
 
+    # --- Planform, BA-1/BA-2 factors, onset angle (Figure BA-3) ---
     planform = eqspce(x, r, xol, s, 20)
     xe, ye = planform['xe'], planform['re']
     xole = planform['pe']
     sp = 2.0 * trapz(ye, xe, 1)[0]
-    cm0 = 2.0 * trapz(cmp_, xole, 1)[0] * (sp / sref) * (length / lref)
+    cm0 = (
+        2.0 * trapz(cm_integrand, xole, 1)[0] * (sp / sref) * (length / lref)
+    )
 
     _, ymax, imax = getmax(x, r)
     arb = 4.0 * ymax * ymax / sp
@@ -204,28 +212,51 @@ def calculate_bodopt(x: Sequence[float], s: Sequence[float],
     moment = np.sum(2.0 * strips * (xe[:19] + (xe[1:] - xe[:19]) / 2.0))
     xovlca = (moment / sp) / length
 
+    # --- Forces at each schedule angle ---
     alpha = np.asarray(alpha_deg, dtype=float)
-    ang = (alpha - alpha_zero) / RAD
-    sa, ca = np.sin(ang), np.cos(ang)
-    cnp = akp * sa * ca
-    cnv = np.where(alpha <= alphv, 0.0,
-                   akv * np.sin((alpha - alphv) / RAD)**2)
+    incidence_rad = (alpha - alpha_zero) / RAD
+    sin_incidence = np.sin(incidence_rad)
+    cos_incidence = np.cos(incidence_rad)
+
+    cnp = akp * sin_incidence * cos_incidence
+    cnv = np.where(
+        alpha <= alphv,
+        0.0,
+        akv * np.sin((alpha - alphv) / RAD) ** 2,
+    )
     cn = (cnp + cnv) * (sp / sref)
-    cd = cn * sa + cd0
-    scale = (sp / sref) * (length / lref)
-    cm = cm0 + cnp * delxol * scale + cnv * (xovlcg - xovlca) * scale
-    free = alpha / RAD
-    cl = (cn - cd * np.sin(free)) / np.cos(free)
-    axial = cd * np.cos(free) - cl * np.sin(free)
+    cd = cn * sin_incidence + cd0
+
+    moment_scale = (sp / sref) * (length / lref)
+    cm = (
+        cm0
+        + cnp * delxol * moment_scale
+        + cnv * (xovlcg - xovlca) * moment_scale
+    )
+
+    alpha_rad = alpha / RAD
+    cl = (cn - cd * np.sin(alpha_rad)) / np.cos(alpha_rad)
+    axial = cd * np.cos(alpha_rad) - cl * np.sin(alpha_rad)
+
     return {
-        'cd': cd, 'cl': cl, 'cm': cm, 'cn': cn, 'ca': axial,
+        'cd': cd,
+        'cl': cl,
+        'cm': cm,
+        'cn': cn,
+        'ca': axial,
         'cla': float(akp * sp / (RAD * sref)),
-        'cma': float(akp * delxol * scale / RAD),
-        'alpha_zero_lift': float(alpha_zero), 'cm0': float(cm0),
-        'cd_zero_lift': float(cd0), 'cd_friction': float(friction),
-        'cd_base': float(base_drag), 'cdl': cn * sa,
-        'planform_area': float(sp), 'aspect_ratio': float(arb),
-        'kp': float(akp), 'kv': float(akv), 'onset_angle': float(alphv),
+        'cma': float(akp * delxol * moment_scale / RAD),
+        'alpha_zero_lift': float(alpha_zero),
+        'cm0': float(cm0),
+        'cd_zero_lift': float(cd0),
+        'cd_friction': float(friction),
+        'cd_base': float(base_drag),
+        'cdl': cn * sin_incidence,
+        'planform_area': float(sp),
+        'aspect_ratio': float(arb),
+        'kp': float(akp),
+        'kv': float(akv),
+        'onset_angle': float(alphv),
         'method': 'legacy_bodopt',
     }
 
@@ -239,10 +270,13 @@ def calculate_m04o04(x, s, p, r, zu, zl, alpha_deg, mach,
     The slope pass is M06O06's (see
     :func:`pydatcom.aerodynamics.bodyrt.body_slope_pass`).
     """
-    opt = calculate_bodopt(x, s, p, r, zu, zl, alpha_deg, mach,
-                           reynolds_per_length, sref, cbar, xcg, roughness)
-    result = body_slope_pass(alpha_deg, opt['cd'], opt['cl'], opt['cm'],
-                             opt['cla'], opt['cma'], cbar, blref,
-                             experimental)
+    opt = calculate_bodopt(
+        x, s, p, r, zu, zl, alpha_deg, mach,
+        reynolds_per_length, sref, cbar, xcg, roughness,
+    )
+    result = body_slope_pass(
+        alpha_deg, opt['cd'], opt['cl'], opt['cm'],
+        opt['cla'], opt['cma'], cbar, blref, experimental,
+    )
     result.update({'bodopt': opt, 'method': 'legacy_m04o04'})
     return result

@@ -226,13 +226,13 @@ def calculate_ptcp(station: float, region: int, location: float,
     if not 1 <= region <= 8:
         raise ValueError(f"PTCP region {region} is outside 1 to 8")
     tan_le_beta = tan_le / beta
-    root = float(location) == ROOT
+    at_root = float(location) == ROOT
     ten_point = region in _TEN_POINT_REGIONS
 
     if ten_point:
         generator = (tan_te if region in _TRAILING_EDGE_REGIONS
                      else tan_hinge_line) / beta
-        if root:
+        if at_root:
             # Label 1180.
             squared = tan_le_beta**2
             numerator = 2.0 * (1.0 - squared)
@@ -252,7 +252,7 @@ def calculate_ptcp(station: float, region: int, location: float,
                 for n in np.arange(1, 11) * 0.1])
     else:
         generator = 0.0
-        if root:
+        if at_root:
             # Label 1070.
             squared = tan_le_beta**2
             one_minus_two = 1.0 - 2.0 * squared
@@ -266,8 +266,8 @@ def calculate_ptcp(station: float, region: int, location: float,
             pp = np.array([arccos((one_plus - r) / (one_plus + r)) / np.pi
                            for r in _STATIONS])
 
-    area = [_area_first(pp, root)] + _area_two_to_four(pp)
-    if ten_point and not root:
+    area = [_area_first(pp, root=at_root)] + _area_two_to_four(pp)
+    if ten_point and not at_root:
         # Falls through label 1140 into the staggered block.
         area += _area_five_to_ten_staggered(pp)
         moment = _moment_ten_point_a(pp)
@@ -277,7 +277,7 @@ def calculate_ptcp(station: float, region: int, location: float,
         area += _area_five_to_ten_regular(pp)
         moment = _moment_ten_point_b(pp)
         path = 'ten_point_root' if ten_point else (
-            'nineteen_point_root' if root else 'nineteen_point_tip')
+            'nineteen_point_root' if at_root else 'nineteen_point_tip')
     if not ten_point:
         area += _area_eleven_to_nineteen(pp)
         moment += _moment_eleven_to_nineteen(pp)
@@ -290,7 +290,7 @@ def calculate_ptcp(station: float, region: int, location: float,
     pressure = cumulative_area / stations
     if not ten_point:
         centre = cumulative_area / (cumulative_area + cumulative_moment)
-    elif root:
+    elif at_root:
         centre = ((cumulative_area - cumulative_moment) /
                   (cumulative_area - generator * cumulative_moment))
     else:

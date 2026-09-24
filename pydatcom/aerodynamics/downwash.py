@@ -66,8 +66,13 @@ def fig4417_68a(sweep_c4_deg: float) -> float:
     Returns:
         Limiting DELTAY.
     """
-    value, _ = tbfunx(_FIG_4417_68A_SWEEP, _FIG_4417_68A_DELTAY,
-                      float(sweep_c4_deg), lower=0, upper=2)
+    value, _ = tbfunx(
+        _FIG_4417_68A_SWEEP,
+        _FIG_4417_68A_DELTAY,
+        float(sweep_c4_deg),
+        lower=0,
+        upper=2,
+    )
     return float(value)
 
 
@@ -82,10 +87,17 @@ def fig4417_68b(a_over_bv_half: float, bh_over_bv: float) -> float:
     Returns:
         DEBODE, clamped at zero as ``DWASH`` does.
     """
-    value = tlinex(_FIG_4417_68B_AOBV, _FIG_4417_68B_BHBV,
-                   _FIG_4417_68B_TABLE,
-                   float(a_over_bv_half), float(bh_over_bv),
-                   1, 2, 1, 2)
+    value = tlinex(
+        _FIG_4417_68B_AOBV,
+        _FIG_4417_68B_BHBV,
+        _FIG_4417_68B_TABLE,
+        float(a_over_bv_half),
+        float(bh_over_bv),
+        1,
+        2,
+        1,
+        2,
+    )
     return float(max(value, 0.0))
 
 
@@ -127,16 +139,28 @@ def calculate_downwash_geometry(state: Dict) -> Dict[str, float]:
     # XBRSTH = ATH(30)-ATH(16)/4 is the exposed MAC quarter chord aft of the
     # exposed root leading edge; DXSTAR carries it to the centerline.
     xbrsth = tail['mac_c4_location']
-    dxstar = (tail['theoretical_semispan'] - tail['semispan']) * tail['tan_le']
+    dxstar = (
+        (tail['theoretical_semispan'] - tail['semispan']) * tail['tan_le']
+    )
     dxbh = xbrsth + dxstar
 
+    # A(193)/A(194): streamwise tail reference relative to the wing root,
+    # then aft to the tail MAC quarter chord.
     a193 = xh - xw - chrdr * np.cos(aliw)
     a194 = a193 + dxbh * np.cos(alih)
+
+    # A(12) geometry: tail height in the wing chord plane and the streamwise arm.
     zph = zh - dxbh * np.sin(alih) - zw + chrdr * np.sin(aliw)
-    dlh = zph * np.tan(aliw)
-    tail_arm = (a194 - dlh) * np.cos(aliw)
-    tail_height = zph / np.cos(aliw) + (a194 - dlh) * np.sin(aliw)
-    tail_angle = np.arctan2(tail_height, tail_arm) if tail_arm != 0.0 else 0.0
+    lateral_shift_from_wing_incidence = zph * np.tan(aliw)
+    streamwise_at_chord_plane = a194 - lateral_shift_from_wing_incidence
+
+    tail_arm = streamwise_at_chord_plane * np.cos(aliw)
+    tail_height = (
+        zph / np.cos(aliw) + streamwise_at_chord_plane * np.sin(aliw)
+    )
+    tail_angle = (
+        np.arctan2(tail_height, tail_arm) if tail_arm != 0.0 else 0.0
+    )
 
     return {
         'tail_arm': float(tail_arm),
@@ -184,35 +208,44 @@ def calculate_downwash_gradient_441(state: Dict) -> Dict[str, float]:
     taper = wing['taper_ratio']
     sspne = wing['semispan']
     if aspect_ratio <= 0.0 or sspne <= 0.0:
-        raise ValueError("Section 4.4.1 downwash requires positive exposed "
-                         "aspect ratio and semispan")
+        raise ValueError(
+            "Section 4.4.1 downwash requires positive exposed "
+            "aspect ratio and semispan",
+        )
 
     aliw = np.deg2rad(float(state.get('synths_aliw', 0.0) or 0.0))
     alih = np.deg2rad(float(state.get('synths_alih', 0.0) or 0.0))
     xw = float(state.get('synths_xw', 0.0) or 0.0)
     xh = float(state.get('synths_xh', 0.0) or 0.0)
 
-    xlh = ((xh - tail['mac_c4_theoretical'] * np.cos(alih)) -
-           (xw - wing['mac_c4_theoretical'] * np.cos(aliw)))
-    if xlh <= 0.0:
-        raise ValueError("Section 4.4.1 downwash requires a positive tail "
-                         f"arm; source XLH expression gave {xlh:g}")
+    # Source tail arm XLH (dwash.f), not the INFTGM A(24) arm.
+    tail_arm_xlh = (
+        (xh - tail['mac_c4_theoretical'] * np.cos(alih))
+        - (xw - wing['mac_c4_theoretical'] * np.cos(aliw))
+    )
+    if tail_arm_xlh <= 0.0:
+        raise ValueError(
+            "Section 4.4.1 downwash requires a positive tail arm; "
+            f"source XLH expression gave {tail_arm_xlh:g}",
+        )
 
-    cos_c4 = 1.0 / np.sqrt(1.0 + wing['tan_c4']**2)
-    xka = 1.0 / aspect_ratio - 1.0 / (1.0 + aspect_ratio**1.7)
-    xkl = (10.0 - 3.0 * taper) / 7.0
-    xkh = ((1.0 - abs(0.5 * geometry['tail_height'] / sspne)) /
-           (xlh / sspne)**(1.0 / 3.0))
-    product = xka * xkl * xkh * np.sqrt(cos_c4)
-    deda = 4.44 * product**1.19 if product > 0.0 else 0.0
+    cos_sweep_c4 = 1.0 / np.sqrt(1.0 + wing['tan_c4']**2)
+    k_a = 1.0 / aspect_ratio - 1.0 / (1.0 + aspect_ratio**1.7)
+    k_lambda = (10.0 - 3.0 * taper) / 7.0
+    height_over_semispan = abs(0.5 * geometry['tail_height'] / sspne)
+    arm_over_semispan = tail_arm_xlh / sspne
+    k_h = (1.0 - height_over_semispan) / arm_over_semispan ** (1.0 / 3.0)
+
+    k_product = k_a * k_lambda * k_h * np.sqrt(cos_sweep_c4)
+    deda = 4.44 * k_product**1.19 if k_product > 0.0 else 0.0
 
     return {
         'deda': float(deda),
-        'k_a': float(xka),
-        'k_lambda': float(xkl),
-        'k_h': float(xkh),
-        'cos_sweep_c4': float(cos_c4),
-        'tail_arm_xlh': float(xlh),
+        'k_a': float(k_a),
+        'k_lambda': float(k_lambda),
+        'k_h': float(k_h),
+        'cos_sweep_c4': float(cos_sweep_c4),
+        'tail_arm_xlh': float(tail_arm_xlh),
         'tail_height': geometry['tail_height'],
         'wing_mac_c4_offset': wing['mac_c4_theoretical'],
         'tail_mac_c4_offset': tail['mac_c4_theoretical'],
@@ -292,6 +325,7 @@ def calculate_dwash(alpha_deg: Sequence[float],
     nalpha = len(alpha)
 
     idwash = int(float(wing.get('twash', 0.0)) + 0.5)
+
     sspn = float(wing['sspn'])
     sspnop = float(wing.get('sspnop', 0.0))
     sspndd = float(wing.get('sspndd', 0.0))
@@ -308,12 +342,15 @@ def calculate_dwash(alpha_deg: Sequence[float],
     tan_c4 = float(wing_geometry['tan_c4'])
     tan_le = float(wing_geometry['tan_le'])
     alpha_zero = float(wing_geometry['alpha_zero_lift'])
-    alpha_zero_ref = float(wing_geometry.get('alpha_zero_lift_reference',
-                                             alpha_zero))
+    alpha_zero_ref = float(
+        wing_geometry.get('alpha_zero_lift_reference', alpha_zero),
+    )
     alpha_clmax_ref = float(wing_geometry['alpha_clmax_reference'])
     if alpha_clmax_ref == alpha_zero_ref:
-        raise ValueError("DWASH divides by A(127)-A(126), the Mach-zero "
-                         "stall and zero-lift angles, which coincide")
+        raise ValueError(
+            "DWASH divides by A(127)-A(126), the Mach-zero "
+            "stall and zero-lift angles, which coincide",
+        )
 
     tail_arm = float(tail_geometry['tail_arm'])
     tail_height = float(tail_geometry['tail_height'])
@@ -321,30 +358,39 @@ def calculate_dwash(alpha_deg: Sequence[float],
     corr = float(synthesis.get('aliw', 0.0))
 
     # Figure 4.4.1-68A at the quarter-chord sweep.
-    lesepa = fig4417_68a(wing_geometry['sweep_c4_deg']) > float(wing['deltay'])
-    bvrutp = (0.78 + 0.10 * (float(wing_geometry['taper_ratio_theoretical'])
-                             - 0.40) + 0.003 * float(wing_geometry['sweep_c4_deg']))
+    lesepa = (
+        fig4417_68a(wing_geometry['sweep_c4_deg']) > float(wing['deltay'])
+    )
+    taper_theoretical = float(wing_geometry['taper_ratio_theoretical'])
+    sweep_c4_deg = float(wing_geometry['sweep_c4_deg'])
+    bvrutp = 0.78 + 0.10 * (taper_theoretical - 0.40) + 0.003 * sweep_c4_deg
     sratio = sref / area
     tl2ob = tail_arm / sspn
     lex = -1 if alpha_zero_ref < ang[0] else 1
 
-    # The TWASH=2 gradient is independent of angle, so form it once.
+    # TWASH=2: Section 4.4.1 gradient is constant in angle; form it once.
     if idwash == 2:
         aliw_rad = corr / RAD
         alih_rad = float(synthesis.get('alih', 0.0)) / RAD
         sspne = float(wing['sspne'])
-        xlh = ((float(synthesis['xh']) -
-                float(tail_geometry['mac_c4_theoretical']) * np.cos(alih_rad)) -
-               (float(synthesis['xw']) -
-                float(wing_geometry['mac_c4_theoretical']) * np.cos(aliw_rad)))
-        if xlh <= 0.0:
-            raise ValueError("DWASH's Section 4.4.1 branch requires a "
-                             f"positive tail arm; XLH is {xlh:g}")
-        xka = 1.0 / aspect_ratio - 1.0 / (1.0 + aspect_ratio**1.7)
-        xkl = (10.0 - 3.0 * taper) / 7.0
-        xkh = ((1.0 - abs(0.5 * tail_height / sspne)) /
-               (xlh / sspne)**(1.0 / 3.0))
-        deda_441 = 4.44 * (xka * xkl * xkh * np.sqrt(cos_c4))**1.19
+        tail_arm_xlh = (
+            (float(synthesis['xh'])
+             - float(tail_geometry['mac_c4_theoretical']) * np.cos(alih_rad))
+            - (float(synthesis['xw'])
+               - float(wing_geometry['mac_c4_theoretical']) * np.cos(aliw_rad))
+        )
+        if tail_arm_xlh <= 0.0:
+            raise ValueError(
+                "DWASH's Section 4.4.1 branch requires a positive tail arm; "
+                f"XLH is {tail_arm_xlh:g}",
+            )
+        k_a = 1.0 / aspect_ratio - 1.0 / (1.0 + aspect_ratio**1.7)
+        k_lambda = (10.0 - 3.0 * taper) / 7.0
+        height_over_semispan = abs(0.5 * tail_height / sspne)
+        arm_over_semispan = tail_arm_xlh / sspne
+        k_h = (1.0 - height_over_semispan) / arm_over_semispan ** (1.0 / 3.0)
+        k_product = k_a * k_lambda * k_h * np.sqrt(cos_c4)
+        deda_441 = 4.44 * k_product**1.19
 
     angle = np.zeros(nalpha)
     gradient_local = np.zeros(nalpha)
@@ -356,16 +402,21 @@ def calculate_dwash(alpha_deg: Sequence[float],
         alp = alpha[j] + corr
         na = min(max(int(abs(alp) + 1.5), 2), 21)
         xna = float(na - 1)
-        grid = np.array([alpha_zero + k * (alp - alpha_zero) / xna
-                         for k in range(na)])
+        grid = np.array([
+            alpha_zero + k * (alp - alpha_zero) / xna for k in range(na)
+        ])
         deda = np.zeros(na)
+
         for k in range(na):
             bj22 = alpha_zero_ref + k * (alp - alpha_zero_ref) / xna
-            adoad = abs((bj22 - alpha_zero_ref) /
-                        (alpha_clmax_ref - alpha_zero_ref))
+            adoad = abs(
+                (bj22 - alpha_zero_ref) / (alpha_clmax_ref - alpha_zero_ref),
+            )
             clwj, claw = tbfunx(ang, cl_table, bj22, lex, 1)
             if lex < 0 and bj22 < ang[0]:
-                clwj = clwj * (bj22 - alpha_zero_ref) / (ang[0] - alpha_zero_ref)
+                clwj = (
+                    clwj * (bj22 - alpha_zero_ref) / (ang[0] - alpha_zero_ref)
+                )
             clwj = sratio * clwj * kwb
 
             # Figure 4.4.1-66: effective aspect ratio and span.
@@ -378,11 +429,15 @@ def calculate_dwash(alpha_deg: Sequence[float],
 
             # Figure 4.4.1-67 with compressibility.
             dedai = 1.62 * claw / (PI * aeff) * RAD * sratio * kwb
-            tzob = tl2ob + np.sqrt(0.5 * (-1.0 + np.sqrt(1.0 + 4.0 / aeff**2)))
-            dedav = dedai + (1.0 - dedai) / (aeff * tzob * np.sqrt(1.0 + tzob**2))
+            tzob = tl2ob + np.sqrt(
+                0.5 * (-1.0 + np.sqrt(1.0 + 4.0 / aeff**2)),
+            )
+            dedav = (
+                dedai + (1.0 - dedai) / (aeff * tzob * np.sqrt(1.0 + tzob**2))
+            )
             beff = 2.0 * sspn * beffob
 
-            # Effective tail length.
+            # Effective tail length and vortex geometry.
             bdff = sspn - sspndd
             beffo2 = beff / 2.0
             if sspnop <= UNUSED:
@@ -400,15 +455,18 @@ def calculate_dwash(alpha_deg: Sequence[float],
                     (beffo2 - bdff) * np.tan(dhdado / RAD))
             else:
                 height = tail_height - drop - .5 * beff * np.tan(dhdadi / RAD)
+
             if clwj == 0.0:
                 span = beff
             else:
                 eru = 0.56 * aspect_ratio / clwj
                 span = beff - (beff - bvru) * np.sqrt(abs(a20 / (sspn * eru)))
 
-            # Figure 4.4.1-68B.
-            debode = fig4417_68b(abs(2.0 * height / span),
-                                 2.0 * float(tail['sspn']) / span)
+            # Figure 4.4.1-68B average factor; integrand from branch.
+            debode = fig4417_68b(
+                abs(2.0 * height / span),
+                2.0 * float(tail['sspn']) / span,
+            )
             deda[k] = deda_441 if idwash == 2 else dedav
 
         vortex_height[j] = height
@@ -479,17 +537,27 @@ def calculate_dyprls(state: Dict, alpha_deg: float, cd0_wing: float,
     if min(area, mac, sref) <= 0.0:
         raise ValueError("DYPRLS requires positive exposed area, MAC and SREF")
 
-    # GAMMA is A(11), the inclination of the line from the wing to the
-    # tail, and I2 is A(24), INFTGM's streamwise tail arm, exactly as
-    # M09O11 passes them.
+    # GAMMA is A(11); I2 is A(24), INFTGM's streamwise tail arm (M09O11).
+    cl_sample = [0.0 if cl_wing is None else float(cl_wing)]
+    downwash_sample = (
+        None if eps_rad is None else [float(eps_rad) * RAD]
+    )
     curve = calculate_dyprls_curve(
-        cd0_wing, geometry['tail_arm'], mac, [0.0 if cl_wing is None
-                                             else float(cl_wing)],
-        wing['aspect_ratio'], geometry['tail_angle'], [float(alpha_deg)],
-        sref, area,
-        None if eps_rad is None else [float(eps_rad) * RAD])
-    return {key: (value[0] if isinstance(value, np.ndarray) else value)
-            for key, value in curve.items()}
+        cd0_wing,
+        geometry['tail_arm'],
+        mac,
+        cl_sample,
+        wing['aspect_ratio'],
+        geometry['tail_angle'],
+        [float(alpha_deg)],
+        sref,
+        area,
+        downwash_sample,
+    )
+    return {
+        key: (value[0] if isinstance(value, np.ndarray) else value)
+        for key, value in curve.items()
+    }
 
 
 def calculate_dyprls_curve(cdow: float, i2: float, cbar: float,
@@ -530,25 +598,41 @@ def calculate_dyprls_curve(cdow: float, i2: float, cbar: float,
     """
     alpha = np.asarray(alpha_deg, dtype=float)
     cl = np.asarray(cl_wing, dtype=float)
-    fact = 1.62 / (PI * aspect_ratio)
+    alpha_rad = alpha / RAD
+    sref_over_area = sref / area
+
+    # Wake deflection EJ: from downwash (KEPSLN) or 1.62*CL/(pi*A).
+    cl_to_ej = 1.62 / (PI * aspect_ratio)
     if downwash_deg is not None:
         ej = np.asarray(downwash_deg, dtype=float) / RAD
     else:
-        ej = fact * cl * sref / area
-    angle = alpha / RAD
-    i2ocb = i2 * np.cos(gamma - angle + ej) / (np.cos(gamma) * cbar)
-    zwocb = 0.68 * np.sqrt(cdow * (i2ocb + 0.15) * sref / area)
-    dqoq0 = 2.42 * np.sqrt(cdow * sref / area) / (i2ocb + 0.3)
-    zocb = i2ocb * np.tan(ej + gamma - angle)
+        ej = cl_to_ej * cl * sref_over_area
+
+    cos_gamma = np.cos(gamma)
+    i2ocb = (
+        i2 * np.cos(gamma - alpha_rad + ej) / (cos_gamma * cbar)
+    )
+    zwocb = 0.68 * np.sqrt(cdow * (i2ocb + 0.15) * sref_over_area)
+    dqoq0 = 2.42 * np.sqrt(cdow * sref_over_area) / (i2ocb + 0.3)
+    zocb = i2ocb * np.tan(ej + gamma - alpha_rad)
+
     with np.errstate(divide='ignore', invalid='ignore'):
-        ratio = zocb / zwocb
-        inside = np.abs(ratio) < 1.0
-        qoqi = np.where(inside, 1.0 - dqoq0 * np.cos(0.5 * PI * ratio)**2,
-                        1.0)
+        offset_ratio = zocb / zwocb
+        in_wake = np.abs(offset_ratio) < 1.0
+        qoqi = np.where(
+            in_wake,
+            1.0 - dqoq0 * np.cos(0.5 * PI * offset_ratio) ** 2,
+            1.0,
+        )
+
     return {
-        'qoqi': qoqi, 'wake_half_width': zwocb, 'centerline_loss': dqoq0,
-        'surface_offset': zocb, 'streamwise_distance': i2ocb,
-        'wake_deflection': ej, 'in_wake': inside,
+        'qoqi': qoqi,
+        'wake_half_width': zwocb,
+        'centerline_loss': dqoq0,
+        'surface_offset': zocb,
+        'streamwise_distance': i2ocb,
+        'wake_deflection': ej,
+        'in_wake': in_wake,
         'method': 'legacy_dyprls',
     }
 
@@ -575,13 +659,11 @@ def calculate_downwash(state: Dict, alpha_deg: float,
     alpha_zero = float(state.get('wing_alpha_zero_lift', 0.0) or 0.0)
     eps_deg = gradient['deda'] * (float(alpha_deg) - alpha_zero)
 
-    # QOQI: an explicit input wins; otherwise use the translated DYPRLS wake
-    # model when a wing zero-lift drag is available, and fall back to no
-    # loss when it is not.
-    supplied = state.get('htail_qoqi')
+    # QOQI: explicit input, else DYPRLS when wing CDO is set, else no loss.
+    supplied_qoqi = state.get('htail_qoqi')
     wake = None
-    if supplied is not None:
-        qoqi = float(supplied)
+    if supplied_qoqi is not None:
+        qoqi = float(supplied_qoqi)
         qoqi_method = 'supplied'
     else:
         cd0_wing = state.get('wing_cdo')
@@ -589,9 +671,13 @@ def calculate_downwash(state: Dict, alpha_deg: float,
             qoqi = 1.0
             qoqi_method = 'no_loss_default'
         else:
-            wake = calculate_dyprls(state, alpha_deg, float(cd0_wing),
-                                    cl_wing=cl_wing,
-                                    eps_rad=np.deg2rad(eps_deg))
+            wake = calculate_dyprls(
+                state,
+                alpha_deg,
+                float(cd0_wing),
+                cl_wing=cl_wing,
+                eps_rad=np.deg2rad(eps_deg),
+            )
             qoqi = wake['qoqi']
             qoqi_method = wake['method']
 

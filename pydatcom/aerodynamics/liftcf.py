@@ -150,10 +150,14 @@ def _fig56(alpha: float, btanle: float, aspect_ratio: float,
     """Figure 4.1.3.3-56, solid or dashed, as the double-delta and cranked
     paths call it.  ``solid_points`` is the solid call's ``NX1``."""
     if dashed:
-        return tlin3x(_X33356, _X23356[:8], _X13356[:4], _FIG_56_DASHED,
-                      aspect_ratio, btanle, alpha, 2, 2, 2, 2, 1, 2)
-    return tlinex(_X13356[:solid_points], _X23356,
-                  _FIG_56_SOLID[:, :solid_points], alpha, btanle, 2, 2, 2, 1)
+        return tlin3x(
+            _X33356, _X23356[:8], _X13356[:4], _FIG_56_DASHED,
+            aspect_ratio, btanle, alpha, 2, 2, 2, 2, 1, 2,
+        )
+    return tlinex(
+        _X13356[:solid_points], _X23356, _FIG_56_SOLID[:, :solid_points],
+        alpha, btanle, 2, 2, 2, 1,
+    )
 
 
 def _straight(alpha, geometry, section, lift, flight, sref, state):
@@ -179,6 +183,7 @@ def _straight(alpha, geometry, section, lift, flight, sref, state):
     low_aspect_ratio = aspect_ratio < float(geometry['arclss_ratio'])
     clsmax = clmax if low_aspect_ratio else None
     cn, cl = [], []
+
     for a in alpha:
         if a >= alpha_clmax:
             if clsmax is None:
@@ -190,19 +195,23 @@ def _straight(alpha, geometry, section, lift, flight, sref, state):
                     area, sref)['clmax']
             temp = alpha_zero / (90.0 - alpha_clmax)
             local = angles(1, [a * (1.0 + temp) - 90.0 * temp] + local[1:])
-            rat = abs(stall[4] / local[4])
-            dj, _ = tbfunx(_TIR, _D, rat, 0, 0)
+            angle_ratio = abs(stall[4] / local[4])
+            dj, _ = tbfunx(_TIR, _D, angle_ratio, 0, 0)
             if aspect_ratio > 1.0:
                 cnaa90, _ = tbfunx(_TIR, _C90I, 1.0 / aspect_ratio, 0, 0)
                 cnaa90 = cnaa90 * area / sref
             else:
                 cnaa90, _ = tbfunx(_TIR, _C90, aspect_ratio, 0, 0)
-            cnaaj = (b45 + (cnaa90 - b45) * (1.0 - rat) +
-                     RAD * dj * cla / 2.3 * (beta * clmax / clsmax)**2)
+            cnaaj = (
+                b45 + (cnaa90 - b45) * (1.0 - angle_ratio)
+                + RAD * dj * cla / 2.3 * (beta * clmax / clsmax) ** 2
+            )
         else:
             local = angles(1, [a - alpha_zero] + local[1:])
-            rat = abs(local[4] / stall[4])
-            increment = tlinex(_AJ, _TRAT, _FIG_55A, ajay, rat, 2, 1, -1, 0)
+            angle_ratio = abs(local[4] / stall[4])
+            increment = tlinex(
+                _AJ, _TRAT, _FIG_55A, ajay, angle_ratio, 2, 1, -1, 0,
+            )
             cnaaj = b45 + increment * area / sref
         normal = (RAD * cla * local[3] + cnaaj * abs(local[2])) * local[2]
         cn.append(normal)
@@ -269,8 +278,10 @@ def calculate_liftcf(planform_type: float,
     """
     kind = float(planform_type)
     alpha = [float(a) for a in alpha_deg]
-    state = ([0.0] * 12 if angle_state is None
-             else [float(v) for v in angle_state])
+    if angle_state is None:
+        state = [0.0] * 12
+    else:
+        state = [float(v) for v in angle_state]
     if len(state) != 12:
         raise ValueError("LIFTCF's angle state is the twelve words "
                          "A(147) to A(158)")

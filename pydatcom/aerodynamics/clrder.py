@@ -112,45 +112,64 @@ def calculate_clr_wing(cl: Sequence[float], aspect_ratio: float,
     beta_ar = aspect_ratio * beta
 
     # Section 7.1.3.2 compressibility correction.
-    correction = (
-        (1.0 + aspect_ratio * (1.0 - beta**2) /
-         (2.0 * beta * (beta_ar + 2.0 * cos_sweep)) +
-         (beta_ar + 2.0 * cos_sweep) / (beta_ar + 4.0 * cos_sweep) *
-         tan_sweep**2 / 8.0) /
-        (1.0 + (aspect_ratio + 2.0 * cos_sweep) /
-         (aspect_ratio + 4.0 * cos_sweep) * tan_sweep**2 / 8.0))
+    tan_sweep_sq = tan_sweep ** 2
+    numerator = (
+        1.0
+        + aspect_ratio * (1.0 - beta ** 2)
+        / (2.0 * beta * (beta_ar + 2.0 * cos_sweep))
+        + (beta_ar + 2.0 * cos_sweep) / (beta_ar + 4.0 * cos_sweep)
+        * tan_sweep_sq / 8.0
+    )
+    denominator = (
+        1.0
+        + (aspect_ratio + 2.0 * cos_sweep)
+        / (aspect_ratio + 4.0 * cos_sweep) * tan_sweep_sq / 8.0
+    )
+    correction = numerator / denominator
 
-    dihedral_factor = (PI * aspect_ratio * np.sin(sweep_rad) /
-                       (12.0 * (aspect_ratio + 4.0 * cos_sweep)))
+    dihedral_factor = (
+        PI * aspect_ratio * np.sin(sweep_rad)
+        / (12.0 * (aspect_ratio + 4.0 * cos_sweep))
+    )
 
-    unit = interx(2, [_FIG_71320_10_AR, _FIG_71320_10_TAPER],
-                  [aspect_ratio, taper_ratio], [10, 4], _FIG_71320_10_DEP,
-                  lx1l=1, lx2l=1, lx1u=1, lx2u=1)
+    unit = interx(
+        2, [_FIG_71320_10_AR, _FIG_71320_10_TAPER],
+        [aspect_ratio, taper_ratio], [10, 4], _FIG_71320_10_DEP,
+        lx1l=1, lx2l=1, lx1u=1, lx2u=1,
+    )
 
-    # The sweep bracket: the source keeps the last grid point at or below
-    # the wing's sweep, so a sweep beyond the grid uses its final interval.
-    index = 0
-    for j, edge in enumerate(_SWEEP_GRID):
+    # Sweep bracket: last grid point at or below the wing sweep.
+    sweep_index = 0
+    for edge in _SWEEP_GRID:
         if sweep_deg >= edge:
-            index = j
-    index = min(index, len(_SWEEP_GRID) - 2)
+            sweep_index += 1
+    sweep_index = min(sweep_index - 1, len(_SWEEP_GRID) - 2)
+    sweep_index = max(sweep_index, 0)
 
-    upper = _SWEEP_GRID[index + 1]
-    offset = upper - sweep_deg
+    upper_sweep = _SWEEP_GRID[sweep_index + 1]
+    offset_from_upper = upper_sweep - sweep_deg
     clr_cl_zero = (
-        (_UNITI[index + 1] - _UNITI[index]) / _SWEEP_STEP * offset -
-        _UNITI[index + 1] +
-        ((_UNITS[index + 1] - _UNITS[index]) / _SWEEP_STEP * offset -
-         _UNITS[index + 1]) * unit)
+        (_UNITI[sweep_index + 1] - _UNITI[sweep_index]) / _SWEEP_STEP
+        * offset_from_upper
+        - _UNITI[sweep_index + 1]
+        + (
+            (_UNITS[sweep_index + 1] - _UNITS[sweep_index]) / _SWEEP_STEP
+            * offset_from_upper
+            - _UNITS[sweep_index + 1]
+        ) * unit
+    )
 
-    twist_factor = interx(2, [_FIG_71320_11_AR, _FIG_71320_11_TAPER],
-                          [aspect_ratio, taper_ratio], [9, 4],
-                          _FIG_71320_11_DEP)
+    twist_factor = interx(
+        2, [_FIG_71320_11_AR, _FIG_71320_11_TAPER],
+        [aspect_ratio, taper_ratio], [9, 4], _FIG_71320_11_DEP,
+    )
 
     clr_cl = -clr_cl_zero * correction
-    clr = (cl * clr_cl +
-           dihedral_factor * (dihedral_deg / RAD) +
-           twist_factor * twist_deg) / RAD
+    clr = (
+        cl * clr_cl
+        + dihedral_factor * (dihedral_deg / RAD)
+        + twist_factor * twist_deg
+    ) / RAD
 
     return {
         'clr': clr,
@@ -159,7 +178,7 @@ def calculate_clr_wing(cl: Sequence[float], aspect_ratio: float,
         'dihedral_factor': float(dihedral_factor),
         'twist_factor': float(twist_factor),
         'figure_10_unit': float(unit),
-        'sweep_index': index,
+        'sweep_index': sweep_index,
         'method': 'legacy_clrder_wing',
     }
 
@@ -190,13 +209,18 @@ def calculate_clr_panel_increment(alpha_deg: Sequence[float],
     if blref <= 0.0:
         raise ValueError("CLRDER requires a positive lateral reference length")
     alpha = np.atleast_1d(np.asarray(alpha_deg, dtype=float))
-    sin_a = np.sin(alpha / RAD)
-    cos_a = np.cos(alpha / RAD)
+    sin_alpha = np.sin(alpha / RAD)
+    cos_alpha = np.cos(alpha / RAD)
+    blref_sq = blref ** 2
 
-    along = arm_x * cos_a + arm_z * sin_a
-    across = arm_z * cos_a - arm_x * sin_a
+    arm_along_wind = arm_x * cos_alpha + arm_z * sin_alpha
+    arm_across_wind = arm_z * cos_alpha - arm_x * sin_alpha
+
     return {
-        'dclr': -2.0 * cyb_panel * along * across / blref**2,
-        'dclp': 2.0 * cyb_panel * across * (across - arm_z) / blref**2,
+        'dclr': -2.0 * cyb_panel * arm_along_wind * arm_across_wind / blref_sq,
+        'dclp': (
+            2.0 * cyb_panel * arm_across_wind * (arm_across_wind - arm_z)
+            / blref_sq
+        ),
         'method': 'legacy_clrder_panel',
     }

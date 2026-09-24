@@ -37,11 +37,11 @@ import logging
 from pydatcom.aerodynamics.cdrag import STRAIGHT_TAPERED
 from pydatcom.aerodynamics.fwdxac import calculate_fwdxac
 from pydatcom.utils.constants import DEG, PI, RAD, UNUSED
+from pydatcom.utils.legacy_numeric import tbfunx
+from pydatcom.utils.legacy_tables import tlinex, tlin3x
 
 # The source's "not available" marker, 2*UNUSED.
 NOT_AVAILABLE = 2.0 * UNUSED
-from pydatcom.utils.legacy_numeric import tbfunx
-from pydatcom.utils.legacy_tables import tlinex, tlin3x
 
 logger = logging.getLogger(__name__)
 
@@ -359,10 +359,14 @@ def _fig26(curve: float, ratio: float, taper: float) -> float:
     """Figure 4.1.4.2-26: part A for tan/beta below one, else part B at
     beta/tan.  ``ratio`` is tan(LE sweep)/beta."""
     if ratio >= 1.0:
-        return float(tlin3x(_X122B, _X222B, _X322B, _FIG_4226B, curve,
-                            _div(1.0, ratio), taper, 2, 0, 0, 2, 0, 0))
-    return float(tlin3x(_X122A, _X222A, _X322A, _FIG_4226A, curve, ratio,
-                        taper, 2, 0, 0, 2, 0, 0))
+        return float(tlin3x(
+            _X122B, _X222B, _X322B, _FIG_4226B,
+            curve, _div(1.0, ratio), taper, 2, 0, 0, 2, 0, 0,
+        ))
+    return float(tlin3x(
+        _X122A, _X222A, _X322A, _FIG_4226A,
+        curve, ratio, taper, 2, 0, 0, 2, 0, 0,
+    ))
 
 
 def calculate_cmalph(planform_type: float,
@@ -418,21 +422,28 @@ def calculate_cmalph(planform_type: float,
     c = {}
     result = {'method': 'legacy_cmalph'}
 
+    # Zero-lift moment B(47).
     a170 = g['a173'] / g['a10']
     c[48] = g['a10'] / cbarr
     c[1], c[2] = float(section['cmo']), float(section['cmot'])
     if not (abs(c[1]) < 1.0e-10 or abs(c[2]) < 1.0e-10):
         c[1] = 0.50 * (c[1] + c[2])
-    calm, _ = tbfunx(_XCMOM, _YCMOM, mach, 0, 0)
-    calm = g['a3'] * g['a16'] * calm / (sref * cbarr)
-    c[5] = (g['a7'] * g['a43']**2 / (g['a7'] + 2.0 * g['a43'])) * c[1] * calm
+
+    mach_factor, _ = tbfunx(_XCMOM, _YCMOM, mach, 0, 0)
+    calm = g['a3'] * g['a16'] * mach_factor / (sref * cbarr)
+    sweep_factor = g['a7'] * g['a43'] ** 2 / (g['a7'] + 2.0 * g['a43'])
+    c[5] = sweep_factor * c[1] * calm
+
     twist = float(section['twista'])
     if abs(twist) >= 1.0e-20:
-        c[4] = float(tlin3x(_X11412, _X21412, _X31412, _FIG_41415, g['a7'],
-                            g['a40'], g['a27'], 2, 2, 0, 2, 2, 0))
+        c[4] = float(tlin3x(
+            _X11412, _X21412, _X31412, _FIG_41415,
+            g['a7'], g['a40'], g['a27'], 2, 2, 0, 2, 2, 0,
+        ))
         c[5] = c[5] + c[4] * twist * calm
     c[3] = calm
 
+    # Aerodynamic centre C(6).
     c[9] = g['a7'] * g['a38']
     if kind == STRAIGHT_TAPERED:
         if g['a38'] == 0.0:
@@ -474,19 +485,28 @@ def calculate_cmalph(planform_type: float,
             c[19] = _fig26(c[15], c[16], g['a169'])
         c[20] = (c[19] * g['a166'] / g['a10'] - g['a164'] * g['a86'] / g['a10']
                  + g['a23'] * g['a62'] / g['a10'])
-        c[6] = ((g['a171'] * g['a1'] * c[18] + g['a172'] * g['a167'] * c[20]) /
-                (g['a171'] * g['a1'] + g['a172'] * g['a167']))
+        c[6] = (
+            (g['a171'] * g['a1'] * c[18] + g['a172'] * g['a167'] * c[20])
+            / (g['a171'] * g['a1'] + g['a172'] * g['a167'])
+        )
 
     c[7] = (a170 - c[6]) * (g['a10'] / cbarr)
     c[8] = c[7] * float(lift['cla'])
-    result.update({'cm0': c[5], 'xac': c[6], 'cma': c[8], 'a170': a170,
-                   'a38': g['a38'], 'a62': g.get('a62'), 'c': c})
+    result.update({
+        'cm0': c[5],
+        'xac': c[6],
+        'cma': c[8],
+        'a170': a170,
+        'a38': g['a38'],
+        'a62': g.get('a62'),
+        'c': c,
+    })
 
     if g['a7'] > 6.0 / g['a124'] or g['a34'] < 0.0:
         result.update({'cm': cn * c[7] + c[5], 'nonlinear': False})
         return result
 
-    # Section 4.1.4.3, the low-aspect-ratio nonlinear method.
+    # Section 4.1.4.3: low-aspect-ratio nonlinear centre of pressure.
     c[21] = g['a7'] * (1.0 + g['a27']) * g['a38'] / 4.0
     c[22] = (g['a27'] + c[21] + ((1.0 + c[21] * g['a27']) /
                                  (1.0 + g['a27']))) / 3.0
@@ -508,48 +528,69 @@ def calculate_cmalph(planform_type: float,
     c[30] = c[27] / c[28] - c[6] / c[29]
 
     cm = []
-    for m, a in enumerate(alpha):
-        c[31] = math.sin(a / RAD)
-        c[32] = math.cos(a / RAD)
+    for angle_index, alpha_at in enumerate(alpha):
+        c[31] = math.sin(alpha_at / RAD)
+        c[32] = math.cos(alpha_at / RAD)
         c[33] = c[31] / c[32]
         c[34] = g['a7'] * g['a37']
         c[35] = abs(c[33] / c[29])
-        tanrat = c[33] > c[29]
-        if m == 0:
-            # The reference angle and its data, on the first pass only.
+        above_clmax_tangent = c[33] > c[29]
+
+        if angle_index == 0:
+            # Reference angle and table lookups, first pass only.
             c[36] = math.atan(math.tan(alpha_clmax / RAD) / 0.6)
-            temp2 = c[29] / math.tan(c[36])
-            c[47] = temp2
-            c[40] = float(tlinex(_X112A, _X212A, _FIG_4322B, c[9], g['a27'],
-                                 1, 0, 1, 0))
-            c[37] = float(tlinex(_X113A, _X213A, _FIG_4324A, c[34], g['a27'],
-                                 0, 0, 2, 0))
-            c[51] = float(tlinex(_X113B2, _X213B2, _FIG_4324B2, temp2, c[37],
-                                 2, 0, 2, 0))
-            c[50] = float(tlinex(_X112B2, _X212B2, _FIG_4323B, temp2, c[40],
-                                 2, 0, 2, 0))
-            c[49] = (c[6] * math.cos(c[36]) +
-                     math.sin(c[36]) * (c[30] + c[51] + c[50]))
-        if a / RAD > c[36]:
+            clmax_over_ref_tan = c[29] / math.tan(c[36])
+            c[47] = clmax_over_ref_tan
+            c[40] = float(tlinex(
+                _X112A, _X212A, _FIG_4322B, c[9], g['a27'], 1, 0, 1, 0,
+            ))
+            c[37] = float(tlinex(
+                _X113A, _X213A, _FIG_4324A, c[34], g['a27'], 0, 0, 2, 0,
+            ))
+            c[51] = float(tlinex(
+                _X113B2, _X213B2, _FIG_4324B2,
+                clmax_over_ref_tan, c[37], 2, 0, 2, 0,
+            ))
+            c[50] = float(tlinex(
+                _X112B2, _X212B2, _FIG_4323B,
+                clmax_over_ref_tan, c[40], 2, 0, 2, 0,
+            ))
+            c[49] = (
+                c[6] * math.cos(c[36])
+                + math.sin(c[36]) * (c[30] + c[51] + c[50])
+            )
+
+        if alpha_at / RAD > c[36]:
             c[41] = c[22] - c[49]
             c[42] = PI / 2.0 - c[36]
             c[43] = c[41] / c[42]
-            c[44] = c[49] + c[43] * (a / RAD - c[36])
-            cm.append(cn[m] * (a170 - c[44]) * (g['a10'] / cbarr) + c[5])
+            c[44] = c[49] + c[43] * (alpha_at / RAD - c[36])
+            cm.append(
+                cn[angle_index] * (a170 - c[44]) * (g['a10'] / cbarr) + c[5],
+            )
             continue
-        if tanrat:
+
+        if above_clmax_tangent:
             c[46] = c[29] / c[33]
-            c[38] = float(tlinex(_X113B2, _X213B2, _FIG_4324B2, c[46], c[37],
-                                 2, 0, 2, 0))
-            c[39] = float(tlinex(_X112B2, _X212B2, _FIG_4323B, c[46], c[40],
-                                 2, 0, 2, 0))
+            c[38] = float(tlinex(
+                _X113B2, _X213B2, _FIG_4324B2, c[46], c[37], 2, 0, 2, 0,
+            ))
+            c[39] = float(tlinex(
+                _X112B2, _X212B2, _FIG_4323B, c[46], c[40], 2, 0, 2, 0,
+            ))
         else:
-            c[38] = float(tlinex(_X113B1, _X213B1, _FIG_4324B1, c[35], c[37],
-                                 2, 0, 2, 0))
-            c[39] = float(tlinex(_X112B1, _X212B1, _FIG_4323A, c[35], c[40],
-                                 2, 0, 2, 0))
+            c[38] = float(tlinex(
+                _X113B1, _X213B1, _FIG_4324B1, c[35], c[37], 2, 0, 2, 0,
+            ))
+            c[39] = float(tlinex(
+                _X112B1, _X212B1, _FIG_4323A, c[35], c[40], 2, 0, 2, 0,
+            ))
+
         c[44] = c[6] * c[32] + (c[30] + c[39] + c[38]) * c[31]
-        cm.append(cn[m] * (g['a173'] / g['a10'] - c[44]) * c[48] + c[5])
+        cm.append(
+            cn[angle_index] * (g['a173'] / g['a10'] - c[44]) * c[48] + c[5],
+        )
+
     result.update({'cm': np.array(cm), 'nonlinear': True})
     return result
 
@@ -557,9 +598,12 @@ def calculate_cmalph(planform_type: float,
 def _panel_slope(chord_ratio_area: float, tan_half_chord: float,
                  section_cla: float, mach: float) -> float:
     """CMALPO's panel lift-curve slope, per degree."""
-    temp1 = 2.0 * PI * chord_ratio_area * DEG
-    temp2 = abs(1.0 - mach**2) * (temp1 / section_cla)**2
-    return temp1 / (2.0 + math.sqrt(temp2 * (1.0 + tan_half_chord**2) + 4.0))
+    incompressible_slope = 2.0 * PI * chord_ratio_area * DEG
+    compressibility = abs(1.0 - mach ** 2) * (incompressible_slope / section_cla) ** 2
+    denominator = 2.0 + math.sqrt(
+        compressibility * (1.0 + tan_half_chord ** 2) + 4.0,
+    )
+    return incompressible_slope / denominator
 
 
 def calculate_cmalpo(planform_type: float, geometry: Dict[str, float],
@@ -637,21 +681,32 @@ def calculate_cmalpo(planform_type: float, geometry: Dict[str, float],
         cla = float(section['cla'])
         a172 = _panel_slope(g['a168'], g['a98'], cla, first_mach)
         a171 = _panel_slope(g['a5'], g['a74'], cla, first_mach)
-        c[6] = ((a171 * g['a1'] * c[18] + a172 * g['a167'] * c[20]) /
-                (a171 * g['a1'] + a172 * g['a167']))
+        c[6] = (
+            (a171 * g['a1'] * c[18] + a172 * g['a167'] * c[20])
+            / (a171 * g['a1'] + a172 * g['a167'])
+        )
         c.update({171: a171, 172: a172})
-    return {'dcmdcl': float((a170 - c[6]) * (g['a10'] / cbarr)),
-            'xac': float(c[6]), 'c': c, 'a62': g.get('a62'),
-            'method': 'legacy_cmalpo'}
+
+    dcmdcl = (a170 - c[6]) * (g['a10'] / cbarr)
+    return {
+        'dcmdcl': float(dcmdcl),
+        'xac': float(c[6]),
+        'c': c,
+        'a62': g.get('a62'),
+        'method': 'legacy_cmalpo',
+    }
 
 
 def calculate_cacalc(alpha_deg: Sequence[float], cd: Sequence[float],
                      cl: Sequence[float]) -> Dict[str, np.ndarray]:
     """Translate CACALC: normal and axial force at the surface's angles."""
-    alpha = np.asarray(alpha_deg, dtype=float) / RAD
-    cd, cl = np.asarray(cd, dtype=float), np.asarray(cl, dtype=float)
-    return {'cn': cl * np.cos(alpha) + cd * np.sin(alpha),
-            'ca': cd * np.cos(alpha) - cl * np.sin(alpha)}
+    alpha_rad = np.asarray(alpha_deg, dtype=float) / RAD
+    cd = np.asarray(cd, dtype=float)
+    cl = np.asarray(cl, dtype=float)
+    return {
+        'cn': cl * np.cos(alpha_rad) + cd * np.sin(alpha_rad),
+        'ca': cd * np.cos(alpha_rad) - cl * np.sin(alpha_rad),
+    }
 
 
 # The deviation from the linear lift slope, percent, past which M31O37 and
@@ -697,9 +752,11 @@ def calculate_moment_overlay(surface: str,
     """
     if surface not in ('wing', 'tail'):
         raise ValueError("surface must be 'wing' or 'tail'")
+
     cm_result = calculate_cmalph(**cmalph_inputs)
     alpha = np.asarray(free_alpha_deg, dtype=float)
-    cd, cl = np.asarray(cd, dtype=float), np.asarray(cl, dtype=float)
+    cd = np.asarray(cd, dtype=float)
+    cl = np.asarray(cl, dtype=float)
     cm = np.array(cm_result['cm'], dtype=float)
     cla0 = float(cmalph_inputs['lift']['cla'])
     cma0 = cm_result['cma']
@@ -712,21 +769,36 @@ def calculate_moment_overlay(surface: str,
         cma0 = tbfunx(alpha, cm, 0.0, 0, 0)[1]
 
     g = cmalph_inputs['geometry']
-    skip = ((float(g['a7']) <= 6.0 / float(g['a124']) and
-             float(cmalph_inputs['planform_type']) == STRAIGHT_TAPERED)
-            or experimental)
-    limit = _WING_DEVIATION if surface == 'wing' else _TAIL_DEVIATION
-    reference = cla0 if surface == 'wing' else cla[0]
-    if not skip:
-        flagged = False
+    low_aspect_straight = (
+        float(g['a7']) <= 6.0 / float(g['a124'])
+        and float(cmalph_inputs['planform_type']) == STRAIGHT_TAPERED
+    )
+    skip_linearity_test = low_aspect_straight or experimental
+    deviation_limit = (
+        _WING_DEVIATION if surface == 'wing' else _TAIL_DEVIATION
+    )
+    cla_reference = cla0 if surface == 'wing' else cla[0]
+
+    if not skip_linearity_test:
+        past_limit = False
         for j in range(1, len(alpha)):
-            if 100.0 * abs(cla[j] / reference - 1.0) > limit:
-                flagged = True
-            if flagged:
+            deviation_pct = 100.0 * abs(cla[j] / cla_reference - 1.0)
+            if deviation_pct > deviation_limit:
+                past_limit = True
+            if past_limit:
                 cm[j] = NOT_AVAILABLE
                 cma[j] = NOT_AVAILABLE
-    if surface == 'wing' or not skip:
+
+    if surface == 'wing' or not skip_linearity_test:
         cla[0], cma[0] = cla0, cma0
-    return {'cm': cm, 'cn': forces['cn'], 'ca': forces['ca'], 'cla': cla,
-            'cma': cma, 'cmalph': cm_result,
-            'method': f'legacy_m{"31o37" if surface == "wing" else "33o41"}'}
+
+    overlay_tag = '31o37' if surface == 'wing' else '33o41'
+    return {
+        'cm': cm,
+        'cn': forces['cn'],
+        'ca': forces['ca'],
+        'cla': cla,
+        'cma': cma,
+        'cmalph': cm_result,
+        'method': f'legacy_m{overlay_tag}',
+    }

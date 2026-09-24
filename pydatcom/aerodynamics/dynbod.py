@@ -71,36 +71,42 @@ def calculate_dynbod_subsonic(x: Sequence[float], s: Sequence[float],
     if min(body_length, body_area, sref, cbar) <= 0.0:
         raise ValueError("DYNBOD requires positive length, area and references")
 
-    volume = float(trapz(s, x)[0])                       # VB
+    volume = float(trapz(s, x)[0])
     if volume <= 0.0:
         raise ValueError("DYNBOD requires a positive body volume")
-    first_moment = float(trapz(s * x, x)[0])
-    centroid = first_moment / volume                     # XC
 
-    cg_fraction = xcg / body_length                      # SAVE
-    volume_ratio = volume / (body_area * body_length)    # TEMP
-    denominator = 1.0 - cg_fraction - volume_ratio
-    if abs(denominator) < 1e-12:
+    first_moment = float(trapz(s * x, x)[0])
+    centroid = first_moment / volume
+
+    cg_fraction = xcg / body_length
+    volume_ratio = volume / (body_area * body_length)
+    moment_denominator = 1.0 - cg_fraction - volume_ratio
+    if abs(moment_denominator) < 1e-12:
         raise ValueError(
             "DYNBOD's moment denominator (1 - XCG/LB - VB/(SB*LB)) vanishes "
-            "for this configuration")
+            "for this configuration",
+        )
 
     centroid_arm = centroid / body_length - cg_fraction
     clq = 2.0 * cla_body * (1.0 - cg_fraction)
-    cmq = (2.0 * cma_body *
-           ((1.0 - cg_fraction)**2 - volume_ratio * centroid_arm) /
-           denominator)
+    cmq = (
+        2.0 * cma_body
+        * ((1.0 - cg_fraction) ** 2 - volume_ratio * centroid_arm)
+        / moment_denominator
+    )
     clad = 2.0 * cla_body * volume_ratio
-    cmad = 2.0 * cma_body * (volume_ratio * centroid_arm) / denominator
+    cmad = 2.0 * cma_body * (volume_ratio * centroid_arm) / moment_denominator
 
     # Reference correction.  CLAD takes the first power of LB/CBARR.
     area_ratio = base_area / sref
     length_ratio = body_length / cbar
+    length_sq = length_ratio ** 2
+
     return {
-        'clq': float(clq * area_ratio * length_ratio**2),
-        'cmq': float(cmq * area_ratio * length_ratio**2),
+        'clq': float(clq * area_ratio * length_sq),
+        'cmq': float(cmq * area_ratio * length_sq),
         'clad': float(clad * area_ratio * length_ratio),
-        'cmad': float(cmad * area_ratio * length_ratio**2),
+        'cmad': float(cmad * area_ratio * length_sq),
         'volume': volume,
         'centroid': centroid,
         'cg_fraction': float(cg_fraction),
@@ -124,10 +130,12 @@ def _segment_cnq(half_angle: float, taper: float, diameter: float,
             "Figure 7.2.1.1-9A divides by tan(theta); a cylindrical segment "
             "needs a unit taper ratio instead of a zero half angle")
     cosine = np.cos(half_angle)
-    term = (0.66667 / tangent *
-            (2.0 * (1.0 - taper**3) -
-             3.0 * taper * cosine**2 * (1.0 - taper**2)))
-    return float(term * scale * diameter**3)
+    term = (
+        0.66667 / tangent
+        * (2.0 * (1.0 - taper ** 3)
+           - 3.0 * taper * cosine ** 2 * (1.0 - taper ** 2))
+    )
+    return float(term * scale * diameter ** 3)
 
 
 def _segment_cmq(half_angle: float, taper: float, diameter: float,
@@ -141,12 +149,14 @@ def _segment_cmq(half_angle: float, taper: float, diameter: float,
             "Figure 7.2.1.2-12 divides by sin(theta)^2; a cylindrical "
             "segment needs a unit taper ratio instead of a zero half angle")
     cosine = np.cos(half_angle)
-    a = 6.0 * taper**2 * (1.0 - taper**2)
-    b = -8.0 * taper * (1.0 - taper**3)
-    c = 3.0 * (1.0 - taper**4)
-    term = (-(a * cosine**4 + b * cosine**2 + c) / (6.0 * sine**2) -
-            taper**4 / 2.0)
-    return float(term * scale * diameter**4)
+    a = 6.0 * taper ** 2 * (1.0 - taper ** 2)
+    b = -8.0 * taper * (1.0 - taper ** 3)
+    c = 3.0 * (1.0 - taper ** 4)
+    term = (
+        -(a * cosine ** 4 + b * cosine ** 2 + c) / (6.0 * sine ** 2)
+        - taper ** 4 / 2.0
+    )
+    return float(term * scale * diameter ** 4)
 
 
 def calculate_dynbod_hypersonic(theta_nose: float, theta_afterbody: float,

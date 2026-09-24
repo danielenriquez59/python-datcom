@@ -324,11 +324,16 @@ def _nose_balance_ratio(chord_balance: float, chord_flap_average: float,
     against UNUSED -- which works because ``INITZ2`` fills the ``FHG``
     block with UNUSED before the case runs.
     """
-    if chord_balance is None or chord_balance == UNUSED or \
-            chord_balance == 0.0 or chord_flap_average == 0.0:
+    if (
+        chord_balance is None
+        or chord_balance == UNUSED
+        or chord_balance == 0.0
+        or chord_flap_average == 0.0
+    ):
         return None
-    radicand = ((chord_balance / chord_flap_average)**2 -
-                (thickness_at_hinge / (2.0 * chord_flap_average))**2)
+    chord_over_flap = chord_balance / chord_flap_average
+    half_thickness_over_flap = thickness_at_hinge / (2.0 * chord_flap_average)
+    radicand = chord_over_flap ** 2 - half_thickness_over_flap ** 2
     if radicand < 0.0:
         return None
     return float(np.sqrt(radicand))
@@ -428,12 +433,14 @@ def calculate_hinge(mach: float,
     """
     if not np.isfinite(mach) or mach >= 1.0:
         raise ValueError(
-            f"HINGE forms sqrt(1-M^2); Mach {mach} is not subsonic")
+            f"HINGE forms sqrt(1-M^2); Mach {mach} is not subsonic",
+        )
+
     deflections = np.atleast_1d(np.asarray(deflections, dtype=float))
     if deflections.size == 0 or np.any(deflections == 0.0):
-        raise ValueError(
-            "HINGE divides by each deflection; none may be zero")
-    beta = float(np.sqrt(1.0 - mach**2))
+        raise ValueError("HINGE divides by each deflection; none may be zero")
+
+    beta = float(np.sqrt(1.0 - mach ** 2))
 
     span_inboard = float(flap['span_inboard'])
     span_outboard = float(flap['span_outboard'])
@@ -558,27 +565,32 @@ def calculate_hinge(mach: float,
     semispan = float(surface['semispan'])
     eta_inboard = span_inboard / semispan
     eta_outboard = span_outboard / semispan
-    if eta_outboard == eta_inboard:
+    eta_span = eta_outboard - eta_inboard
+    if eta_span == 0.0:
         raise ValueError("HINGE divides by the flap span fraction")
 
-    k_alpha_in = float(interx(1, _F6161_19B_ETA, [eta_inboard], [12],
-                              _F6161_19B, lind=12, lx1u=2))
-    k_alpha_out = float(interx(1, _F6161_19B_ETA, [eta_outboard], [12],
-                               _F6161_19B, lind=12, lx1u=2))
-    k_alpha = ((k_alpha_in * (1.0 - eta_inboard) -
-                k_alpha_out * (1.0 - eta_outboard)) /
-               (eta_outboard - eta_inboard))
+    k_alpha_in = float(interx(
+        1, _F6161_19B_ETA, [eta_inboard], [12], _F6161_19B, lind=12, lx1u=2,
+    ))
+    k_alpha_out = float(interx(
+        1, _F6161_19B_ETA, [eta_outboard], [12], _F6161_19B, lind=12, lx1u=2,
+    ))
+    k_alpha = (
+        k_alpha_in * (1.0 - eta_inboard) - k_alpha_out * (1.0 - eta_outboard)
+    ) / eta_span
     delta_cha = dcha_over_k * (section_cl_alpha * b2 * k_alpha * cos_c4)
     cha = (aspect_ratio * cos_c4 * cha_mac /
            (aspect_ratio + 2.0 * cos_c4) + delta_cha)
 
-    k_delta_in = float(interx(1, _F6162_15B_ETA, [eta_inboard], [12],
-                              _F6162_15B, lind=12, lx1u=2))
-    k_delta_out = float(interx(1, _F6162_15B_ETA, [eta_outboard], [12],
-                               _F6162_15B, lind=12, lx1u=2))
-    k_delta = ((k_delta_in * (1.0 - eta_inboard) -
-                k_delta_out * (1.0 - eta_outboard)) /
-               (eta_outboard - eta_inboard))
+    k_delta_in = float(interx(
+        1, _F6162_15B_ETA, [eta_inboard], [12], _F6162_15B, lind=12, lx1u=2,
+    ))
+    k_delta_out = float(interx(
+        1, _F6162_15B_ETA, [eta_outboard], [12], _F6162_15B, lind=12, lx1u=2,
+    ))
+    k_delta = (
+        k_delta_in * (1.0 - eta_inboard) - k_delta_out * (1.0 - eta_outboard)
+    ) / eta_span
     dchd_over_k = float(tlinex(_F6162_15A_CFOCAP, _F6162_15A_AR,
                                _F6162_15A, normal_ratio, aspect_ratio,
                                1, 1, 1, 0))
