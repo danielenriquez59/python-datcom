@@ -71,7 +71,7 @@ def calculate_dflcon(aa: float, dd: float, aforlf: float, beta: float,
         opd2 = 1. + d2
         savfld = fld
         tip_done = False
-        for k in range(2):
+        for pass_index in range(2):
             apd, opa, opd = a + d, 1. + a, 1. + d
             amd, oma, omd = a - d, 1. - a, 1. - d
             fld2 = fld**2
@@ -100,20 +100,20 @@ def calculate_dflcon(aa: float, dd: float, aforlf: float, beta: float,
             g15 = _sqra(oma2 * g6) / PI
             g16 = 1. / (opd * amd2)
             g17 = sq2 * (1. - g8)
-            p[k] = .5 * (sq1 - oma * opd) / amd
-            pa[k] = omd * g1 * (g4 - g5)
-            pb[k] = (amd * g4 + g7) * g1
-            pc[k] = omd / amd * (g17 + g9 - oma / omd)
-            tcp[k] = .25 / (p[k] * amd2) * (sq2 * g10 - g11)
-            tcpa[k] = g12 / (pa[k] * amd) * (
+            p[pass_index] = .5 * (sq1 - oma * opd) / amd
+            pa[pass_index] = omd * g1 * (g4 - g5)
+            pb[pass_index] = (amd * g4 + g7) * g1
+            pc[pass_index] = omd / amd * (g17 + g9 - oma / omd)
+            tcp[pass_index] = .25 / (p[pass_index] * amd2) * (sq2 * g10 - g11)
+            tcpa[pass_index] = g12 / (pa[pass_index] * amd) * (
                 omd2 * (2. * opad - fld * opd2) * g4 - g5 * g10 +
                 sign * opd2 * g15)
-            rcpb[k] = g115 / pb[k] * (amd * (2. * a - fld * apd) * g4 /
+            rcpb[pass_index] = g115 / pb[pass_index] * (amd * (2. * a - fld * apd) * g4 /
                                       omfld + sign * g15 + a * g7)
-            tcpc[k] = .5 * g16 / pc[k] * (
+            tcpc[pass_index] = .5 * g16 / pc[pass_index] * (
                 g10 * g17 + amd * opd2 * sq3 / PI - g11 +
                 omd2 * (1. + 2. * ad - d2) * g9)
-            if k == 1:
+            if pass_index == 1:
                 a, d = -a, -d
                 continue
             if not inbord:
@@ -194,7 +194,7 @@ def calculate_dflcon(aa: float, dd: float, aforlf: float, beta: float,
     else:
         fld = aforlf
         fld2 = fld**2
-        for k in range(2):
+        for pass_index in range(2):
             opa, oma = 1. + a, 1. - a
             g1 = 1. + 2. * a * fld - oma2 * fld2
             g2 = oma2 * fld - a
@@ -212,17 +212,17 @@ def calculate_dflcon(aa: float, dd: float, aforlf: float, beta: float,
             g15 = 2. * fld * oma2**2
             g16 = a * (7. - a2)
             g17 = 1. / (opa * oma2)
-            pa[k] = g8 * (g7 - g2 * g3)
-            pb[k] = g4 * (g3 + g5 * g9)
-            pc[k] = g11 / opa
-            tcp[k] = (8. * a + opa2) / (4. * oma2)
-            tcpa[k] = g12 / pa[k] * ((g13 - g14 * g15) * g3 +
+            pa[pass_index] = g8 * (g7 - g2 * g3)
+            pb[pass_index] = g4 * (g3 + g5 * g9)
+            pc[pass_index] = g11 / opa
+            tcp[pass_index] = (8. * a + opa2) / (4. * oma2)
+            tcpa[pass_index] = g12 / pa[pass_index] * ((g13 - g14 * g15) * g3 +
                                      (g16 + oma4 * fld) * g7)
-            rcpb[k] = g4 / (2. * pb[k]) * ((1. + 2. * a * fld) * g3 / fld -
+            rcpb[pass_index] = g4 / (2. * pb[pass_index]) * ((1. + 2. * a * fld) * g3 / fld -
                                            g7 + a * g5 * g9)
-            tcpc[k] = g17 / (4. * pc[k]) * (8. * a + opa2 + g13 / PI * g10 -
+            tcpc[pass_index] = g17 / (4. * pc[pass_index]) * (8. * a + opa2 + g13 / PI * g10 -
                                             g16 / PI * sq3)
-            if k == 1:
+            if pass_index == 1:
                 a = -a
                 oma, opa = 1. - a, 1. + a
                 sl2 = sl1

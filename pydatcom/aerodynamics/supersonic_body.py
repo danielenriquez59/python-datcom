@@ -323,11 +323,11 @@ def calculate_sypbod(data: Mapping[str, object]) -> Dict[str, object]:
         return _ix(1, x, [station], [nx], r, nx)
 
     dn = d1 = d2 = 0.0
-    for k in range(1, loop + 1):
-        if k == 1:
+    for diameter_pass in range(1, loop + 1):
+        if diameter_pass == 1:
             dn = dia_at(rln) * 2.
             d1 = d2 = dn
-        elif k == 2:
+        elif diameter_pass == 2:
             dia = dia_at(rlb if nostal else rlbp)
             if nostal:
                 d1, d2 = dn, dia * 2.
@@ -391,12 +391,13 @@ def calculate_sypbod(data: Mapping[str, object]) -> Dict[str, object]:
         sbd.update({19: sb, 20: sp})
         mc, cdc = [], []
         cnpot, cnvis = [], []
-        for j in range(na):
-            mc.append(mach * abs(math.sin(alschr[j])))
-            cdc.append(_ix(1, _T4217B, [mc[j]], [18], _D4217B, 18))
-            cflow[j] = cdc[j] * sp * math.sin(alschr[j])**2 / sr
-            if alschr[j] < 0.0:
-                cflow[j] = -cflow[j]
+        for angle_index in range(na):
+            mc.append(mach * abs(math.sin(alschr[angle_index])))
+            cdc.append(_ix(1, _T4217B, [mc[angle_index]], [18], _D4217B, 18))
+            cflow[angle_index] = (cdc[angle_index] * sp *
+                                  math.sin(alschr[angle_index])**2 / sr)
+            if alschr[angle_index] < 0.0:
+                cflow[angle_index] = -cflow[angle_index]
             aob = 1. / ellip if ellip < 1. else ellip
             cnocns = aob if ellip < 1. else 1. / aob
             cnocnn = 1.0
@@ -409,13 +410,15 @@ def calculate_sypbod(data: Mapping[str, object]) -> Dict[str, object]:
                 cnocnn = 1.5 * math.sqrt(1. / aob) * (
                     aob**2 / (aob**2 - 1.)**1.5 *
                     math.atan(math.sqrt(aob**2 - 1.)) - 1. / (aob**2 - 1.))
-            cnpot.append(math.sin(2. * alschr[j]) *
-                         math.cos(alschr[j] / 2.) * a1 * cnocns / sr)
-            cnvis.append(cflow[j] * cnocnn)
-            cn[j] = cnpot[j] + cnvis[j]
-        for j in range(na):
-            sbd[21 + j], sbd[41 + j] = alschr[j], mc[j]
-            sbd[61 + j], sbd[81 + j] = cdc[j], cflow[j]
+            cnpot.append(math.sin(2. * alschr[angle_index]) *
+                         math.cos(alschr[angle_index] / 2.) * a1 * cnocns / sr)
+            cnvis.append(cflow[angle_index] * cnocnn)
+            cn[angle_index] = cnpot[angle_index] + cnvis[angle_index]
+        for angle_index in range(na):
+            sbd[21 + angle_index], sbd[41 + angle_index] = (alschr[angle_index],
+                                                            mc[angle_index])
+            sbd[61 + angle_index], sbd[81 + angle_index] = (cdc[angle_index],
+                                                            cflow[angle_index])
         out.update({'cnpot': cnpot, 'cnvis': cnvis})
     var = [beta / fn, fa / fn]
     if bnose == 1.:
@@ -458,11 +461,11 @@ def calculate_sypbod(data: Mapping[str, object]) -> Dict[str, object]:
         if ellip == 1.0:
             arg1 = cma * RAD / 2.0
         cmpot, cmvis = [], []
-        for j in range(na):
-            cmpot.append(math.sin(2. * alschr[j]) *
-                         math.cos(alschr[j] / 2.) * arg1 * cnocns)
-            cmvis.append(cflow[j] / crbar * (xcg - xc) * cnocnn)
-            cm[j] = cmvis[j] + cmpot[j]
+        for angle_index in range(na):
+            cmpot.append(math.sin(2. * alschr[angle_index]) *
+                         math.cos(alschr[angle_index] / 2.) * arg1 * cnocns)
+            cmvis.append(cflow[angle_index] / crbar * (xcg - xc) * cnocnn)
+            cm[angle_index] = cmvis[angle_index] + cmpot[angle_index]
         sbd.update({105: xc, 106: vb})
         out.update({'req': req, 'cmpot': cmpot, 'cmvis': cmvis})
     var2 = 2. * rln / (beta * dn)
@@ -473,8 +476,9 @@ def calculate_sypbod(data: Mapping[str, object]) -> Dict[str, object]:
                     lx2u=2)
     cdn2 = cdn2p * PI * dn**4 / (16. * sr * rln**2)
     ss = 0.0
-    for j in range(nx - 1):
-        ss += (perim[j + 1] + perim[j]) * (x[j + 1] - x[j]) / 2.
+    for station in range(nx - 1):
+        ss += ((perim[station + 1] + perim[station]) *
+               (x[station + 1] - x[station]) / 2.)
     rnb = rlb * rnfs
     rach = float(st.get('rach', 0.0))
     rlcoff = st.get('rlcoff')
@@ -530,10 +534,11 @@ def calculate_sypbod(data: Mapping[str, object]) -> Dict[str, object]:
     if transn:
         return out
     ca, cl, cd = [], [], []
-    for j in range(na):
-        cosa, sina = math.cos(alpha[j] / RAD), math.sin(alpha[j] / RAD)
+    for angle_index in range(na):
+        cosa = math.cos(alpha[angle_index] / RAD)
+        sina = math.sin(alpha[angle_index] / RAD)
         ca.append(cdo * cosa**2)
-        cl.append(cn[j] * cosa - ca[j] * sina)
-        cd.append(ca[j] * cosa + cn[j] * sina)
+        cl.append(cn[angle_index] * cosa - ca[angle_index] * sina)
+        cd.append(ca[angle_index] * cosa + cn[angle_index] * sina)
     out.update({'cn': cn, 'cm': cm, 'ca': ca, 'cl': cl, 'cd': cd})
     return out

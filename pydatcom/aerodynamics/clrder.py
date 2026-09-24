@@ -275,8 +275,8 @@ def calculate_clrder(data: Dict[str, object]) -> Dict[str, object]:
     deg = 0.01745329
     unused = 1.e-30
     if data['bo']:
-        for j in range(1, nalpha + 1):
-            body[j + 360] = 0.0
+        for angle_slot in range(1, nalpha + 1):
+            body[angle_slot + 360] = 0.0
     if data['subson']:
         mach = float(data['mach'])
         swec4, tapre, ar = a[41], a[27], a[7]
@@ -296,9 +296,9 @@ def calculate_clrder(data: Dict[str, object]) -> Dict[str, object]:
                           [0.0] * 6, [ar, tapre], [10, 4], _FIG_71320_10_DEP,
                           lind=10, lx1l=1, lx2l=1, lx1u=1, lx2u=1)
             jj = 0
-            for j in range(1, 5):
-                if swec4 * RAD >= _SWEEP_GRID[j - 1]:
-                    jj = j
+            for sweep_index in range(1, 5):
+                if swec4 * RAD >= _SWEEP_GRID[sweep_index - 1]:
+                    jj = sweep_index
             if swec4 >= 0.:
                 clrclo = ((_UNITI[jj] - _UNITI[jj - 1]) / 15. *
                           (_SWEEP_GRID[jj] - swec4 * RAD) - _UNITI[jj] +
@@ -309,40 +309,47 @@ def calculate_clrder(data: Dict[str, object]) -> Dict[str, object]:
                                [0.0] * 5, [ar, tapre], [9, 4],
                                _FIG_71320_11_DEP, lind=9)
                 clrclm = -clrclo * con
-                for j in range(1, nalpha + 1):
-                    wing[j + 360] = float(
-                        (wing[j + 20] * clrclm + dclrg * gamma +
+                for angle_slot in range(1, nalpha + 1):
+                    wing[angle_slot + 360] = float(
+                        (wing[angle_slot + 20] * clrclm + dclrg * gamma +
                          dclrt * twist) / RAD)
                     if data['bo']:
-                        blk['bw'][j + 360] = wing[j + 360]
+                        blk['bw'][angle_slot + 360] = wing[angle_slot + 360]
         if data['vtpl'] or data['vfpl']:
             b2 = blref ** 2
-            for j in range(1, nalpha + 1):
-                sa, ca = np.sin(alpha[j] * deg), np.cos(alpha[j] * deg)
+            for angle_slot in range(1, nalpha + 1):
+                sa, ca = (np.sin(alpha[angle_slot] * deg),
+                          np.cos(alpha[angle_slot] * deg))
                 if swec4 < 0.:
                     continue
-                clrwbt = wing[j + 360]
+                clrwbt = wing[angle_slot + 360]
                 if data['vtpl']:
                     clrwbt = clrwbt - 2. * dcybv * (lp * ca + zp * sa) * \
                         (zp * ca - lp * sa) / b2
                 if data['vfpl']:
                     clrwbt = clrwbt - 2. * dcybf * (lpf * ca + zpf * sa) * \
                         (zpf * ca - lpf * sa) / b2
-                blk['bwhv'][j + 360] = float(clrwbt)
+                blk['bwhv'][angle_slot + 360] = float(clrwbt)
                 if data['vtpl']:
-                    vt[j + 280] = float(2. * dcybv * (zp * ca - lp * sa) *
-                                        (zp * ca - lp * sa - zp) / b2)
+                    vt[angle_slot + 280] = float(2. * dcybv *
+                                                 (zp * ca - lp * sa) *
+                                                 (zp * ca - lp * sa - zp) /
+                                                 b2)
                 if data['vfpl']:
                     # The source forms the fin's term with DCYBV.
-                    vf[j + 280] = float(2. * dcybv * (zpf * ca - lpf * sa) *
-                                        (zpf * ca - lpf * sa - zpf) / b2)
-                blk['bwv'][j + 360] = float(clrwbt)
+                    vf[angle_slot + 280] = float(2. * dcybv *
+                                                 (zpf * ca - lpf * sa) *
+                                                 (zpf * ca - lpf * sa - zpf) /
+                                                 b2)
+                blk['bwv'][angle_slot + 360] = float(clrwbt)
                 if data['vtpl']:
-                    vt[j + 360] = float(-2. * dcybv * (lp * ca + zp * sa) *
-                                        (zp * ca - lp * sa) / b2)
+                    vt[angle_slot + 360] = float(-2. * dcybv *
+                                                 (lp * ca + zp * sa) *
+                                                 (zp * ca - lp * sa) / b2)
                 if data['vfpl']:
-                    vf[j + 360] = float(-2. * dcybf * (lpf * ca + zpf * sa)
-                                        * (zpf * ca - lpf * sa) / b2)
+                    vf[angle_slot + 360] = float(-2. * dcybf *
+                                                 (lpf * ca + zpf * sa) *
+                                                 (zpf * ca - lpf * sa) / b2)
     if data['bo']:
         if data['htpl']:
             if data['subson']:
@@ -352,22 +359,22 @@ def calculate_clrder(data: Dict[str, object]) -> Dict[str, object]:
             if data['supers']:
                 akhb, akbh = wbt[66], wbt[65]
             if not (akhb == unused or akbh == unused):
-                for k in range(1, 5):
-                    kk = (k - 1) * 20 + 1 + 200
-                    if ht[kk] == unused or body[kk] == unused:
+                for deflection_slot in range(1, 5):
+                    word = (deflection_slot - 1) * 20 + 1 + 200
+                    if ht[word] == unused or body[word] == unused:
                         continue
-                    bh[kk] = (akbh + akhb) * ht[kk] + body[kk]
-            for k in range(1, 4):
-                kk = (k - 1) * 20 + 1 + 300
-                if ht[kk] == unused or body[kk] == unused:
+                    bh[word] = (akbh + akhb) * ht[word] + body[word]
+            for deflection_slot in range(1, 4):
+                word = (deflection_slot - 1) * 20 + 1 + 300
+                if ht[word] == unused or body[word] == unused:
                     continue
-                bh[kk] = ht[kk] + body[kk]
+                bh[word] = ht[word] + body[word]
         if data['vtpl']:
-            for k in range(1, 9):
-                kk = (k - 1) * 20 + 1 + 200
-                if (vt[kk] == unused and vf[kk] == unused) or \
-                        body[kk] == unused:
+            for panel_slot in range(1, 9):
+                word = (panel_slot - 1) * 20 + 1 + 200
+                if (vt[word] == unused and vf[word] == unused) or \
+                        body[word] == unused:
                     continue
-                bv[kk] = vt[kk] + body[kk] + vf[kk]
+                bv[word] = vt[word] + body[word] + vf[word]
     state.update(akhb=akhb, akbh=akbh)
     return dict(blk, state=state)

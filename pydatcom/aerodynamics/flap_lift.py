@@ -363,9 +363,9 @@ def calculate_liftfp(data: Mapping[str, object]) -> Dict[str, object]:
     rf = float(data['rl'])
     mach = 0.6 if transn else float(data['mach'])
     sr, aw, btheo = float(data['sref']), s['aw'], s['btheo']
-    for j in range(1, ndelta + 1):
-        if delta[j] == 0.0:
-            delta[j] = 0.01
+    for deflection_index in range(1, ndelta + 1):
+        if delta[deflection_index] == 0.0:
+            delta[deflection_index] = 0.01
     transl = iftype in _TRANSLATING
     deln4 = 0.25 * (bof - bif) / btheo
     flp[60] = deln4
@@ -383,82 +383,96 @@ def calculate_liftfp(data: Mapping[str, object]) -> Dict[str, object]:
     chrd[1] = arg4 + eta[1] * arg2
     cfoc[1] = cf[1] / chrd[1]
     alphad[1] = _ix1(_X1418A, _Y1418A, cfoc[1])
-    for k in range(2, 6):
-        nn_ = k - 1
-        eta[k] = eta[nn_] + deln4
-        cf[k] = cfi - arg1 * (eta[k] - eta[1])
-        rkb[k] = _tl(_X11419, _X21419, _Y61419, arg5, eta[k])
-        dkb[nn_] = rkb[k] - rkb[nn_]
-        chrd[k] = arg4 + eta[k] * arg2
-        cfoc[k] = cf[k] / chrd[k]
-        alphad[k] = _ix1(_X1418A, _Y1418A, cfoc[k])
-        aldavg[nn_] = 0.50 * (alphad[k] + alphad[nn_])
-        swf[nn_] = arg3 * (2. - (1. - arg5) * (eta[nn_] + eta[k]))
-    n = nn_                    # the geometry loop's N: 4
+    for strip_index in range(2, 6):
+        inboard = strip_index - 1
+        eta[strip_index] = eta[inboard] + deln4
+        cf[strip_index] = cfi - arg1 * (eta[strip_index] - eta[1])
+        rkb[strip_index] = _tl(_X11419, _X21419, _Y61419, arg5,
+                               eta[strip_index])
+        dkb[inboard] = rkb[strip_index] - rkb[inboard]
+        chrd[strip_index] = arg4 + eta[strip_index] * arg2
+        cfoc[strip_index] = cf[strip_index] / chrd[strip_index]
+        alphad[strip_index] = _ix1(_X1418A, _Y1418A, cfoc[strip_index])
+        aldavg[inboard] = 0.50 * (alphad[strip_index] + alphad[inboard])
+        swf[inboard] = (arg3 * (2. - (1. - arg5) *
+                                (eta[inboard] + eta[strip_index])))
+    n = 4                      # the geometry loop's N (source strip count)
     expdcl = False
     nn = 0
     arg1 = math.log10(rf * s['cbarex'])
     if iftype == 1:
         flp[33] = _tl(_X1128A, _X2128A, _Y1128A, arg1, tanphe, 1, 0, 0, 1)
     adcad = {}
-    for i in range(1, ndelta + 1):
-        arg8 = delta[i] * clasec
-        if sdcl[i] != UNUSED:
+    for deflection_index in range(1, ndelta + 1):
+        arg8 = delta[deflection_index] * clasec
+        if sdcl[deflection_index] != UNUSED:
             expdcl = True
         if not (expdcl and not transl):
-            cp[1] = cpi[i]
-            for k in range(1, 6):
-                if k != 1 and transl:
-                    arg1 = (cpi[i] - cpo[i]) / (4. * deln4)
-                    cp[k] = cpi[i] - arg1 * (eta[k] - eta[1])
+            cp[1] = cpi[deflection_index]
+            for strip_index in range(1, 6):
+                if strip_index != 1 and transl:
+                    arg1 = (cpi[deflection_index] - cpo[deflection_index]) / (
+                        4. * deln4)
+                    cp[strip_index] = (cpi[deflection_index] -
+                                       arg1 * (eta[strip_index] - eta[1]))
                 label = 1150 if expdcl else None
                 if label is None:
-                    argz = abs(delta[i])
+                    argz = abs(delta[deflection_index])
                     kind = iftype if 1 <= iftype <= 8 else 1
                     if kind == 1:
-                        if i <= 1:
-                            cldoct[k] = _tl(_X1125B, _X2125B, _Y1125B,
-                                            flp[33], cfoc[k])
-                            cldthy[k] = _tl(_X1125A, _X2125A, _Y1125A, tc,
-                                            cfoc[k])
-                        kfprm = _tl(_X11126, _X21126, _Y11126, cfoc[k], argz)
-                        delcl[k] = delta[i] * cldoct[k] * cldthy[k] * \
-                            kfprm / RAD
+                        if deflection_index <= 1:
+                            cldoct[strip_index] = _tl(_X1125B, _X2125B,
+                                                        _Y1125B, flp[33],
+                                                        cfoc[strip_index])
+                            cldthy[strip_index] = _tl(_X1125A, _X2125A,
+                                                        _Y1125A, tc,
+                                                        cfoc[strip_index])
+                        kfprm = _tl(_X11126, _X21126, _Y11126,
+                                     cfoc[strip_index], argz)
+                        delcl[strip_index] = (delta[deflection_index] *
+                                              cldoct[strip_index] *
+                                              cldthy[strip_index] * kfprm /
+                                              RAD)
                         label = 1140
                     elif kind in (2, 3):
-                        alphad[k] = _tl(_X11127, _X21127, _Y11127, cfoc[k],
-                                        argz)
-                        delcl[k] = -clasec * alphad[k] * delta[i]
+                        alphad[strip_index] = _tl(_X11127, _X21127, _Y11127,
+                                                  cfoc[strip_index], argz)
+                        delcl[strip_index] = (-clasec * alphad[strip_index] *
+                                              delta[deflection_index])
                         label = 1140
                     elif kind == 4:
                         label = 1150
                     elif kind == 5:
-                        alfad = _ix2(_X11147, _Y11147, delta[i], cfoc[k],
-                                     10, 4, 10)
-                        delcl[k] = -clasec * alfad * delta[i]
+                        alfad = _ix2(_X11147, _Y11147, delta[deflection_index],
+                                     cfoc[strip_index], 10, 4, 10)
+                        delcl[strip_index] = (-clasec * alfad *
+                                              delta[deflection_index])
                         label = 1140
                     else:
-                        cldk = _ix1(_X11150, _Y11150, cfoc[k], 0, 1)
+                        cldk = _ix1(_X11150, _Y11150, cfoc[strip_index], 0, 1)
                         if kind == 6:
-                            delcl[k] = cldk * delta[i]
+                            delcl[strip_index] = cldk * delta[deflection_index]
                         else:
-                            delcl[k] = cldk * delta[i] * cp[k] / chrd[k]
+                            delcl[strip_index] = (cldk * delta[deflection_index] *
+                                                  cp[strip_index] /
+                                                  chrd[strip_index])
                         label = 1140
                 while label is not None:
                     if label == 1140:
-                        n = k - 1
+                        n = strip_index - 1
                         if n == 0:
                             label = None
                             continue
                         nn += 1
-                        delcla[nn] = (delcl[k] + delcl[n]) / 2.
+                        delcla[nn] = (delcl[strip_index] + delcl[n]) / 2.
                         aldag[nn] = -delcla[nn] / arg8
                         if iftype == 4 or not transl:
                             label = 1160
                         else:
                             label = 1150
                     elif label == 1150:
-                        cpocf[n] = (cp[k] / chrd[k] + cp[n] / chrd[n]) / 2.
+                        cpocf[n] = (cp[strip_index] / chrd[strip_index] +
+                                    cp[n] / chrd[n]) / 2.
                         cfactr[n] = (cpocf[n] - 1.) * swf[n] / sr
                         if expdcl:
                             label = None
@@ -467,33 +481,40 @@ def calculate_liftfp(data: Mapping[str, object]) -> Dict[str, object]:
                             label = 1160
                             continue
                         aarg1 = (cf2i - cf2o) / (4. * deln4)
-                        aarg2 = (capi[i] - capo[i]) / (4. * deln4)
-                        capr = capi[i] - aarg2 * (eta[k] - eta[1])
-                        cf2[k] = cf2i - aarg1 * (eta[k] - eta[1])
-                        cf2oc[k] = cf2[k] / chrd[k]
-                        phi1 = delta[i] + math.atan(tanphe) * RAD
-                        phi2 = phi1 + df2[i]
+                        aarg2 = (capi[deflection_index] -
+                                 capo[deflection_index]) / (4. * deln4)
+                        capr = (capi[deflection_index] -
+                                aarg2 * (eta[strip_index] - eta[1]))
+                        cf2[strip_index] = (cf2i - aarg1 *
+                                            (eta[strip_index] - eta[1]))
+                        cf2oc[strip_index] = (cf2[strip_index] /
+                                              chrd[strip_index])
+                        phi1 = delta[deflection_index] + math.atan(tanphe) * RAD
+                        phi2 = phi1 + df2[deflection_index]
 
                         def clamp(v):
                             return min(max(v, .10), .40)
                         atea1 = _ix2(_X6143A, _Y6143A, phi1,
-                                     clamp(cfoc[k]), 7, 3, 7)
-                        cldf1 = _ix1(_X61142, _Y61142, cfoc[k], 1, 1)
+                                     clamp(cfoc[strip_index]), 7, 3, 7)
+                        cldf1 = _ix1(_X61142, _Y61142, cfoc[strip_index], 1, 1)
                         atea2 = _ix2(_X6143A, _Y6143A, phi2,
-                                     clamp(cf2oc[k]), 7, 3, 7)
-                        cldf2 = _ix1(_X61142, _Y61142, cfoc[k], 1, 1)
-                        if cfoc[k] / cf2oc[k] <= 0.60:
-                            delcl[n] = (atea1 * cldf1 * delta[i] *
-                                        (1. + cfoc[k]) + atea2 * cldf2 *
-                                        (delta[i] + df2[i]) * cp[k] /
-                                        chrd[k])
+                                     clamp(cf2oc[strip_index]), 7, 3, 7)
+                        cldf2 = _ix1(_X61142, _Y61142, cfoc[strip_index], 1, 1)
+                        if cfoc[strip_index] / cf2oc[strip_index] <= 0.60:
+                            delcl[n] = (atea1 * cldf1 * delta[deflection_index] *
+                                        (1. + cfoc[strip_index]) + atea2 *
+                                        cldf2 * (delta[deflection_index] +
+                                                 df2[deflection_index]) *
+                                        cp[strip_index] / chrd[strip_index])
                         else:
-                            ateat = _ix2(_X6143B, _Y6143B, df2[i], delta[i],
-                                         7, 3, 7)
-                            delcl[n] = (atea1 * cldf1 * delta[i] * capr /
-                                        chrd[k] + atea2 * ateat * cldf2 *
-                                        df2[i] * (1. + (cp[k] - capr) /
-                                                  chrd[k]))
+                            ateat = _ix2(_X6143B, _Y6143B,
+                                           df2[deflection_index],
+                                           delta[deflection_index], 7, 3, 7)
+                            delcl[n] = (atea1 * cldf1 * delta[deflection_index] *
+                                        capr / chrd[strip_index] + atea2 *
+                                        ateat * cldf2 * df2[deflection_index] *
+                                        (1. + (cp[strip_index] - capr) /
+                                         chrd[strip_index]))
                         label = 1140
                     elif label == 1160:
                         adcads[n] = _tl(_X11418, _X21418, _Y61418,
@@ -502,20 +523,25 @@ def calculate_liftfp(data: Mapping[str, object]) -> Dict[str, object]:
                             clasec
                         label = None
             if not expdcl:
-                wing[200 + i] = dclk[1] + dclk[2] + dclk[3] + dclk[4]
+                wing[200 + deflection_index] = (dclk[1] + dclk[2] + dclk[3] +
+                                                dclk[4])
             if expdcl or transl:
-                cfact[i] = (cfactr[1] + cfactr[2] + cfactr[3] +
-                            cfactr[4]) / 4.0
-                wing[240 + i] = cfact[i] * claw + claw
+                cfact[deflection_index] = (cfactr[1] + cfactr[2] +
+                                           cfactr[3] + cfactr[4]) / 4.0
+                wing[240 + deflection_index] = (cfact[deflection_index] * claw +
+                                                claw)
             if not expdcl:
                 continue
-        adcad[i] = _tl(_X11418, _X21418, _Y61418,
-                       sdcl[i] / (clasec * delta[i]), aw, 0, 0, 0, 1)
-        wing[200 + i] = sdcl[i] * adcad[i] * (rkb[5] - rkb[1]) * claw / \
-            clasec
+        adcad[deflection_index] = _tl(_X11418, _X21418, _Y61418,
+                                     sdcl[deflection_index] /
+                                     (clasec * delta[deflection_index]), aw,
+                                     0, 0, 0, 1)
+        wing[200 + deflection_index] = (sdcl[deflection_index] *
+                                        adcad[deflection_index] *
+                                        (rkb[5] - rkb[1]) * claw / clasec)
     if iftype < 6:
-        for i in range(1, ndelta + 1):
-            if i == 1:
+        for deflection_index in range(1, ndelta + 1):
+            if deflection_index == 1:
                 trofs = chrd[5] / chrd[1]
                 cbarfs = 2. / 3. * chrd[1] * (1. + trofs * (1. + trofs)) / \
                     (1. + trofs)
@@ -532,10 +558,10 @@ def calculate_liftfp(data: Mapping[str, object]) -> Dict[str, object]:
                     flp[101] = _ix1(_X137B2, _Y137B2, flp[61] * 100., 0, 1)
                 else:
                     flp[101] = _ix1(_X137B1, _Y137B1, flp[61] * 100., 0, 1)
-            ad = abs(delta[i])
+            ad = abs(delta[deflection_index])
             table = {2: _Y138A2, 3: _Y138A1, 4: _Y138A3}.get(iftype,
                                                              _Y138A4)
-            rk2[i] = _ix1(_X1138A, table, ad)
+            rk2[deflection_index] = _ix1(_X1138A, table, ad)
             if iftype in (1, 5):
                 flp[103] = 1.
             elif iftype == 4:
@@ -543,10 +569,12 @@ def calculate_liftfp(data: Mapping[str, object]) -> Dict[str, object]:
             else:
                 ref = 45. if iftype == 2 else 40.
                 flp[103] = _ix1(_X1138B, _Y138B1, ad / ref)
-            dsclmx[i] = flp[101] * rk2[i] * flp[103] * flp[102]
+            dsclmx[deflection_index] = (flp[101] * rk2[deflection_index] *
+                                        flp[103] * flp[102])
             swft = swf[1] + swf[2] + swf[3] + swf[4]
             flp[104] = (1. - 0.08 * s['cosc4']**2) * s['cosc4']**0.75
-            wing[220 + i] = dsclmx[i] * swft * flp[104] / sr
+            wing[220 + deflection_index] = (dsclmx[deflection_index] * swft *
+                                            flp[104] / sr)
     return {'f': f, 'flp': flp,
             'fcm282': [fcm[282 + k] for k in range(6)],
             'wing': [wing[200 + k] for k in range(1, 51)],

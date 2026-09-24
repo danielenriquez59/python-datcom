@@ -211,9 +211,13 @@ def calculate_supwb(alpha_deg: Sequence[float], mach: float,
         gamma = [v['go2pav'] for v in vortex]
         arg3 = claw * (dd / (2. * span))
         clw, clb = aero['cl'], body['cl']
-        cl = [float(clb[j]) + (kwb + kbw) * (float(clw[j]) - cli) +
-              (kkwb + kkbw) * cli + arg3 * alphab[j] * ivbw[j] * gamma[j]
-              for j in range(nalpha)]
+        cl = [
+            float(clb[angle_slot]) +
+            (kwb + kbw) * (float(clw[angle_slot]) - cli) +
+            (kkwb + kkbw) * cli +
+            arg3 * alphab[angle_slot] * ivbw[angle_slot] * gamma[angle_slot]
+            for angle_slot in range(nalpha)
+        ]
 
     delxw = (span - spans) * tanle * math.cos(aliw / RAD)
     rln = float(body['rln'])
@@ -253,24 +257,28 @@ def calculate_supwb(alpha_deg: Sequence[float], mach: float,
     dxcpwb = g[173] / cbarr - float(mb['xacw'])
     dxcpbw = g[173] / cbarr - float(mb['xacbw'])
     cd, cn, ca, cm = [], [], [], []
-    for j in range(nalpha):
-        cosa, sina = math.cos(alpha[j] / RAD), math.sin(alpha[j] / RAD)
-        cdj = cd0w + float(aero['cdl'][j]) + float(body['cd'][j])
-        dcnv = (float(mb['ivbw'][j]) * float(mb['gamma'][j]) *
-                float(mb['dd']) / (2 * span) * alphab[j] * claw)
+    for angle_slot in range(nalpha):
+        cosa, sina = (math.cos(alpha[angle_slot] / RAD),
+                      math.sin(alpha[angle_slot] / RAD))
+        cdj = (cd0w + float(aero['cdl'][angle_slot]) +
+               float(body['cd'][angle_slot]))
+        dcnv = (float(mb['ivbw'][angle_slot]) *
+                float(mb['gamma'][angle_slot]) *
+                float(mb['dd']) / (2 * span) * alphab[angle_slot] * claw)
         if not tail:
             dcnv = dcnv / RAD
-        cnw, caw = float(aero['cn'][j]), float(aero['ca'][j])
+        cnw = float(aero['cn'][angle_slot])
+        caw = float(aero['ca'][angle_slot])
         inc = float(mb['incidence'])
-        cm.append(float(body['cm'][j]) +
+        cm.append(float(body['cm'][angle_slot]) +
                   cnw * float(mb['kwb']) * dxcpwb +
                   claw * inc * float(mb['kkwb']) * dxcpwb / RAD +
                   cnw * float(mb['kbw']) * dxcpbw +
                   claw * inc * float(mb['kkbw']) * dxcpbw / RAD +
                   dcnv * (dxcpbw if tail else dxcpwb) + caw * zarm)
         cd.append(cdj)
-        cn.append(cl[j] * cosa + cdj * sina)
-        ca.append(cdj * cosa - cl[j] * sina)
+        cn.append(cl[angle_slot] * cosa + cdj * sina)
+        ca.append(cdj * cosa - cl[angle_slot] * sina)
     r.update({
         'kbw': float(kbw), 'kwb': float(kwb), 'kkbw': float(kkbw),
         'kkwb': float(kkwb), 'clawb': float(clawb), 'clabw': float(clabw),

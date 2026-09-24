@@ -122,56 +122,59 @@ def calculate_ideal(x_section: Sequence[float],
     st5 = np.zeros(count)
 
     with np.errstate(divide='ignore', invalid='ignore'):
-        for i in range(count):                     # zero-based; source I-1
+        for station_index in range(count):         # zero-based; source I-1
             for mu_index in range(last):           # zero-based; source J-1
-                sign = (-1.0)**((mu_index + 1) - (i + 1))
-                same = (i == mu_index)
-                delta = cos_mu[mu_index] - cos_nu[i]
+                sign = (-1.0)**((mu_index + 1) - (station_index + 1))
+                same = (station_index == mu_index)
+                delta = cos_mu[mu_index] - cos_nu[station_index]
 
                 if same:
-                    s1 = count / sin_nu[i]
-                    s2 = cos_nu[i] / sin_nu[i]**2
+                    s1 = count / sin_nu[station_index]
+                    s2 = cos_nu[station_index] / sin_nu[station_index]**2
                 else:
                     s1 = ((sign - 1.0) / count * 2.0 * sin_mu[mu_index] /
                           delta**2)
                     s2 = (-2.0 * sign * sin_mu[mu_index] /
-                          (sin_nu[i] * delta))
-                st1[i] += s1 * zt[mu_index]
-                st2[i] += s2 * zt[mu_index]
+                          (sin_nu[station_index] * delta))
+                st1[station_index] += s1 * zt[mu_index]
+                st2[station_index] += s2 * zt[mu_index]
 
                 if same:
-                    s3 = count / sin_nu[i]
+                    s3 = count / sin_nu[station_index]
                 else:
                     s3 = ((sign - 1.0) / count * 2.0 * sin_mu[mu_index] /
                           delta**2 + 2.0 / count * (1.0 - sign) /
                           (sin_mu[mu_index] * delta))
-                st3[i] += s3 * zt[mu_index]
+                st3[station_index] += s3 * zt[mu_index]
 
                 sign_mu = (-1.0)**(mu_index + 1)
                 if same:
-                    s4 = (count / sin_nu[i] -
+                    s4 = (count / sin_nu[station_index] -
                           2.0 * (sign_mu - 1.0) /
-                          (count * sin_nu[i] * (1.0 - cos_nu[i])))
-                    s5 = -cos_nu[i] / sin_nu[i]**2
+                          (count * sin_nu[station_index] *
+                           (1.0 - cos_nu[station_index])))
+                    s5 = -cos_nu[station_index] / sin_nu[station_index]**2
                 else:
-                    s4 = (2.0 * (sign - 1.0) / (count * sin_nu[i]) *
-                          (1.0 - cos_mu[mu_index] * cos_nu[i]) /
-                          (cos_nu[i] - cos_mu[mu_index])**2 -
+                    s4 = (2.0 * (sign - 1.0) / (count * sin_nu[station_index]) *
+                          (1.0 - cos_mu[mu_index] * cos_nu[station_index]) /
+                          (cos_nu[station_index] - cos_mu[mu_index])**2 -
                           2.0 * (sign_mu - 1.0) /
-                          (count * sin_nu[i] * (1.0 - cos_mu[mu_index])))
+                          (count * sin_nu[station_index] *
+                           (1.0 - cos_mu[mu_index])))
                     s5 = -2.0 * sign / delta
-                st4[i] += s4 * zc[mu_index]
-                st5[i] += s5 * zc[mu_index]
+                st4[station_index] += s4 * zc[mu_index]
+                st5[station_index] += s5 * zc[mu_index]
 
         st1[count - 1] += count * a0
 
         # ST3NU picks up a separate leading-edge term.
-        for i in range(count):
-            if i == count - 1:
-                st3[i] += count / 2.0 * a0
+        for station_index in range(count):
+            if station_index == count - 1:
+                st3[station_index] += count / 2.0 * a0
             else:
-                s3 = ((-1.0)**(i + 1) - 1.0) / (count * (1.0 + cos_nu[i]))
-                st3[i] += s3 * np.sqrt(leading_edge_radius / 2.0)
+                s3 = (((-1.0)**(station_index + 1) - 1.0) /
+                      (count * (1.0 + cos_nu[station_index])))
+                st3[station_index] += s3 * np.sqrt(leading_edge_radius / 2.0)
 
     # ST2NU, ST4NU and ST5NU all divide by sin(THNU) and are singular at
     # the last station; SLOPE never reads any of them there.
@@ -227,9 +230,9 @@ def _section_parameters(zc, theta_nu, st5, count: int) -> Dict[str, float]:
     index_n_minus_5 = count - 5
     sum_ai = 0.0
     sum_al = 0.0
-    for i in range(5, last + 1):            # source I = 5 .. L, one-based
-        position = i - 1                    # zero-based
-        if i <= index_n_minus_5:
+    for station_one_based in range(5, last + 1):  # source I = 5 .. L
+        position = station_one_based - 1          # zero-based
+        if station_one_based <= index_n_minus_5:
             sum_ai += -zc[position] * cos_nu[position] / \
                 (sin_nu[position] / 2.0)**2
         sum_al += zc[position] / (1.0 - cos_nu[position])
