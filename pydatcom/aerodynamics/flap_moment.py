@@ -113,13 +113,13 @@ def calculate_flapcm(data: Mapping[str, object]) -> Dict[str, object]:
     iftype = int(f[17] + .5)
     arg1 = (tante - tanle) * bsto2
     boc = []
-    for k in range(4):
-        cc = cr + _ETAG[k] * arg1
+    for quarter_index in range(4):
+        cc = cr + _ETAG[quarter_index] * arg1
         boc.append(2. * beta * bsto2 / cc)
-    for j in range(1, 13):
-        if flp[1] == et[j]:
+    for eta_slot in range(1, 13):
+        if flp[1] == et[eta_slot]:
             flp[1] = flp[1] + .0001
-        if flp[5] == et[j]:
+        if flp[5] == et[eta_slot]:
             flp[5] = flp[5] - .0001
     eta1, eta5 = flp[1], flp[5]
     gd = calculate_gdelta(eta1, eta5, boc, sweepb, bool(data['asyfp']),
@@ -134,44 +134,48 @@ def calculate_flapcm(data: Mapping[str, object]) -> Dict[str, object]:
     et[13], et[14] = eta1, eta5
     alpdel = [0.0] * 11
     if f[19] != UNUSED:
-        for i in range(1, ndelta + 1):
-            alpdel[i] = -f[18 + i] / (f[i] * clasec)
+        for deflection_index in range(1, ndelta + 1):
+            alpdel[deflection_index] = (-f[18 + deflection_index] /
+                                        (f[deflection_index] * clasec))
     else:
         nn = 0
-        for i in range(1, ndelta + 1):
+        for deflection_index in range(1, ndelta + 1):
             total = 0.0
             for _ in range(4):
                 nn += 1
                 total += flp[149 + nn]
-            alpdel[i] = total / 4.
+            alpdel[deflection_index] = total / 4.
     etak = [0.0] + fcm[7:21]
     gdinbd = [0.0] + fcm[35:49]
     gdoutb = [0.0] + fcm[49:63]
     kout = 1
     done = False
-    for j in range(1, 12):
-        etak[j], gdinbd[j], gdoutb[j] = et[j], gdi[j], gdo[j]
-        if not (eta1 > et[j] and eta1 < et[j + 1]):
+    for eta_slot in range(1, 12):
+        etak[eta_slot], gdinbd[eta_slot], gdoutb[eta_slot] = (et[eta_slot],
+                                                              gdi[eta_slot],
+                                                              gdo[eta_slot])
+        if not (eta1 > et[eta_slot] and eta1 < et[eta_slot + 1]):
             continue
-        kinbd = j + 1
+        kinbd = eta_slot + 1
         etak[kinbd], gdinbd[kinbd], gdoutb[kinbd] = eta1, gdi[13], gdo[13]
-        jj, n = j + 2, 1
+        jj, shift = eta_slot + 2, 1
         while True:
-            for k in range(jj, 15):
-                etak[k], gdinbd[k], gdoutb[k] = et[k - n], gdi[k - n], \
-                    gdo[k - n]
+            for strip_slot in range(jj, 15):
+                etak[strip_slot], gdinbd[strip_slot], gdoutb[strip_slot] = (
+                    et[strip_slot - shift], gdi[strip_slot - shift],
+                    gdo[strip_slot - shift])
             if kout == 2:
                 done = True
                 break
-            k = j + 1
-            et[k] = eta1
-            for i in range(k, 12):
-                if eta5 > et[i] and eta5 < et[i + 1]:
-                    koutbd = i + 2
+            inboard_strip = eta_slot + 1
+            et[inboard_strip] = eta1
+            for outboard_slot in range(inboard_strip, 12):
+                if eta5 > et[outboard_slot] and eta5 < et[outboard_slot + 1]:
+                    koutbd = outboard_slot + 2
                     etak[koutbd] = eta5
                     kout = 2
                     gdinbd[koutbd], gdoutb[koutbd] = gdi[14], gdo[14]
-                    jj, n = i + 3, 2
+                    jj, shift = outboard_slot + 3, 2
                     break
             else:
                 break
@@ -203,26 +207,29 @@ def calculate_flapcm(data: Mapping[str, object]) -> Dict[str, object]:
     swepb = [0.0] * 15
     deltp = [0.0] * 15
     delcm = [float(v) for v in data.get('delcm', [0.0] * 10)]
-    for i in range(1, ndelta + 1):
-        delta = f[i]
+    for deflection_index in range(1, ndelta + 1):
+        delta = f[deflection_index]
         argz = abs(delta)
         for kx in (kinbd, koutbd):
-            cl[kx] = -4. * bsto2 * deltgd[kx] * alpdel[i] * delta / \
-                (ck[kx] * RAD)
+            cl[kx] = (-4. * bsto2 * deltgd[kx] * alpdel[deflection_index] *
+                      delta / (ck[kx] * RAD))
         dcmf = [0.0] * 15
-        for k in range(1, 14):
-            ll = k
-            cl[k] = -4. * bsto2 * deltgd[k] * alpdel[i] * delta / \
-                (ck[k] * RAD)
-            if i == 1:
-                cloald[k] = -4. * bsto2 * deltgd[k] / (ck[k] * RAD)
-            if cl[k] != 0.0:
-                if not (etak[k] <= eta1 - 0.2 or etak[k] > eta5 + 0.2):
+        for strip_index in range(1, 14):
+            ll = strip_index
+            cl[strip_index] = (-4. * bsto2 * deltgd[strip_index] *
+                               alpdel[deflection_index] * delta /
+                               (ck[strip_index] * RAD))
+            if deflection_index == 1:
+                cloald[strip_index] = (-4. * bsto2 * deltgd[strip_index] /
+                                       (ck[strip_index] * RAD))
+            if cl[strip_index] != 0.0:
+                if not (etak[strip_index] <= eta1 - 0.2 or
+                        etak[strip_index] > eta5 + 0.2):
                     arg = cfoc[kinbd]
-                if not (etak[k] < eta1 or etak[k] > eta5):
+                if not (etak[strip_index] < eta1 or etak[strip_index] > eta5):
                     kount = 3
-                    arg = cfoc[k]
-                if not etak[k] <= eta5:
+                    arg = cfoc[strip_index]
+                if not etak[strip_index] <= eta5:
                     kount = 2
                     arg = cfoc[koutbd]
                 if iftype in (1, 5):
@@ -234,66 +241,77 @@ def calculate_flapcm(data: Mapping[str, object]) -> Dict[str, object]:
                 deltpi = math.atan(math.tan(argz / RAD) /
                                    math.cos(swepbi / RAD)) * RAD
                 if kount == 3:
-                    deltp[k], swepb[k] = deltpi, swepbi
+                    deltp[strip_index], swepb[strip_index] = deltpi, swepbi
                     kp = 1
                 else:
                     if kount == 2:
                         index = koutbd
-                    if kk[k] == UNUSED:
-                        kk[k] = interx(1, _X5126A, [abs(etak[k] -
-                                                        etak[index])],
-                                       [13], _Y5126A, lind=13)
-                    swepb[k], deltp[k] = swepbi, deltpi
+                    if kk[strip_index] == UNUSED:
+                        kk[strip_index] = interx(
+                            1, _X5126A,
+                            [abs(etak[strip_index] - etak[index])],
+                            [13], _Y5126A, lind=13)
+                    swepb[strip_index], deltp[strip_index] = swepbi, deltpi
                     if kount == 2:
                         ll = koutbd
                     kp = 2
-                cossb2 = math.cos(swepb[k] / RAD)**2
+                cossb2 = math.cos(swepb[strip_index] / RAD)**2
                 if f[29] != UNUSED:
-                    delcmf[k] = f[28 + i]
-                    xc = 0.25 + abs((kk[k] * delcmf[k] / cl[index] * cossb2)
+                    delcmf[strip_index] = f[28 + deflection_index]
+                    xc = 0.25 + abs((kk[strip_index] * delcmf[strip_index] /
+                                     cl[index] * cossb2)
                                     if kp == 2 else
-                                    (delcmf[k] * cossb2 / cl[k]))
+                                    (delcmf[strip_index] * cossb2 /
+                                     cl[strip_index]))
                 elif iftype <= 1:
-                    delcmf[k] = _tl(_X1215B, _X2215B, _Y1215B, cfoc[ll],
-                                    deltp[k])
-                    xc = 0.25 + abs((kk[k] * delcmf[k] / cl[index] * cossb2)
+                    delcmf[strip_index] = _tl(_X1215B, _X2215B, _Y1215B,
+                                                cfoc[ll], deltp[strip_index])
+                    xc = 0.25 + abs((kk[strip_index] * delcmf[strip_index] /
+                                     cl[index] * cossb2)
                                     if kp == 2 else
-                                    (delcmf[k] * cossb2 / cl[k]))
+                                    (delcmf[strip_index] * cossb2 /
+                                     cl[strip_index]))
                 else:
                     xrefoc, xcpocp = .25, .44
                     if iftype == 5:
                         xcpocp = 0.5 - 0.25 * cfoc[ll]
-                    cpoc = -((f[48 + i] - f[38 + i]) / (eta1 - eta5) *
-                             (etak[k] - eta5) - f[48 + i]) / ck[k]
-                    if etak[k] < eta1 or etak[k] > eta5:
+                    cpoc = (-((f[48 + deflection_index] -
+                               f[38 + deflection_index]) / (eta1 - eta5) *
+                              (etak[strip_index] - eta5) -
+                              f[48 + deflection_index]) / ck[strip_index])
+                    if etak[strip_index] < eta1 or etak[strip_index] > eta5:
                         cpoc = 1.0
-                    ind = 4 * (i - 1)
+                    ind = 4 * (deflection_index - 1)
                     scl = (flp[110 + ind] + flp[111 + ind] + flp[112 + ind] +
                            flp[113 + ind]) / 4.
                     if iftype < 5:
-                        delcmf[k] = scl * (xrefoc - xcpocp * cpoc)
+                        delcmf[strip_index] = scl * (xrefoc - xcpocp * cpoc)
                     else:
                         if iftype == 6:
                             cpoc = 1.0
                         cmdlep = interx(1, _X12136, [cfoc[ll] / cpoc], [9],
                                         _Y12136, lind=9)
-                        delcmf[k] = (cmdlep * cpoc**2 * delta +
-                                     (xrefoc + cpoc - 1.) * scl +
-                                     .75 * clasec * alpo * cpoc *
-                                     (cpoc - 1.) + (cpoc**2 - 1.) * cmo)
-                    xc = 0.25 - ((kk[k] * delcmf[k] / cl[index] * cossb2)
+                        delcmf[strip_index] = (cmdlep * cpoc**2 * delta +
+                                               (xrefoc + cpoc - 1.) * scl +
+                                               .75 * clasec * alpo * cpoc *
+                                               (cpoc - 1.) +
+                                               (cpoc**2 - 1.) * cmo)
+                    xc = 0.25 - ((kk[strip_index] * delcmf[strip_index] /
+                                  cl[index] * cossb2)
                                  if kp == 2 else
-                                 (delcmf[k] * cossb2 / cl[k]))
-                xcp[k] = xle[k] + xc * ck[k]
+                                 (delcmf[strip_index] * cossb2 /
+                                  cl[strip_index]))
+                xcp[strip_index] = xle[strip_index] + xc * ck[strip_index]
             nn += 1
-            if cl[k] != 0.0:
-                dxcp[nn] = (xcg - xcp[k]) / cbarr
-            dcmf[k] = cl[k] * dxcp[nn] * ck[k] * swstr / (cavg * sref)
+            if cl[strip_index] != 0.0:
+                dxcp[nn] = (xcg - xcp[strip_index]) / cbarr
+            dcmf[strip_index] = (cl[strip_index] * dxcp[nn] * ck[strip_index] *
+                                 swstr / (cavg * sref))
         dcmf[14] = 0.0
         nn += 1
         dxcp[nn] = dxcp[nn - 1]
         cloald[14] = 0.0
-        delcm[i - 1] = float(trapz(dcmf[1:15], etak[1:15])[0])
+        delcm[deflection_index - 1] = float(trapz(dcmf[1:15], etak[1:15])[0])
     fcm[7:21] = etak[1:15]
     fcm[21:35] = cloald[1:15]
     fcm[35:49] = gdinbd[1:15]

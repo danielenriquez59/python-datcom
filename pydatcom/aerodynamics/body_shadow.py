@@ -59,8 +59,9 @@ def ptint2(xb: Sequence[float], rb: Sequence[float], a: Sequence[float],
         x[nx] = 0.0
     if dx < x[nx22m1] < 0.0:
         x[nx22m1] = 0.0
-    indexu = next((j for j in range(1, nx + 1) if 0.0 <= x[j]), nx + 1) - 1
-    indexl = next((j for j in range(1, nx + 1) if 0.0 <= x[j + 21]),
+    indexu = next((seg for seg in range(1, nx + 1) if 0.0 <= x[seg]),
+                  nx + 1) - 1
+    indexl = next((seg for seg in range(1, nx + 1) if 0.0 <= x[seg + 21]),
                   nx + 1) + 20
     intersection = {'x': x, 'y': y, 'inxuie': 0, 'inxlie': 0, 'abort': True}
 

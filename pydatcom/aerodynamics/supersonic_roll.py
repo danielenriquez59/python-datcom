@@ -105,8 +105,8 @@ def calculate_spryaw(data: Mapping[str, object]) -> Dict[str, object]:
     spr[1] = beta
     sr, blref = float(data['sref']), float(data['blref'])
     alpha = [float(v) for v in data['alpha']]
-    deltal = [f[19 + j] for j in range(ndelta)]
-    deltar = [f[29 + j] for j in range(ndelta)]
+    deltal = [f[19 + slot] for slot in range(ndelta)]
+    deltar = [f[29 + slot] for slot in range(ndelta)]
     if stype == 5.:
         sspnh, sspneh = h[4], h[3]
         rads = sspnh - sspneh
@@ -116,14 +116,16 @@ def calculate_spryaw(data: Mapping[str, object]) -> Dict[str, object]:
         kbh = tbfunx(_X12A2, _Y12A2, ratio, 0, 0)[0]
         spr[9], spr[10], spr[11] = khb, kbh, yhs
         clrlht = {}
-        for j in range(len(alpha)):
-            for k in range(ndelta):
-                clrls = (.006108 * (float(data['ivbh'][j]) *
-                                    float(data['gamma'][j]) *
+        for angle_index in range(len(alpha)):
+            for deflection_index in range(ndelta):
+                clrls = (.006108 * (float(data['ivbh'][angle_index]) *
+                                    float(data['gamma'][angle_index]) *
                                     (rads / sspneh) + (kbh + khb)) *
                          float(data['cnahs']) * yhs * float(data['sh']) /
                          (blref * sr))
-                clrlht[10 * j + k] = clrls * (deltal[k] - deltar[k])
+                clrlht[10 * angle_index + deflection_index] = (
+                    clrls * (deltal[deflection_index] -
+                             deltar[deflection_index]))
         out.update({'spr': spr[1:], 'clrlht': clrlht})
         return out
     spr[2] = 2. / beta
@@ -162,18 +164,20 @@ def calculate_spryaw(data: Mapping[str, object]) -> Dict[str, object]:
         bcld1, bcld2 = spr[12], spr[13]
         spr[8] = spr[6] * (spr[7] / sr) * (bcld1 / beta) * .5 * (
             (aloci / blref) + (bef / (2. * blref)) * (bcld1 / bcld2))
-        clrlal = [spr[8] * (deltal[i] - deltar[i]) / 2.
-                  for i in range(ndelta)]
+        clrlal = [spr[8] * (deltal[deflection_index] -
+                             deltar[deflection_index]) / 2.
+                  for deflection_index in range(ndelta)]
         scale = sw * 2. * sspne / (sr * blref)
         cldg = abs(float(data['cladeg']))
         clrl = abs(spr[8])
         cnywal = {}
-        for m, al in enumerate(alpha):
+        for angle_index, al in enumerate(alpha):
             dfg = _tl(_X113C1, _X113C2, _Y2113C, abs(al), cldg, 0, 0, 2, 1)
-            for j in range(ndelta):
+            for deflection_index in range(ndelta):
                 tempo = [0.0, 0.0]
-                for k in range(2):
-                    delflp = abs(deltal[j] if k == 0 else deltar[j])
+                for side in range(2):
+                    delflp = abs(deltal[deflection_index] if side == 0 else
+                                 deltar[deflection_index])
                     cld1 = _tl(_X113A1, _X113A2, _Y2113A, delflp, clrl,
                                0, 0, 2, 1)
                     abc = _tl(_X113B1, _X113B2, _Y2113B, delflp, clrl,
@@ -181,16 +185,17 @@ def calculate_spryaw(data: Mapping[str, object]) -> Dict[str, object]:
                     cld2 = (10. - abc + cld1 * 500.) / 500.
                     subax1 = dfg + cld2 * (2.5 + dfg * 1.5) / (-.005)
                     subax2 = geom * subax1 * .1 * .5
-                    tempo[k] = _tl(_X113E1, _X113E2, _Y2113E, a[70],
-                                   subax2, 0, 0, 2, 1)
-                cnywal[10 * m + j] = (tempo[1] - tempo[0]) * scale
+                    tempo[side] = _tl(_X113E1, _X113E2, _Y2113E, a[70],
+                                      subax2, 0, 0, 2, 1)
+                cnywal[10 * angle_index + deflection_index] = (
+                    (tempo[1] - tempo[0]) * scale)
         out.update({'spr': spr[1:], 'clrlal': clrlal, 'cnywal': cnywal})
         return out
     sae025 = float(data['sae025'])
     mach_lookup = mach
     clrlsp, cnywsp = [], []
-    for j in range(ndelta):
-        delsoc = f[39 + j]
+    for deflection_index in range(ndelta):
+        delsoc = f[39 + deflection_index]
         vert = _tl(_X114A1, _X114A2, _Y2114A, trtoe, geom, 0, 1, 0, 1)
         nugeom = geom * delsoc * spnspo * 10.
         trnsgf = vert * nugeom * .5
@@ -201,8 +206,8 @@ def calculate_spryaw(data: Mapping[str, object]) -> Dict[str, object]:
         clrlsp.append(taktim * sw * 2. * sspne / (blref * sr))
     vert = _tl(_X114A1, _X114A2, _Y2114A, trtoe, geom, 0, 1, 0, 1)
     arbit = _tl(_X114E1, _X114E2, _Y2114E, amgcln, mach_lookup, 0, 1, 0, 1)
-    for j in range(ndelta):
-        vert2 = (f[39 + j] * spnspo) / 1.2
+    for deflection_index in range(ndelta):
+        vert2 = (f[39 + deflection_index] * spnspo) / 1.2
         nugeom = vert2 * (geom + .1) * 12. - .1
         trnsgf = vert * (.05 + .5 * nugeom)
         pastim = .2 * trnsgf * (1. + arbit) * .005

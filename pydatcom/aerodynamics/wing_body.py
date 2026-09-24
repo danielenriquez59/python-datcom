@@ -702,9 +702,11 @@ def calculate_body_vertical(alpha_deg: Sequence[float],
     sin_alpha = np.sin(alpha / RAD)
     out['cn'] = out['cl'] * cos_alpha + out['cd'] * sin_alpha
     out['ca'] = out['cd'] * cos_alpha - out['cl'] * sin_alpha
-    for j in range(1, len(alpha)):
-        out['cla'][j] = tbfunx(alpha, out['cl'], alpha[j], 0, 0)[1]
-        out['cma'][j] = tbfunx(alpha, out['cm'], alpha[j], 0, 0)[1]
+    for angle_index in range(1, len(alpha)):
+        out['cla'][angle_index] = tbfunx(alpha, out['cl'],
+                                         alpha[angle_index], 0, 0)[1]
+        out['cma'][angle_index] = tbfunx(alpha, out['cm'],
+                                         alpha[angle_index], 0, 0)[1]
     return out
 
 
@@ -794,8 +796,8 @@ def calculate_wbcdl(aspect_ratio: float, tan_le: float, tovc: float,
         return None
     reynolds = min(max(reynolds, 8.0e5), 8.0e6)
     cdl = []
-    for alpha in alpha_deg:
-        b = calculate_tables(mach, alpha)
+    for angle_deg in alpha_deg:
+        b = calculate_tables(mach, angle_deg)
         if b is None:
             cdl.append(UNUSED)
             continue

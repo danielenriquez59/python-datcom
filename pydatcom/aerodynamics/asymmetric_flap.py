@@ -418,8 +418,8 @@ def calculate_latflp(data: Mapping[str, object]) -> Dict[str, object]:
     clw = [0.0] + [float(v) for v in s['clw']]
     sref, blref = float(data['sref']), float(data['blref'])
     # EQUIVALENCE offsets into /FLAPIN/.
-    deltal = lambda j: f[18 + j]  # noqa: E731
-    deltar = lambda j: f[28 + j]  # noqa: E731
+    deltal = lambda deflection_index: f[18 + deflection_index]  # noqa: E731
+    deltar = lambda deflection_index: f[28 + deflection_index]  # noqa: E731
     stype, xsprme = f[18], f[59]
     ndelta = int(f[16] + 0.5)
     rf = float(data['rl'])
@@ -449,10 +449,11 @@ def calculate_latflp(data: Mapping[str, object]) -> Dict[str, object]:
             _spoiler(s, f, fla, ht, ndelta, stype, xsprme, beta, kc, deln4,
                      eta, mach, scale)
 
-    for j in range(1, ndelta + 1):
-        ht[200 + j] = deltal(j) - deltar(j)
+    for deflection_index in range(1, ndelta + 1):
+        ht[200 + deflection_index] = (deltal(deflection_index) -
+                                      deltar(deflection_index))
     return {'f': f, 'fla': fla,
-            'ht201': [ht[200 + k] for k in range(1, 31)],
+            'ht201': [ht[200 + word_index] for word_index in range(1, 31)],
             'clrol': clrol[1:], 'cn': cn[1:]}
 
 
@@ -475,19 +476,20 @@ def _plain_flap(s, f, fla, ht, cn, clw, alpha, nalpha, ndelta, deltal,
     arg2 = (tante - tanle) * bo2
     while True:
         # Label 1000: strip geometry and loading.
-        for k in range(1, 6):
-            if k != 1:
-                eta[k] = eta[k - 1] + deln4
-            cf[k] = f[12] - arg1 * (eta[k] - eta[1])
-            chrd[k] = cr + eta[k] * arg2
-            cfoc[k] = cf[k] / chrd[k]
+        for strip_index in range(1, 6):
+            if strip_index != 1:
+                eta[strip_index] = eta[strip_index - 1] + deln4
+            cf[strip_index] = f[12] - arg1 * (eta[strip_index] - eta[1])
+            chrd[strip_index] = cr + eta[strip_index] * arg2
+            cfoc[strip_index] = cf[strip_index] / chrd[strip_index]
         arg1 = beta * aw / kc
         arg2 = eta[1]
-        for j in range(1, 6):
-            ans[j] = _span_loading(sweepb, arg2, arg1, taprw)
+        for span_station in range(1, 6):
+            ans[span_station] = _span_loading(sweepb, arg2, arg1, taprw)
             arg2 = arg2 + deln4
-        for j in range(1, 5):
-            cldpm[j] = (ans[j + 1] - ans[j]) * kc / beta
+        for span_station in range(1, 5):
+            cldpm[span_station] = ((ans[span_station + 1] - ans[span_station]) *
+                                   kc / beta)
         fla[2] = ans[1]
         fla[3] = ans[5]
         fla[4] = fla[2]
@@ -495,32 +497,38 @@ def _plain_flap(s, f, fla, ht, cn, clw, alpha, nalpha, ndelta, deltal,
         fla[5] = fla[4] * kc / beta
         arg1 = math.log10(rf * float(s['cbarex']))
         cloclt = _tl(_X1128A, _X2128A, _Y1128A, arg1, f[11])
-        for j in range(1, ndelta + 1):
-            arg = abs(deltal(j))
-            arg1 = abs(deltar(j))
-            for k in range(1, 6):
-                cldthy[k] = _tl(_X1125A, _X2125A, _Y1125A, tovc, cfoc[k])
-                cldoct[k] = _tl(_X1125B, _X2125B, _Y1125B, cloclt, cfoc[k])
-                kprml = _tl(_X11126, _X21126, _Y11126, cfoc[k], arg)
-                arg2 = cldoct[k] * cldthy[k]
-                dcll[k] = arg2 * kprml
-                kprmr = _tl(_X11126, _X21126, _Y11126, cfoc[k], arg1)
-                dclr[k] = arg2 * kprmr
-                if k == 1:
+        for deflection_index in range(1, ndelta + 1):
+            arg = abs(deltal(deflection_index))
+            arg1 = abs(deltar(deflection_index))
+            for strip_index in range(1, 6):
+                cldthy[strip_index] = _tl(_X1125A, _X2125A, _Y1125A, tovc,
+                                          cfoc[strip_index])
+                cldoct[strip_index] = _tl(_X1125B, _X2125B, _Y1125B, cloclt,
+                                          cfoc[strip_index])
+                kprml = _tl(_X11126, _X21126, _Y11126, cfoc[strip_index], arg)
+                arg2 = cldoct[strip_index] * cldthy[strip_index]
+                dcll[strip_index] = arg2 * kprml
+                kprmr = _tl(_X11126, _X21126, _Y11126, cfoc[strip_index], arg1)
+                dclr[strip_index] = arg2 * kprmr
+                if strip_index == 1:
                     continue
-                n = k - 1
-                aldl[n] = abs(((dcll[k] + dcll[n]) / 2.0) / clasec) / RAD
-                aldr[n] = abs(((dclr[k] + dclr[n]) / 2.0) / clasec) / RAD
+                pair = strip_index - 1
+                aldl[pair] = abs(((dcll[strip_index] + dcll[pair]) / 2.0) /
+                                 clasec) / RAD
+                aldr[pair] = abs(((dclr[strip_index] + dclr[pair]) / 2.0) /
+                                 clasec) / RAD
             cldl = (cldpm[1] * aldl[1] + cldpm[2] * aldl[2] +
                     cldpm[3] * aldl[3] + cldpm[4] * aldl[4])
             cldr = (cldpm[1] * aldr[1] + cldpm[2] * aldr[2] +
                     cldpm[3] * aldr[3] + cldpm[4] * aldr[4])
-            roll = (cldl * deltal(j) / RAD - cldr * deltar(j) / RAD) / 2. \
-                * scale
+            roll = (cldl * deltal(deflection_index) / RAD -
+                    cldr * deltar(deflection_index) / RAD) / 2. * scale
             if tipcal:
-                cldlt[j], cldrt[j], clrolt[j] = cldl, cldr, roll
+                cldlt[deflection_index], cldrt[deflection_index], \
+                    clrolt[deflection_index] = cldl, cldr, roll
             else:
-                fla[5 + j], fla[15 + j], ht[210 + j] = cldl, cldr, roll
+                fla[5 + deflection_index], fla[15 + deflection_index], \
+                    ht[210 + deflection_index] = cldl, cldr, roll
         if eta[5] < .98:
             # The flap stops short of the tip: a panel from its inner edge
             # to the tip, then one from its outer edge (label 1070).
@@ -540,20 +548,23 @@ def _plain_flap(s, f, fla, ht, cn, clw, alpha, nalpha, ndelta, deltal,
         fla[45] = kyaw
         if not tipcal:
             nn = 0
-            for n in range(1, nalpha + 1):
-                for j in range(1, ndelta + 1):
+            for angle_slot in range(1, nalpha + 1):
+                for deflection_index in range(1, ndelta + 1):
                     nn += 1
-                    cn[nn] = kyaw * clw[n] * ht[210 + j]
-                    if abs(clw[n]) == UNUSED:
-                        cn[nn] = kyaw * alpha[n] * cla * ht[210 + j]
+                    cn[nn] = kyaw * clw[angle_slot] * ht[210 + deflection_index]
+                    if abs(clw[angle_slot]) == UNUSED:
+                        cn[nn] = (kyaw * alpha[angle_slot] * cla *
+                                  ht[210 + deflection_index])
             return
         nn = 0
-        for n in range(1, nalpha + 1):
-            for j in range(1, ndelta + 1):
+        for angle_slot in range(1, nalpha + 1):
+            for deflection_index in range(1, ndelta + 1):
                 nn += 1
-                cntemp[level][nn] = kyaw * clw[n] * clrolt[j]
-                if abs(clw[n]) == UNUSED:
-                    cntemp[level][nn] = kyaw * alpha[n] * cla * clrolt[j]
+                cntemp[level][nn] = kyaw * clw[angle_slot] * clrolt[
+                    deflection_index]
+                if abs(clw[angle_slot]) == UNUSED:
+                    cntemp[level][nn] = (kyaw * alpha[angle_slot] * cla *
+                                         clrolt[deflection_index])
         level += 1
         if level == 2:
             f[12] = f[13]
@@ -561,18 +572,19 @@ def _plain_flap(s, f, fla, ht, cn, clw, alpha, nalpha, ndelta, deltal,
             eta[1] = f[15] / bo2
             arg1 = (f[12] - cft) / (4. * deln4)
             arg2 = (tante - tanle) * bo2
-            for j in range(1, ndelta + 1):
-                ht[210 + j] = clrolt[j]
+            for deflection_index in range(1, ndelta + 1):
+                ht[210 + deflection_index] = clrolt[deflection_index]
             continue
         nn = 0
-        for n in range(1, nalpha + 1):
-            for j in range(1, ndelta + 1):
+        for angle_slot in range(1, nalpha + 1):
+            for deflection_index in range(1, ndelta + 1):
                 nn += 1
                 cn[nn] = cntemp[1][nn] - cntemp[2][nn]
         (f[12], f[13], f[15], f[14], fla[2], fla[3], fla[4],
          fla[5]) = saved
-        for j in range(1, ndelta + 1):
-            ht[210 + j] = ht[210 + j] - clrolt[j]
+        for deflection_index in range(1, ndelta + 1):
+            ht[210 + deflection_index] = (ht[210 + deflection_index] -
+                                          clrolt[deflection_index])
         return
 
 
@@ -581,9 +593,9 @@ def _spoiler(s, f, fla, ht, ndelta, stype, xsprme, beta, kc, deln4, eta,
     """Labels 1160-1260: spoilers."""
     aw, taprw = float(s['aw']), float(s['taprw'])
     swepte, sweple = float(s['swepte']), float(s['sweple'])
-    xsoc = lambda j: f[48 + j]  # noqa: E731
-    dsoc = lambda j: f[38 + j]  # noqa: E731
-    hsoc = lambda j: f[59 + j]  # noqa: E731
+    xsoc = lambda deflection_index: f[48 + deflection_index]  # noqa: E731
+    dsoc = lambda deflection_index: f[38 + deflection_index]  # noqa: E731
+    hsoc = lambda deflection_index: f[59 + deflection_index]  # noqa: E731
     arg1 = 0.75 - (1. - xsprme)
     arg2 = (1. - taprw) / (1. + taprw)
     tansi = float(s['tanc4']) - 4.0 * arg1 / aw * arg2
@@ -605,22 +617,28 @@ def _spoiler(s, f, fla, ht, ndelta, stype, xsprme, beta, kc, deln4, eta,
     fla[43] = _span_loading(sbacki, fla[41], arg4, taprw)
     fla[5] = kc * (fla[43] - fla[42]) / beta
     arg1 = fla[5] / 2.0
-    for j in range(1, ndelta + 1):
-        deltas = _tl(_X1132B, _X2132B, _Y1132B, xsoc(j), hsoc(j))
-        ht[210 + j] = arg1 * deltas * scale
+    for deflection_index in range(1, ndelta + 1):
+        deltas = _tl(_X1132B, _X2132B, _Y1132B, xsoc(deflection_index),
+                     hsoc(deflection_index))
+        ht[210 + deflection_index] = arg1 * deltas * scale
     if stype == 3.:
-        for j in range(1, ndelta + 1):
+        for deflection_index in range(1, ndelta + 1):
             # DDOC is /FLAPIN/ 1-10.
-            fla[25 + j] = _ix1(_X6226B, _Y6226B, dsoc(j) / f[j])
-            ht[210 + j] = fla[25 + j] * ht[210 + j]
+            fla[25 + deflection_index] = _ix1(_X6226B, _Y6226B,
+                                               dsoc(deflection_index) /
+                                               f[deflection_index])
+            ht[210 + deflection_index] = (fla[25 + deflection_index] *
+                                          ht[210 + deflection_index])
     if abs(sweple - swepte) <= 4.0:
         # ARG1 still holds CLDPRM/2 here; the span 4*DELN4 is formed after.
         dumya = _tl(_X1110A, _X2110A, _Y2110A, eta[5], arg1)
         dumyb = _tl(_X1110B, _X2110B, _Y2110B, aw, dumya)
         dumyc = _tl(_X1110C, _X2110C, _Y2110C, taprw, dumyb)
-        for j in range(1, ndelta + 1):
-            cnods = _tl(_X1110D, _X2110D, _Y2110D, xsoc(j), dumyc, u2=1)
-            ht[220 + j] = cnods * dsoc(j) * scale
+        for deflection_index in range(1, ndelta + 1):
+            cnods = _tl(_X1110D, _X2110D, _Y2110D, xsoc(deflection_index),
+                        dumyc, u2=1)
+            ht[220 + deflection_index] = (cnods * dsoc(deflection_index) *
+                                          scale)
     else:
         bs = 4. * deln4
         if bs <= 0.4:
@@ -636,12 +654,13 @@ def _spoiler(s, f, fla, ht, ndelta, stype, xsprme, beta, kc, deln4, eta,
         dumyd = _tl(_X1111D, _X2111D, _Y2111D, sweple, dumyc)
         cnodsb = (_ix1(_X2111E, _Y2111E, dumyd, u1=1) if stype == 1.
                   else dumyd)
-        for j in range(1, ndelta + 1):
-            ht[220 + j] = cnodsb * dsoc(j) * scale
+        for deflection_index in range(1, ndelta + 1):
+            ht[220 + deflection_index] = (cnodsb * dsoc(deflection_index) *
+                                          scale)
     if stype == 3.0:
         kssd = _ix1(_X22112, _Y22112, mach * float(s['cosc4']))
-        for j in range(1, ndelta + 1):
-            ht[220 + j] = ht[220 + j] * kssd
+        for deflection_index in range(1, ndelta + 1):
+            ht[220 + deflection_index] = ht[220 + deflection_index] * kssd
 
 
 def _tail_roll(data, f, clrol, nalpha, sref, blref, aw):
@@ -663,13 +682,14 @@ def _tail_roll(data, f, clrol, nalpha, sref, blref, aw):
     arg1 = eqhoq * yh * shst * clahs / (blref * sref)
     a1 = PI * aw / RAD
     ndelta = int(f[16] + 0.5)
-    for j in range(1, nalpha + 1):
-        b1 = 1. - a1 * dedalp[j]
-        b2 = rivbh[j] * gamvr[j] * a2
+    for angle_slot in range(1, nalpha + 1):
+        b1 = 1. - a1 * dedalp[angle_slot]
+        b2 = rivbh[angle_slot] * gamvr[angle_slot] * a2
         cldh = 0.5 * (b1 + b2) * arg1
-        for k in range(1, ndelta + 1):
-            nn = 10 * (j - 1) + k
-            clrol[nn] = cldh * f[18 + k] - cldh * f[28 + k]
+        for deflection_index in range(1, ndelta + 1):
+            nn = 10 * (angle_slot - 1) + deflection_index
+            clrol[nn] = (cldh * f[18 + deflection_index] -
+                         cldh * f[28 + deflection_index])
 
 
 def m52o64(data: Mapping[str, object]) -> Dict[str, object]:

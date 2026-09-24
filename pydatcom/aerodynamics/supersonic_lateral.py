@@ -208,11 +208,11 @@ def calculate_suplat(data: Mapping[str, object], tail: bool = False
             arg1 = 1. / (PI * ar**2 * rb)
             arg2 = 4. * rm / 3. + 8. * rm * x / crbar
             arg3 = PI * ar * (1. - rb) * (3. + rb) / (3. * beta**3)
-            for j in range(na):
-                alp = (alpha[j] / RAD)**2
-                cybw[j] = -alp * 8.0 * rm / (RAD * PI * rb * ar) - \
-                    .0001 * abs(diheq)
-                cnbw[j] = scale * alp * arg1 * (arg2 - arg3) / RAD
+            for angle_index in range(na):
+                alp = (alpha[angle_index] / RAD)**2
+                cybw[angle_index] = (-alp * 8.0 * rm / (RAD * PI * rb * ar) -
+                                     .0001 * abs(diheq))
+                cnbw[angle_index] = scale * alp * arg1 * (arg2 - arg3) / RAD
         else:
             arg = beta / tanle if tanle != 0.0 else beta / .00001
             delta_branch = (tapr == 0.0 and
@@ -231,10 +231,11 @@ def calculate_suplat(data: Mapping[str, object], tail: bool = False
                 with np.errstate(all='ignore'):
                     arg2 = PI / 3. * (ebc + (ar**2 / 16. + x / crbar) * rm /
                                       qbc) / RAD
-                    for j in range(na):
-                        alp = (alpha[j] / RAD)**2
-                        cybw[j] = float(-alp * arg1 - .0001 * abs(diheq))
-                        cnbw[j] = float(scale * alp * arg2)
+                    for angle_index in range(na):
+                        alp = (alpha[angle_index] / RAD)**2
+                        cybw[angle_index] = float(-alp * arg1 -
+                                                    .0001 * abs(diheq))
+                        cnbw[angle_index] = float(scale * alp * arg2)
         clptoa = interx(3, _X12225, [beta * ar, ar * g[74], tapr],
                         [17, 7, 5], _Y12225, lind=17, lx1u=2, lx2u=2)
         clp = clptoa * ar * float(data['clpcty'])
@@ -248,8 +249,9 @@ def calculate_suplat(data: Mapping[str, object], tail: bool = False
         arg2 = rm * g[61]**2 / ar + tpow
         cnw = [float(v) for v in data['cn']]
         cnaw = float(data['cnaw'])
-        clbw = [scale * (clbd - 0.061 * cnw[j] * cnaw * arg1 * arg2 / RAD)
-                for j in range(na)]
+        clbw = [scale * (clbd - 0.061 * cnw[angle_index] * cnaw * arg1 *
+                         arg2 / RAD)
+                for angle_index in range(na)]
     out.update({'cybw': cybw, 'cnbw': cnbw, 'clbw': clbw, 'win': w})
     if not data['bo']:
         out['sla'] = sla
@@ -284,10 +286,11 @@ def calculate_suplat(data: Mapping[str, object], tail: bool = False
         clbzw = 0.6 * arg1 * zwp * dbody / (RAD * span**2)
         dclb = -0.0005 * arg1 * (dbody / (2. * span))**2 * diheq
         sla.update({18: zwp, 19: clbzw, 20: dclb})
-        for j in range(na):
-            bwi[181 + j] = clbw[j] + (clbzw + dclb) * scale
+        for angle_index in range(na):
+            bwi[181 + angle_index] = (clbw[angle_index] +
+                                      (clbzw + dclb) * scale)
             if not tail:
-                bwv[181 + j] = bwi[181 + j]
+                bwv[181 + angle_index] = bwi[181 + angle_index]
         if not tail:
             bwv[141], bwv[161] = bwi[141], bwi[161]
     out.update({'sla': sla, 'bwi': bwi, 'rlb': rlb})
@@ -317,10 +320,10 @@ def calculate_suplat(data: Mapping[str, object], tail: bool = False
         bwh[161] = bwi[161] - dcyhwb * h[94 + i] / blref
         bwhv[141], bwhv[161] = bwh[141], bwh[161]
         if straight:
-            for j in range(na):
-                bwh[181 + j] = bwi[181 + j]
-                bwv[181 + j] = bwi[181 + j]
-                bwhv[181 + j] = bwh[181 + j]
+            for angle_index in range(na):
+                bwh[181 + angle_index] = bwi[181 + angle_index]
+                bwv[181 + angle_index] = bwi[181 + angle_index]
+                bwhv[181 + angle_index] = bwh[181 + angle_index]
     out.update({'bwh': bwh, 'bwv': bwv, 'bwhv': bwhv, 'zh': zh})
     return out
 
@@ -344,15 +347,16 @@ def m23o27_words(nalpha: int, body: Mapping[int, float],
         ``BWHV`` and ``BH`` words 142.., 162..) and ``bv``.
     """
     fill = {}
-    for j in range(2, nalpha + 1):
-        fill[j + 140] = -UNUSED
-        fill[j + 160] = -UNUSED
+    for angle_slot in range(2, nalpha + 1):
+        fill[angle_slot + 140] = -UNUSED
+        fill[angle_slot + 160] = -UNUSED
     b = {int(k): float(v) for k, v in body.items()}
     t = {int(k): float(v) for k, v in vt.items()}
     f = {int(k): float(v) for k, v in vf.items()}
     bv = {k: b[k] + t[k] + f[k] for k in (141, 161, 181)}
-    for j in range(2, nalpha + 1):
-        bv[j + 140] = -UNUSED
-        bv[j + 160] = -UNUSED
-        bv[j + 180] = b[j + 180] + t[j + 180] + f[j + 180]
+    for angle_slot in range(2, nalpha + 1):
+        bv[angle_slot + 140] = -UNUSED
+        bv[angle_slot + 160] = -UNUSED
+        bv[angle_slot + 180] = (b[angle_slot + 180] + t[angle_slot + 180] +
+                                f[angle_slot + 180])
     return {'surface': fill, 'bv': bv}

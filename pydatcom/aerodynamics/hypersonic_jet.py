@@ -237,86 +237,87 @@ def calculate_tranjt(data: Mapping[str, object]) -> Dict[str, object]:
              'pj0p1m', 'p0j', 'p0jt', 'rate')
     c = {k: [0.0] * nt for k in names}
     veoa = 0.0
-    for j in range(nt):
-        p1pi = _tl(_X13230, _X23230, _Y63230, mach, alpha[j], 0, 0, 0, 1)
-        q1qi = _tl(_X13231, _X23231, _Y63231, mach, alpha[j])
-        c['m1'][j] = _tl(_X13232, _X23232, _Y63232, mach, alpha[j])
-        r1ri = _tl(_X13233, _X23233, _Y63233, mach, alpha[j])
-        c['p1'][j] = p1pi * pinf
-        c['q1'][j] = q1qi * qinf
-        c['rl'][j] = r1ri * rln * ell
-        c['cfc'][j] = fc[j] / (c['q1'][j] * span * ell * 144.)
-        c['cfcr'][j] = 1.268 * c['cfc'][j] / cf0
-        if lam[j]:
-            c['k0'][j] = inter3(c['m1'][j], c['cfcr'][j], c['rl'][j],
+    for time_index in range(nt):
+        p1pi = _tl(_X13230, _X23230, _Y63230, mach, alpha[time_index], 0, 0, 0, 1)
+        q1qi = _tl(_X13231, _X23231, _Y63231, mach, alpha[time_index])
+        c['m1'][time_index] = _tl(_X13232, _X23232, _Y63232, mach, alpha[time_index])
+        r1ri = _tl(_X13233, _X23233, _Y63233, mach, alpha[time_index])
+        c['p1'][time_index] = p1pi * pinf
+        c['q1'][time_index] = q1qi * qinf
+        c['rl'][time_index] = r1ri * rln * ell
+        c['cfc'][time_index] = fc[time_index] / (c['q1'][time_index] * span * ell * 144.)
+        c['cfcr'][time_index] = 1.268 * c['cfc'][time_index] / cf0
+        if lam[time_index]:
+            c['k0'][time_index] = inter3(c['m1'][time_index], c['cfcr'][time_index], c['rl'][time_index],
                                 _K0_LAMINAR)
         else:
-            c['k0'][j] = _tl(_X13240, _X23240, _Y63240, c['m1'][j],
-                             c['cfcr'][j])
+            c['k0'][time_index] = _tl(_X13240, _X23240, _Y63240, c['m1'][time_index],
+                             c['cfcr'][time_index])
         veoa = math.sqrt((arg * me**2) / (2. + (gp - 1.) * me**2))
         ph = phe / RAD
         arg1 = 1. + gp * veoa * math.sin(ph) / arg
         arg2 = (veoa + 1. / veoa) * math.cos(ph) / 2.
-        c['k'][j] = (c['k0'][j] - 1.) * arg1 + arg2
-        c['fj0'][j] = fc[j] / c['k'][j]
-        c['pj0p1m'][j] = _tl(_X13243, _X23243, _Y63243, veoa, c['m1'][j])
-        c['p0j'][j] = c['pj0p1m'][j] * c['p1'][j]
+        c['k'][time_index] = (c['k0'][time_index] - 1.) * arg1 + arg2
+        c['fj0'][time_index] = fc[time_index] / c['k'][time_index]
+        c['pj0p1m'][time_index] = _tl(_X13243, _X23243, _Y63243, veoa, c['m1'][time_index])
+        c['p0j'][time_index] = c['pj0p1m'][time_index] * c['p1'][time_index]
     fjmax, pjmax = c['fj0'][0], c['p0j'][0]
-    for j in range(nt):
-        if c['fj0'][j] > fjmax:
-            fjmax = c['fj0'][j]
-        if c['p0j'][j] > pjmax:
-            pjmax = c['p0j'][j]
+    for time_index in range(nt):
+        if c['fj0'][time_index] > fjmax:
+            fjmax = c['fj0'][time_index]
+        if c['p0j'][time_index] > pjmax:
+            pjmax = c['p0j'][time_index]
     arg = cc * cf0 * span * 12.0
     dt = fjmax / (arg * pjmax)
-    for j in range(nt):
-        c['p0jt'][j] = c['fj0'][j] / (arg * dt)
-        c['rate'][j] = c['fj0'][j] / isp
+    for time_index in range(nt):
+        c['p0jt'][time_index] = c['fj0'][time_index] / (arg * dt)
+        c['rate'][time_index] = c['fj0'][time_index] / isp
     weight = list(trapz(c['rate'], time[:nt], 0))
     jet = [0.0] * 148
     for name, start in (('m1', 1), ('rl', 11), ('p1', 21), ('q1', 31),
                         ('cfc', 41), ('cfcr', 51), ('k0', 61), ('k', 71),
                         ('fj0', 81), ('pj0p1m', 91), ('p0j', 101),
                         ('p0jt', 111), ('rate', 121)):
-        for j, v in enumerate(c[name]):
-            jet[start + j] = v
-    for j, v in enumerate(weight):
-        jet[131 + j] = v
+        for slot, v in enumerate(c[name]):
+            jet[start + slot] = v
+    for slot, v in enumerate(weight):
+        jet[131 + slot] = v
     xcp = []
-    for j in range(nt):
-        r2 = c['m1'][j]**2
-        g = 1. - 1. / c['k'][j]
-        if lam[j]:
-            rs = [.2 * c['rl'][j]]
+    for time_index in range(nt):
+        r2 = c['m1'][time_index]**2
+        g = 1. - 1. / c['k'][time_index]
+        if lam[time_index]:
+            rs = [.2 * c['rl'][time_index]]
             for _ in range(9):
                 rs.append(.75 * rs[-1])
             rs.reverse()
-            a3 = (2. * cf0 * dt / (ell * 12.)) * c['p0jt'][j] / c['p1'][j]
+            a3 = (2. * cf0 * dt / (ell * 12.)) * c['p0jt'][time_index] / c['p1'][time_index]
             hl, hln = [], []
-            for i in range(10):
-                a = rs[i] * (r2 - 1.)
+            for reynolds_step in range(10):
+                a = rs[reynolds_step] * (r2 - 1.)
                 cp2 = 1.60 / a**0.25
                 cx = 4.75 * cp2
                 hl.append(a3 / (gp * cx * r2 + 2.))
-                zi = (cp2 * c['q1'][j] + c['p1'][j]) / c['p1'][j]
+                zi = (cp2 * c['q1'][time_index] + c['p1'][time_index]) / c['p1'][time_index]
                 a1 = 5. * (zi - 1.) / (7. * r2 - 5. * (zi - 1.))
                 a = math.sqrt((7. * r2 - (6. * zi + 1.)) / (6. * zi + 1.))
-                hln.append((1. - rs[i] / c['rl'][j]) * a1 * a)
+                hln.append((1. - rs[reynolds_step] / c['rl'][time_index]) *
+                           a1 * a)
             rls, _ = simul2(rs, hl, hln)
             if rls == -1000.:
                 rls = rs[9]
             cp2 = 1.60 / (rls * (r2 - 1.))**0.25
         else:
-            if c['m1'][j] > 5.0:
-                cp2 = 0.2257 - 0.0232 * c['m1'][j] + 0.0014 * r2 - \
-                    0.00003 * r2 * c['m1'][j]
+            if c['m1'][time_index] > 5.0:
+                cp2 = 0.2257 - 0.0232 * c['m1'][time_index] + 0.0014 * r2 - \
+                    0.00003 * r2 * c['m1'][time_index]
             else:
-                cp2 = 0.41 + 0.481 * c['m1'][j] - 0.0509 * r2 + \
-                    0.0061 * r2 * c['m1'][j]
-        a = 1. - g / 2. * c['cfc'][j] / cp2
+                cp2 = 0.41 + 0.481 * c['m1'][time_index] - 0.0509 * r2 + \
+                    0.0061 * r2 * c['m1'][time_index]
+        a = 1. - g / 2. * c['cfc'][time_index] / cp2
         xcp.append((1. - g) + g * a)
-    for j, v in enumerate(xcp):
-        jet[138 + j] = v
+    for slot, v in enumerate(xcp):
+        jet[138 + slot] = v
     out = dict(c)
     out.update({'weight': weight, 'xcp': xcp, 'jet': jet[1:],
                 'qinf': qinf, 'cf0': cf0, 'veoa': veoa, 'fjmax': fjmax,

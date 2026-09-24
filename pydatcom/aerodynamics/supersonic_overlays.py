@@ -18,7 +18,7 @@ def m41o51(flap_type: float, run_sshing: Callable[[], object]):
     result = None
     if flap_type != 5.0 and flap_type != 6.0:
         result = run_sshing()
-    return result, {250 + j: -UNUSED for j in range(2, 11)}
+    return result, {250 + word_index: -UNUSED for word_index in range(2, 11)}
 
 
 def m53o65(control_type: float, deltal, deltar,
@@ -28,8 +28,9 @@ def m53o65(control_type: float, deltal, deltar,
     result = None
     if control_type != 3.0:
         result = run_spryaw()
-    return result, {200 + j: deltal[j - 1] - deltar[j - 1]
-                    for j in range(1, 11)}
+    return result, {200 + word_index: deltal[word_index - 1] -
+                    deltar[word_index - 1]
+                    for word_index in range(1, 11)}
 
 
 def m56o70(data: Mapping[str, object]) -> Dict[str, object]:

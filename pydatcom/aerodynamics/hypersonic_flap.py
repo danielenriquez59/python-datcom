@@ -65,20 +65,20 @@ def calculate_hypflp(data: Mapping[str, object],
     hyp = {k: {} for k in ('paopi', 'taoti', 'malp', 'raori')}
     d1 = d2 = d3 = lfi = 0.0
     rlstrl = 0.0
-    for j, alpha in enumerate(data['alpha']):
+    for angle_index, alpha in enumerate(data['alpha']):
         alpha = float(alpha)
         if alpha < 0 or alpha > 20.0:
             continue
         h = hyprop(alt, mach, alpha)
         paopi, taoti = float(h['pressure']), float(h['temperature'])
         malp, raori = float(h['mach']), float(h['density'])
-        hyp['paopi'][j], hyp['taoti'][j] = paopi, taoti
-        hyp['malp'][j], hyp['raori'][j] = malp, raori
+        hyp['paopi'][angle_index], hyp['taoti'][angle_index] = paopi, taoti
+        hyp['malp'][angle_index], hyp['raori'][angle_index] = malp, raori
         cpia = (paopi - 1.) / (.7 * mach**2)
         rlhl = xhl * raori * rl
         m2 = malp**2
-        for n in range(1, ndelta + 1):
-            delta = f[n + 4]
+        for deflection_index in range(1, ndelta + 1):
+            delta = f[deflection_index + 4]
             sindf, cosdf = math.sin(delta / RAD), math.cos(delta / RAD)
             if lamnr:
                 cpinc = 2.03 * (malp**2 - 1.)**(-0.306) / rlhl**0.25
@@ -112,7 +112,7 @@ def calculate_hypflp(data: Mapping[str, object],
                 x8, x0 = xhl / 8.0, xhl / 20.
                 arg = raori * rl
                 a1, a2, a3 = [], [], []
-                for k in range(1, 9):
+                for probe in range(1, 9):
                     x0 = x0 + x8
                     rlx0 = arg * x0
                     twota = twoti / taoti
@@ -120,7 +120,7 @@ def calculate_hypflp(data: Mapping[str, object],
                         cpap = 1.91 * (malp**2 - 1.)**(-0.309) / rlx0**0.1
                         arg4 = 0.7 * cpap * malp**2 + 1.
                         d1od0 = 1.1e6 * (malp**(-1.67) * (arg4 - 1.))**8.55
-                        if k == 1:
+                        if probe == 1:
                             rlstrl = (0.28 + 0.5 * twota + 0.22 *
                                       (1. + 0.2 * malp**2 * 0.72**0.3333))
                         rlstr = rlstrl * arg
@@ -129,7 +129,7 @@ def calculate_hypflp(data: Mapping[str, object],
                         cpap = 1.56 * (malp**2 - 1.)**(-0.262) / rlx0**0.25
                         arg4 = 0.7 * cpap * malp**2 + 1.
                         d1od0 = 5.69e5 * malp**(-4.1) * (arg4 - 1.)**3.5
-                        if k == 1:
+                        if probe == 1:
                             rlstrl = (0.28 + 0.5 * twota + 0.22 *
                                       (1. + 0.2 * malp**2 *
                                        0.72**0.3333))**(-1.67)
@@ -224,7 +224,7 @@ def calculate_hypflp(data: Mapping[str, object],
                     arg1 = math.tan(delta / RAD) - math.tan(phe / RAD)
                     d3 = d1 * ((math.tan(phe / RAD) / arg1) /
                                math.cos(delta / RAD))
-            key = j * 10 + (n - 1)
+            key = angle_index * 10 + (deflection_index - 1)
             dp, dq = cpip - cpia, cpi2 - cpip
             out['dcn'][key] = (dp * (d1 - lfi / 2. + cf * cosdf) +
                                dq * cosdf * (cf - 0.5 * (d2 + d3))) / sr
