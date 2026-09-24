@@ -1145,3 +1145,18 @@ def setup2_step(nf: int, state: Dict[str, object]) -> int:
         nf -= 1
         if flag:
             return nf
+
+
+def calculate_supcm0(surface: Dict[str, float], x_surface: float,
+                     wing_height: float, body_length: float,
+                     max_diameter: float, mach: float, tr: float,
+                     stale_cm0: float = 0.0) -> Dict[str, object]:
+    """Translate SUPCM0: the supersonic surface-body CM0.
+
+    Line for line TRACM0 (with its Mach-number Reynolds number and the
+    wing's ``ZW`` for the tail), storing ``TRA(73)``/``TRAH(73)`` where
+    TRACM0 stores word 74.  Arguments and returns are those of
+    :func:`calculate_tracm0`.
+    """
+    return calculate_tracm0(surface, x_surface, wing_height, body_length,
+                            max_diameter, mach, tr, stale_cm0)

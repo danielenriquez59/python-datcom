@@ -48,9 +48,13 @@ def glook(x, query: float, ascending: Optional[bool] = None) -> Lookup:
 
     A None fraction means use Y[index] directly (snap or endpoint clamp).
     Otherwise interpolate between index-1 and index with the given fraction.
+
+    A NaN query fails every comparison, so the source's search runs off the
+    end and returns the last node, exactly; that is kept.  Infinite queries
+    are rejected.
     """
     x = _grid(x)
-    if not np.isfinite(query):
+    if np.isinf(query):
         raise ValueError("The query must be finite")
     if ascending is None:
         ascending = x[0] <= x[-1]
@@ -73,7 +77,7 @@ def glook(x, query: float, ascending: Optional[bool] = None) -> Lookup:
 def switch(x, query: float, lower: int = 0, upper: int = 0) -> Switches:
     """Translate SWITCH's seven LG flags, preserving table-end semantics."""
     x = _grid(x)
-    if not np.isfinite(query):
+    if np.isinf(query):
         raise ValueError("The query must be finite")
     ascending = bool(x[0] <= x[-1])
     after = bool(query > x[-1] if ascending else query < x[-1])

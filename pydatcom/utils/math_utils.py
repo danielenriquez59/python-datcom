@@ -16,31 +16,20 @@ logger = logging.getLogger(__name__)
 
 def arcsin(a: float) -> float:
     """
-    Arc sine with bounds checking.
-    
-    Handles values outside [-1, 1] gracefully.
-    Reference: FORTRAN ARCSIN function, datcom.f line 434
-    
-    Args:
-        a: Input value
-        
-    Returns:
-        Arc sine in radians
-        
-    Raises:
-        ValueError: If abs(a) > 1.0
+    Translate ARCSIN: arc sine in radians.
+
+    Exactly +-1 returns +-pi/2 with the source's ``PI``.  Outside [-1, 1]
+    the source prints an error and returns 1000; that sentinel is kept,
+    with a logged error, because callers test for it.
+
+    Reference: datcom-legacy/datcom_2000/arcsin.f
     """
-    # Handle exact ±1 case
     if abs(a) == 1.0:
         return PI / 2.0 * a / abs(a)
-    
-    # Check bounds
     if abs(a) > 1.0:
         logger.error(f"ARCSIN of {a:.5e} is out of bounds")
-        raise ValueError(f"arcsin argument {a} is out of range [-1, 1]")
-    
-    # Standard calculation
-    return np.arctan(a / np.sqrt(1.0 - a**2))
+        return 1000.0
+    return float(np.arctan(a / np.sqrt(1.0 - a**2)))
 
 
 def arccos(a: float) -> float:
@@ -162,23 +151,26 @@ def area2(x: np.ndarray, y: np.ndarray, inum: int) -> Tuple[float, float, float]
 
 def det4(a: np.ndarray) -> float:
     """
-    Calculate determinant of 4x4 matrix.
-    
-    Reference: FORTRAN DET4 subroutine
-    
-    Args:
-        a: 4x4 matrix as 1D array (16 elements, row-major)
-        
-    Returns:
-        Determinant value
+    Translate DET4: a 4x4 determinant by cofactor expansion.
+
+    ``a`` is the source's 16-word array (column-major ``A(4,4)``); a 4x4
+    array is taken in the same element order.  The expansion runs along
+    ``A(1..4)`` with 3x3 minors formed by skipping every fourth word, as
+    the source does, rather than through a factorisation.
+
+    Reference: datcom-legacy/datcom_2000/det4.f
     """
-    # Reshape to 2D if needed
-    if a.shape == (16,):
-        matrix = a.reshape((4, 4))
-    else:
-        matrix = a
-    
-    return np.linalg.det(matrix)
+    flat = np.asarray(a, dtype=float).reshape(-1, order='F')         if np.ndim(a) == 2 else np.asarray(a, dtype=float)
+    p = 0.0
+    for m in range(1, 5):
+        a3 = [flat[i - 1] for i in range(5, 17) if (i - m) % 4 != 0]
+        pp = (a3[0] * (a3[4] * a3[8] - a3[5] * a3[7]) -
+              a3[1] * (a3[3] * a3[8] - a3[5] * a3[6]) +
+              a3[2] * (a3[3] * a3[7] - a3[4] * a3[6]))
+        if m in (2, 4):
+            pp = -pp
+        p += flat[m - 1] * pp
+    return float(p)
 
 
 def solve_linear(a: np.ndarray, b: np.ndarray) -> np.ndarray:

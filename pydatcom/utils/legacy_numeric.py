@@ -8,7 +8,7 @@ import math
 
 import numpy as np
 
-from .constants import PI, UNUSED
+from .constants import PI, RAD, UNUSED
 
 
 def tranf(x, y, left_slope: float, right_slope: float,
@@ -330,3 +330,273 @@ def angles(entry: int, arg) -> list:
     if norm == 0.0:
         return zerang()
     return from_pair(a3 / norm, a4 / norm)
+
+
+def sleq(a, b):
+    """Translate SLEQ: Gauss-Jordan solution of ``A x = b`` without pivoting.
+
+    On a zero pivot the source rotates every row down by one (the last row
+    to the top, on the partly reduced matrix), counts the rotation, and
+    restarts the elimination from the first row; after ``N`` rotations it
+    prints a warning and returns without setting ``X``.  Both are kept.
+
+    Args:
+        a: ``N`` by ``N`` coefficients (the source's ``A(N,M)`` with
+            ``M >= N+1``; the right-hand side goes in column ``N+1``).
+        b: Right-hand side.
+
+    Returns:
+        ``(x, ok)``: the solution, or ``None`` with ``ok`` False after the
+        warning.
+
+    Reference: datcom-legacy/datcom_2000/sleq.f
+    """
+    b = np.asarray(b, dtype=float)
+    n = len(b)
+    work = np.zeros((n, n + 1))
+    work[:, :n] = np.asarray(a, dtype=float)
+    work[:, n] = b
+    rotations = 0
+    while True:
+        for k in range(n):
+            if work[k, k] == 0.0:
+                break
+            work[k, k + 1:] = work[k, k + 1:] / work[k, k]
+            work[k, k] = 1.0
+            for i in range(n):
+                if i == k:
+                    continue
+                work[i, k + 1:] = work[i, k + 1:] - work[i, k] * work[k, k + 1:]
+                work[i, k] = 0.0
+        else:
+            return work[:, n].copy(), True
+        rotations += 1
+        if rotations > n:
+            return None, False
+        work = np.roll(work, 1, axis=0)
+
+
+def quadin(y, h: float) -> float:
+    """Translate QUADIN: integrate equally spaced ordinates.
+
+    Five-point Newton-Cotes (Boole) panels from the start, then the one to
+    four points left over by the trapezoid, Simpson or three-eighths rule
+    over the *last* points.  Nonpositive ``h`` or no points give zero.
+
+    Reference: datcom-legacy/datcom_2000/quadin.f
+    """
+    y = np.asarray(y, dtype=float)
+    n = len(y)
+    if h <= 0.0 or n <= 0:
+        return 0.0
+    ans = 0.0
+    k = n
+    if n >= 4:
+        for i in range(1, n + 1, 4):
+            k = n - i + 1
+            if k >= 5:
+                w = y[i - 1:i + 4]
+                ans += 7.*w[0] + 32.*w[1] + 12.*w[2] + 32.*w[3] + 7.*w[4]
+        ans = ans * h / 22.5
+    if k == 2:
+        ans += h * (y[n - 1] + y[n - 2]) / 2.
+    elif k == 3:
+        ans += h * (y[n - 3] + 4. * y[n - 2] + y[n - 1]) / 3.
+    elif k == 4:
+        ans += 3. * h * (y[n - 4] + 3. * y[n - 3] + 3. * y[n - 2] +
+                         y[n - 1]) / 8.
+    return float(ans)
+
+
+def mach2(nu_deg: float):
+    """Translate MACH2: the Mach number of a Prandtl-Meyer angle.
+
+    Newton iteration on ``sqrt(6) atan(b/sqrt(6)) - atan(b) = nu`` from
+    ``b = 1``, to 2e-6, at most 30 steps.  Returns ``(mach, ier)``: ``ier``
+    1 for a negative angle (Mach 1), 2 above 130 degrees (Mach 1000), 3
+    when the iteration does not converge (the last iterate is used).
+
+    Reference: datcom-legacy/datcom_2000/mach2.f
+    """
+    if nu_deg < 0.0:
+        return 1.0, 1
+    if nu_deg == 0.0:
+        return 1.0, 0
+    if nu_deg > 130.0:
+        return 1000.0, 2
+    sqr6 = 2.44948974
+    rnu = nu_deg / RAD
+    b = 1.0
+    ier = 3
+    for _ in range(30):
+        f = sqr6 * math.atan(b / sqr6) - math.atan(b) - rnu
+        if abs(f) <= 2.0e-6:
+            ier = 0
+            break
+        b = b - f * (1. + b * b) * (6. + b * b) / (5. * b * b)
+    return math.sqrt(b * b + 1.0), ier
+
+
+def simul2(x, c1, c2):
+    """Translate SIMUL2: where two tabulated curves cross.
+
+    Scans for the first exact touch or sign change of ``c2 - c1``, then
+    halves the step from the left bracket, moving the bracket whenever the
+    difference keeps the left point's sign, until the difference is under
+    0.1% of ``c1`` (of ``c2`` where ``c1`` is zero), exactly zero, or 101
+    halvings have passed.  Both curves are read with TBFUNX.  Returns
+    ``(x, c1)`` at the crossing, or ``(-1000, -1000)`` when they do not
+    cross.
+
+    Reference: datcom-legacy/datcom_2000/simul2.f
+    """
+    x = [float(v) for v in x]
+    c1 = [float(v) for v in c1]
+    c2 = [float(v) for v in c2]
+    signp = None
+    for i in range(len(x)):
+        cross = c2[i] - c1[i]
+        if cross == 0.0:
+            return x[i], c1[i]
+        sign = math.copysign(1.0, cross)
+        if i > 0 and sign != signp:
+            break
+        signp = sign
+    else:
+        return -1000.0, -1000.0
+    xd2 = x[i] - x[i - 1]
+    xsrt = x[i - 1]
+    kount = 0
+    while True:
+        xd2 = xd2 / 2.
+        xtst = xsrt + xd2
+        cd1 = tbfunx(x, c1, xtst, 0, 0)[0]
+        cd2 = tbfunx(x, c2, xtst, 0, 0)[0]
+        cr = cd2 - cd1
+        if cr == 0.0:
+            return xtst, cd1
+        cdv = cr / cd2 if cd1 == 0.0 else cr / cd1
+        if abs(cdv) < 0.001 or kount > 100:
+            return xtst, cd1
+        kount += 1
+        if math.copysign(1.0, cr) == signp:
+            xsrt = xtst
+
+
+def tlinvs(x1, x2, y, xa2: float, za: float) -> float:
+    """Translate TLINVS: the ``X1`` at which TLINEX's surface reaches ``za``.
+
+    ``y`` has TLINEX's ``(len(x2), len(x1))`` layout, and is taken to fall
+    with ``X1``: at the ``X2`` bracket, a value at or above the first
+    column returns ``X1(1)`` and one at or below the last returns
+    ``X1(NX1)``.  Otherwise a relative-step search from ``X1(NX1/2)``
+    runs TLINEX until within 1e-3 of ``za`` or for 21 evaluations, clamped
+    to the grid.
+
+    Raises:
+        ValueError: Where the source would read past ``Y``: ``xa2`` beyond
+            the last ``X2`` with ``za`` between that row's end values.
+
+    Reference: datcom-legacy/datcom_2000/tlinvs.f
+    """
+    from .legacy_tables import tlinex
+    x1 = np.asarray(x1, dtype=float)
+    x2 = np.asarray(x2, dtype=float)
+    y = np.asarray(y, dtype=float)
+    nx1, nx2 = len(x1), len(x2)
+
+    def search():
+        dgss = x1[nx1 // 2 - 1]
+        kount = 0
+        while True:
+            zgss = float(tlinex(x1, x2, y, dgss, xa2, 0, 0, 0, 0))
+            kount += 1
+            if abs(zgss - za) < 1.e-3 or kount > 20:
+                return float(dgss)
+            din = dgss * abs(zgss - za) / zgss
+            if zgss > za:
+                dgss = min(dgss + din, x1[-1])
+            else:
+                dgss = max(dgss - din, x1[0])
+
+    def row(i):                      # labels 1050-1070 at an exact row
+        if not za < y[i, 0]:
+            return float(x1[0])
+        if not za > y[i, -1]:
+            return float(x1[-1])
+        return search()
+
+    if not xa2 > x2[0]:
+        if not za < y[0, 0]:
+            return float(x1[0])
+        if not za > y[0, -1]:
+            return float(x1[-1])
+    if not xa2 < x2[-1]:
+        if not za < y[-1, 0]:
+            return float(x1[0])
+        if not za > y[-1, -1]:
+            return float(x1[-1])
+    for i in range(1, nx2):
+        if x2[i] == xa2:
+            return row(i)
+        if x2[i] > xa2:
+            rat = (xa2 - x2[i - 1]) / (x2[i] - x2[i - 1])
+            if za >= y[i - 1, 0] + (y[i, 0] - y[i - 1, 0]) * rat:
+                return float(x1[0])
+            if za <= y[i - 1, -1] + (y[i, -1] - y[i - 1, -1]) * rat:
+                return float(x1[-1])
+            return search()
+    raise ValueError("TLINVS would read past its table beyond the last X2")
+
+
+def inter3(arg1: float, arg2: float, rl: float, tables) -> float:
+    """Translate INTER3: TLINEX in five tables bracketed by Reynolds number.
+
+    ``tables`` holds five ``(x1, x2, y)`` triples, ``y`` in TLINEX's
+    ``(len(x2), len(x1))`` layout, for Reynolds numbers 1e5, 1e6, 1e7, 1e8
+    and 1e9.  The two tables bracketing ``rl`` are read and interpolated
+    *linearly in Reynolds number*; below 1e5 the first table is used (its
+    two reads are identical), above 1e9 the last.
+
+    Reference: datcom-legacy/datcom_2000/inter3.f
+    """
+    from .legacy_tables import tlinex
+
+    def read(k):
+        x1, x2, y = tables[k]
+        return float(tlinex(x1, x2, np.asarray(y, dtype=float), arg1, arg2,
+                            0, 0, 0, 0))
+
+    decades = [1e5, 1e6, 1e7, 1e8, 1e9]
+    if rl > 1e9:
+        return read(4)
+    if rl <= 1e5:
+        return read(0)
+    it = next(k for k in range(1, 5) if rl <= decades[k])
+    low, high = read(it - 1), read(it)
+    x1, x2 = decades[it - 1], decades[it]
+    return low + (high - low) * (rl - x1) / (x2 - x1)
+
+
+def simul4(coff, eq):
+    """Translate SIMUL4: four simultaneous equations by Cramer's rule.
+
+    ``coff`` is the source's 16-word ``COFF``, equation ``i``'s
+    coefficient on unknown ``m`` at ``COFF(4(i-1)+m)``; ``eq`` is the
+    right-hand side.  Each unknown is DET4 with words ``m, m+4, m+8,
+    m+12`` replaced by ``eq``, over DET4 of ``coff``.  A singular system divides by zero as
+    the source does.
+
+    Reference: datcom-legacy/datcom_2000/simul4.f
+    """
+    from .math_utils import det4
+    coff = np.asarray(coff, dtype=float).reshape(-1)
+    d = det4(coff)
+    unk = []
+    for m in range(4):
+        de = coff.copy()
+        de[m::4] = np.asarray(eq, dtype=float)
+        g = det4(de)
+        unk.append(g / d if d != 0.0 else
+                   (math.nan if g == 0.0 else math.copysign(math.inf, g)))
+    return unk
