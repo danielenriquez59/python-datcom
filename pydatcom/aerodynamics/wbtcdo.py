@@ -180,39 +180,46 @@ def calculate_wbtcdo(mach: float, sweep_c4_deg: float,
         cd_mach11 = _CD11_FROM_CD14 * cd_mach14
 
     supersonic = mach > md
-    anchor = _SUPERSONIC_ANCHOR if supersonic else _SUBSONIC_ANCHOR
+    anchor_mach = _SUPERSONIC_ANCHOR if supersonic else _SUBSONIC_ANCHOR
 
-    a0 = cd_mach07 + 0.002
-    a1 = 0.10
+    fairing_a0 = cd_mach07 + 0.002
+    fairing_a1 = 0.10
     if supersonic:
-        a2 = cd_mach11 - a0 - 0.1 * (_SUPERSONIC_ANCHOR - md)
-        slope = (cd_mach14 - cd_mach11) / 0.3 if cd_mach14 is not None else None
-        if slope is None:
+        fairing_a2 = (cd_mach11 - fairing_a0 -
+                      0.1 * (_SUPERSONIC_ANCHOR - md))
+        drag_slope = ((cd_mach14 - cd_mach11) / 0.3
+                      if cd_mach14 is not None else None)
+        if drag_slope is None:
             raise ValueError("WBTCDO needs CD14 for the supersonic exponent")
-        denominator = cd_mach11 - a0 - 0.1 * (_SUPERSONIC_ANCHOR - md)
+        exponent_denominator = (cd_mach11 - fairing_a0 -
+                                0.1 * (_SUPERSONIC_ANCHOR - md))
     else:
-        a2 = -0.002 - 0.1 * (_SUBSONIC_ANCHOR - md)
-        slope = (cd_mach07 - cd_mach06) / 0.1
-        denominator = cd_mach07 - a0 - 0.1 * (_SUBSONIC_ANCHOR - md)
+        fairing_a2 = -0.002 - 0.1 * (_SUBSONIC_ANCHOR - md)
+        drag_slope = (cd_mach07 - cd_mach06) / 0.1
+        exponent_denominator = (cd_mach07 - fairing_a0 -
+                                0.1 * (_SUBSONIC_ANCHOR - md))
 
-    if denominator == 0.0:
+    if exponent_denominator == 0.0:
         raise ValueError("WBTCDO fairing exponent divides by zero")
-    exponent = (slope - 0.1) * (anchor - md) / denominator
+    exponent = ((drag_slope - 0.1) * (anchor_mach - md) /
+                exponent_denominator)
 
-    if anchor == md:
+    if anchor_mach == md:
         raise ValueError(
             "WBTCDO fairing divides by (anchor - MD), which vanished")
-    cdo = a0 + a1 * (mach - md) + a2 * ((mach - md) / (anchor - md))**exponent
+    mach_offset = mach - md
+    cdo = (fairing_a0 + fairing_a1 * mach_offset +
+           fairing_a2 * (mach_offset / (anchor_mach - md)) ** exponent)
 
     return {
         'cdo': float(cdo),
         'md': md,
         'figure': figure,
-        'a0': float(a0),
-        'a1': a1,
-        'a2': float(a2),
+        'a0': float(fairing_a0),
+        'a1': fairing_a1,
+        'a2': float(fairing_a2),
         'exponent': float(exponent),
-        'anchor': anchor,
+        'anchor': anchor_mach,
         'supersonic': bool(supersonic),
         'cd_mach11': float(cd_mach11),
         'method': 'legacy_wbtcdo',

@@ -183,7 +183,10 @@ def calculate_wbdrag(mach: float, reynolds_per_length: float,
     interference = tlinex(_X137, _X237, _Y37.reshape(7, 19).T, mach,
                           reynolds, 2, 2, 2, 1)
     cd0 = (wing_cd0 + body_cd_friction) * interference + body_cd_base
-    cd = [cd0 + b + w for b, w in zip(body_cdl, wing_cdl)]
+    cd = [
+        cd0 + body_dcl + wing_dcl
+        for body_dcl, wing_dcl in zip(body_cdl, wing_cdl)
+    ]
     if experimental and (experimental.get('kbody') or
                          experimental.get('kwing')):
         for j, (b, w) in enumerate(zip(experimental['body_cd'],
@@ -259,7 +262,7 @@ def calculate_wblift(alpha_deg: Sequence[float],
     result = {'ratio': float(ratio), 'method': 'legacy_wblift'}
 
     kwb, kbw = stale['kwb'], stale['kbw']
-    kwbi, kbwi = stale['kwb_incidence'], stale['kbw_incidence']
+    kwb_inc, kbw_inc = stale['kwb_incidence'], stale['kbw_incidence']
     if ratio > 0.80:
         extended, _ = tbfunx(_X12C, _Y12C, ratio, 0, 0)
         cla = extended * wing_cla
@@ -272,24 +275,35 @@ def calculate_wblift(alpha_deg: Sequence[float],
         result.update({'wb4': kwb * wing_cla, 'wb5': kbw * wing_cla})
         cla = body_cla + result['wb4'] + result['wb5']
         if incidence != 0.0:
-            kwbi, _ = tbfunx(_X12A1, _Y12A1, ratio, 0, 0)
-            kbwi, _ = tbfunx(_X12A2, _Y12A2, ratio, 0, 0)
-            result.update({'wb9': kwbi * wing_cla, 'wb10': kbwi * wing_cla,
-                           'wb11': (kwbi + kbwi) * wing_cla})
-    result.update({'kwb': float(kwb), 'kbw': float(kbw),
-                   'kwb_incidence': float(kwbi),
-                   'kbw_incidence': float(kbwi), 'cla': float(cla)})
+            kwb_inc, _ = tbfunx(_X12A1, _Y12A1, ratio, 0, 0)
+            kbw_inc, _ = tbfunx(_X12A2, _Y12A2, ratio, 0, 0)
+            result.update({
+                'wb9': kwb_inc * wing_cla,
+                'wb10': kbw_inc * wing_cla,
+                'wb11': (kwb_inc + kbw_inc) * wing_cla,
+            })
+    result.update({
+        'kwb': float(kwb),
+        'kbw': float(kbw),
+        'kwb_incidence': float(kwb_inc),
+        'kbw_incidence': float(kbw_inc),
+        'cla': float(cla),
+    })
 
     alpha = np.asarray(alpha_deg, dtype=float)
-    table = alpha + incidence - alpha_zero_lift
-    shift = _div(kwbi + kbwi, kwb + kbw) * incidence
+    lookup_angles = alpha + incidence - alpha_zero_lift
+    incidence_shift = _div(kwb_inc + kbw_inc, kwb + kbw) * incidence
     cl = []
-    for j, a in enumerate(alpha):
-        clint, _ = tbfunx(table, surface_alone['cl'],
-                          a - alpha_zero_lift + shift, 1, 1)
-        cl.append(body_cl[j] + (kwb + kbw) * clint +
-                  vortex['ivbw'][j] * vortex['go2pav'][j] *
-                  local_alpha_deg[j] * vortex['ratio'] * wing_cla)
+    for index, angle_deg in enumerate(alpha):
+        wing_cl, _ = tbfunx(
+            lookup_angles, surface_alone['cl'],
+            angle_deg - alpha_zero_lift + incidence_shift, 1, 1,
+        )
+        cl.append(
+            body_cl[index] + (kwb + kbw) * wing_cl +
+            vortex['ivbw'][index] * vortex['go2pav'][index] *
+            local_alpha_deg[index] * vortex['ratio'] * wing_cla
+        )
     result['cl'] = np.array(cl)
 
     if ratio <= 0.30 and stall is not None:
@@ -414,14 +428,16 @@ def calculate_wbcm(alpha_deg: Sequence[float],
         wb14 = temp4
     else:
         # The ellipse through (0, WB(15)) and (4, TEMP4).
-        q = abs(temp4 - wb15)
-        bb = -2.0 * wb15
-        cc = wb15 * wb15 - q * q + ((q / 4.0)**2) * (arg - 4.0)**2
-        discriminant = bb * bb - 4.0 * cc
+        endpoint_gap = abs(temp4 - wb15)
+        linear_coeff = -2.0 * wb15
+        constant_term = (wb15 * wb15 - endpoint_gap ** 2 +
+                         ((endpoint_gap / 4.0) ** 2) * (arg - 4.0) ** 2)
+        discriminant = linear_coeff ** 2 - 4.0 * constant_term
         if not discriminant > 0.0:
             raise ValueError("WBCM: ellipse curve fit in error")
         root = np.sqrt(discriminant)
-        wb14 = (-bb - root) / 2.0 if temp4 < wb15 else (-bb + root) / 2.0
+        wb14 = ((-linear_coeff - root) / 2.0 if temp4 < wb15 else
+                (-linear_coeff + root) / 2.0)
     wb13 = wb14 * a10 / cbarr
 
     dxcg = float(synthesis['xcg']) - (float(synthesis['xw']) + .50 * db *
@@ -467,21 +483,23 @@ def calculate_wbcm(alpha_deg: Sequence[float],
     dxcpbw = float(surface['a173']) / cbarr - wb13
     lever = (float(synthesis['zw']) - float(synthesis['zcg'])) / cbarr
     kwb, kbw = float(lift['kwb']), float(lift['kbw'])
-    kwbi, kbwi = float(lift['kwb_incidence']), float(lift['kbw_incidence'])
+    kwb_inc = float(lift['kwb_incidence'])
+    kbw_inc = float(lift['kbw_incidence'])
     cm = []
-    for j in range(len(alpha_deg)):
-        dxcpwb = (0.0 if cn_surface[j] == 0.0 else
-                  (cm_surface[j] - cm0_surface) / cn_surface[j])
-        dcnv = (vortex['ivbw'][j] * vortex['go2pav'][j] * vortex['ratio'] *
-                local_alpha_deg[j] * cla_surface)
-        basic = cn_surface[j] - cla_surface * incidence
-        value = (body['cm'][j] + cm0_surface +
-                 basic * kwb * dxcpwb +
-                 cla_surface * incidence * kwbi * dxcpwb +
-                 basic * kbw * dxcpbw +
-                 cla_surface * incidence * kbwi * dxcpbw +
-                 dcnv * dxcpwb + ca_surface[j] * lever)
-        cm.append(NOT_AVAILABLE if cm_surface[j] == NOT_AVAILABLE else value)
+    for index in range(len(alpha_deg)):
+        dxcp_wing = (0.0 if cn_surface[index] == 0.0 else
+                     (cm_surface[index] - cm0_surface) / cn_surface[index])
+        vortex_cn = (vortex['ivbw'][index] * vortex['go2pav'][index] *
+                     vortex['ratio'] * local_alpha_deg[index] * cla_surface)
+        cn_basic = cn_surface[index] - cla_surface * incidence
+        value = (body['cm'][index] + cm0_surface +
+                 cn_basic * kwb * dxcp_wing +
+                 cla_surface * incidence * kwb_inc * dxcp_wing +
+                 cn_basic * kbw * dxcpbw +
+                 cla_surface * incidence * kbw_inc * dxcpbw +
+                 vortex_cn * dxcp_wing + ca_surface[index] * lever)
+        cm.append(NOT_AVAILABLE if cm_surface[index] == NOT_AVAILABLE
+                  else value)
     return {
         'cm': np.array(cm), 'cm0': float(cmowb),
         'cm0_regression': regression is not None,
@@ -555,9 +573,11 @@ def calculate_wbaero(alpha_deg: Sequence[float],
     _, max_area, _ = getmax(body['x'], body['s'])
     radius = np.sqrt(max_area / PI)
     body_alpha = alpha + float(body['alpha_zero_lift'])
-    bodowg = [calculate_bodowg(a, float(surface['x_quarter_chord']), radius,
-                               sspn, float(surface['a27']))
-              for a in body_alpha]
+    bodowg = [
+        calculate_bodowg(angle_deg, float(surface['x_quarter_chord']),
+                         radius, sspn, float(surface['a27']))
+        for angle_deg in body_alpha
+    ]
     vortex = {'ratio': (sspn - sspne) / sspn,
               'ivbw': [b['ivbw'] for b in bodowg],
               'go2pav': [b['go2pav'] for b in bodowg]}
@@ -588,14 +608,20 @@ def calculate_wbaero(alpha_deg: Sequence[float],
         if moment_cutoff and value == NOT_AVAILABLE:
             available = j
             break
-    cla = np.array([tbfunx(alpha, cl, a, 0, 0)[1] for a in alpha])
-    cma = np.array([tbfunx(alpha[:available], cm[:available], a, 0, 0)[1]
-                    if j < available else NOT_AVAILABLE
-                    for j, a in enumerate(alpha)])
-    ca_, sa_ = np.cos(alpha / RAD), np.sin(alpha / RAD)
+    cla = np.array([
+        tbfunx(alpha, cl, angle_deg, 0, 0)[1] for angle_deg in alpha
+    ])
+    cma = np.array([
+        tbfunx(alpha[:available], cm[:available], angle_deg, 0, 0)[1]
+        if index < available else NOT_AVAILABLE
+        for index, angle_deg in enumerate(alpha)
+    ])
+    cos_alpha = np.cos(alpha / RAD)
+    sin_alpha = np.sin(alpha / RAD)
     return {
         'cd': cd, 'cl': cl, 'cm': cm,
-        'cn': cl * ca_ + cd * sa_, 'ca': cd * ca_ - cl * sa_,
+        'cn': cl * cos_alpha + cd * sin_alpha,
+        'ca': cd * cos_alpha - cl * sin_alpha,
         'cla': cla, 'cma': cma,
         'drag': drag, 'lift': lift, 'moment': moment, 'vortex': vortex,
         'method': 'legacy_wbaero',
@@ -633,14 +659,23 @@ def tail_body_inputs(tail: Dict[str, float], tail_alone: Dict[str, object],
         moment ``HB(16)``, not the moment curve.  The caller supplies the
         value the source would read.
     """
-    surface = dict(tail, x_quarter_chord=float(tail['a161']) +
-                   float(synthesis['xh']))
-    alone = dict(tail_alone, cma=(bd63 / cbarr) * float(tail_alone['cla']))
+    surface = dict(
+        tail,
+        x_quarter_chord=float(tail['a161']) + float(synthesis['xh']),
+    )
+    tail_cla = float(tail_alone['cla'])
+    alone = dict(tail_alone, cma=(bd63 / cbarr) * tail_cla)
+    synthesis_for_tail = {
+        'xcg': synthesis['xcg'],
+        'xw': synthesis['xh'],
+        'zw': synthesis['zh'],
+        'zcg': synthesis['zcg'],
+        'aliw': synthesis['alih'],
+    }
     return {
-        'surface': surface, 'surface_alone': alone,
-        'synthesis': {'xcg': synthesis['xcg'], 'xw': synthesis['xh'],
-                      'zw': synthesis['zh'], 'zcg': synthesis['zcg'],
-                      'aliw': synthesis['alih']},
+        'surface': surface,
+        'surface_alone': alone,
+        'synthesis': synthesis_for_tail,
     }
 
 
@@ -663,9 +698,10 @@ def calculate_body_vertical(alpha_deg: Sequence[float],
     out = {k: np.array(body[k], dtype=float)
            for k in ('cd', 'cl', 'cm', 'cla', 'cma')}
     out['cd'] = out['cd'] + vertical_cd0
-    ca, sa = np.cos(alpha / RAD), np.sin(alpha / RAD)
-    out['cn'] = out['cl'] * ca + out['cd'] * sa
-    out['ca'] = out['cd'] * ca - out['cl'] * sa
+    cos_alpha = np.cos(alpha / RAD)
+    sin_alpha = np.sin(alpha / RAD)
+    out['cn'] = out['cl'] * cos_alpha + out['cd'] * sin_alpha
+    out['ca'] = out['cd'] * cos_alpha - out['cl'] * sin_alpha
     for j in range(1, len(alpha)):
         out['cla'][j] = tbfunx(alpha, out['cl'], alpha[j], 0, 0)[1]
         out['cma'][j] = tbfunx(alpha, out['cm'], alpha[j], 0, 0)[1]
@@ -706,28 +742,32 @@ def calculate_tables(mach: float, alpha_deg: float) -> Optional[np.ndarray]:
     if ia == iam:
         ia = iam - 1
     base = float(ia)
-    im2 = None
-    for i in range(2, 15):
-        if _TABLES_MACH[i - 2] <= mach <= _TABLES_MACH[i - 1]:
-            im2 = i
+    mach_index_high = None
+    for index in range(2, 15):
+        if _TABLES_MACH[index - 2] <= mach <= _TABLES_MACH[index - 1]:
+            mach_index_high = index
             break
-    if im2 is None:
+    if mach_index_high is None:
         return None
-    im1 = im2 - 1
-    bt = np.zeros((2, 2, 16))
-    for i, im in enumerate((im1, im2)):
-        for j, index in enumerate((ia + 1, ia + 2)):
-            if im <= 4:
-                block = calculate_tbsub(im, index)
-            elif im <= 10:
-                block = calculate_tbtrn(im, index)
+    mach_index_low = mach_index_high - 1
+    coeff_grid = np.zeros((2, 2, 16))
+    for mach_row, mach_index in enumerate((mach_index_low, mach_index_high)):
+        for angle_col, angle_index in enumerate((ia + 1, ia + 2)):
+            if mach_index <= 4:
+                block = calculate_tbsub(mach_index, angle_index)
+            elif mach_index <= 10:
+                block = calculate_tbtrn(mach_index, angle_index)
             else:
-                block = calculate_tbsup(im, index)
-            bt[i, j] = block['coefficients']
-    ba = bt[0, 0] + (bt[0, 1] - bt[0, 0]) * (alp - base)
-    bb = bt[1, 0] + (bt[1, 1] - bt[1, 0]) * (alp - base)
-    return ba + (bb - ba) * ((mach - _TABLES_MACH[im1 - 1]) /
-                             (_TABLES_MACH[im2 - 1] - _TABLES_MACH[im1 - 1]))
+                block = calculate_tbsup(mach_index, angle_index)
+            coeff_grid[mach_row, angle_col] = block['coefficients']
+    at_low_mach = (coeff_grid[0, 0] +
+                   (coeff_grid[0, 1] - coeff_grid[0, 0]) * (alp - base))
+    at_high_mach = (coeff_grid[1, 0] +
+                    (coeff_grid[1, 1] - coeff_grid[1, 0]) * (alp - base))
+    mach_low = _TABLES_MACH[mach_index_low - 1]
+    mach_high = _TABLES_MACH[mach_index_high - 1]
+    return at_low_mach + (at_high_mach - at_low_mach) * (
+        (mach - mach_low) / (mach_high - mach_low))
 
 
 def calculate_wbcdl(aspect_ratio: float, tan_le: float, tovc: float,
@@ -850,9 +890,10 @@ def calculate_wbcd(alpha_deg: Sequence[float], surface: Dict[str, float],
     alpha = np.asarray(alpha_deg, dtype=float)
     cl = np.asarray(combination['cl'], dtype=float)
     cd = float(combination['cd0']) + cdl
-    ca_, sa_ = np.cos(alpha / RAD), np.sin(alpha / RAD)
-    cn = cl * ca_ + cd * sa_
-    ca = cd * ca_ - cl * sa_
+    cos_alpha = np.cos(alpha / RAD)
+    sin_alpha = np.sin(alpha / RAD)
+    cn = cl * cos_alpha + cd * sin_alpha
+    ca = cd * cos_alpha - cl * sin_alpha
     missing = cdl == UNUSED
     cd, cn, ca = (np.where(missing, -UNUSED, v) for v in (cd, cn, ca))
     return {'cd': cd, 'cn': cn, 'ca': ca, 'cdl': cdl,

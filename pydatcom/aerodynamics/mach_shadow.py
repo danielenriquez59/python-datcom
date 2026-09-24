@@ -43,10 +43,13 @@ def ptint1(xp: Sequence[float], yp: Sequence[float], a: Sequence[float],
         numbers crossed), ``effect`` and ``k``, the loop index at exit
         (5 when the loop runs out).
     """
-    ca, sa = math.cos(-a[2] / RAD), math.sin(-a[2] / RAD)
-    x = [(xp[n] - a[0]) * ca + (yp[n] - a[1]) * sa for n in range(5)]
-    y = [(yp[n] - a[1]) * ca - (xp[n] - a[0]) * sa for n in range(5)]
-    pio2 = PI / 2.0
+    cos_incidence, sin_incidence = (math.cos(-a[2] / RAD),
+                                    math.sin(-a[2] / RAD))
+    x = [(xp[n] - a[0]) * cos_incidence + (yp[n] - a[1]) * sin_incidence
+         for n in range(5)]
+    y = [(yp[n] - a[1]) * cos_incidence - (xp[n] - a[0]) * sin_incidence
+         for n in range(5)]
+    half_pi = PI / 2.0
     inorot = 24 if ncon == 1 else 0
     le = avt[59 + inorot] + a[2] / RAD
     te = avt[77 + inorot] + a[2] / RAD
@@ -60,9 +63,9 @@ def ptint1(xp: Sequence[float], yp: Sequence[float], a: Sequence[float],
         xdif, ydif = x[k] - x[i], y[k] - y[i]
         crossed = False
         if not (xdif == 0.0 and ydif == 0.0):
-            tamu = math.sin(amu) / math.cos(amu)
-            xi[i] = (y[i] * xdif - x[i] * ydif) / (xdif * tamu - ydif)
-            yi[i] = xi[i] * tamu
+            tan_mach_angle = math.sin(amu) / math.cos(amu)
+            xi[i] = (y[i] * xdif - x[i] * ydif) / (xdif * tan_mach_angle - ydif)
+            yi[i] = xi[i] * tan_mach_angle
             if k == 2:
                 crossed = x[1] <= xi[1] <= x[2]
             elif k == 4:
@@ -72,16 +75,16 @@ def ptint1(xp: Sequence[float], yp: Sequence[float], a: Sequence[float],
                     if yi[0] <= y[0]:
                         if yi[0] >= y[1]:
                             crossed = True
-                        elif not pio2 + amu < le:
+                        elif not half_pi + amu < le:
                             index += 1 if j != 2 else 0
                             exit_now = True
-                    elif pio2 + amu < le:
+                    elif half_pi + amu < le:
                         index += 1 if j != 2 else 0
                         exit_now = True
                 else:
                     if y[2] <= yi[2] <= y[3]:
                         crossed = True
-                    elif yi[2] < y[2] and pio2 + amu > te:
+                    elif yi[2] < y[2] and half_pi + amu > te:
                         pass
                     else:
                         index += 1 if j == 2 else 0
@@ -91,16 +94,16 @@ def ptint1(xp: Sequence[float], yp: Sequence[float], a: Sequence[float],
                     if yi[0] >= y[0]:
                         if yi[0] <= y[1]:
                             crossed = True
-                        elif not pio2 - amu < le_up:
+                        elif not half_pi - amu < le_up:
                             index += 1 if j != 2 else 0
                             exit_now = True
-                    elif pio2 - amu < le_up:
+                    elif half_pi - amu < le_up:
                         index += 1 if j != 2 else 0
                         exit_now = True
                 else:
                     if y[3] <= yi[2] <= y[2]:
                         crossed = True
-                    elif yi[2] > y[2] and pio2 - amu > te_up:
+                    elif yi[2] > y[2] and half_pi - amu > te_up:
                         pass
                     else:
                         index += 1 if j == 2 else 0

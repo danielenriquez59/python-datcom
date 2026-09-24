@@ -77,70 +77,83 @@ def calculate_supdrg(mach: float, win: Mapping[int, float],
         inboard and outboard MACs are equal takes its inboard friction
         from the previous call's ``SLG(84)``.
     """
-    w = {int(k): float(v) for k, v in win.items()}
-    g = {int(k): float(v) for k, v in a.items()}
-    tanleo = g[86] if g[86] != 0.0 else .00001
-    tanlei = g[62] if g[62] != 0.0 else .00001
-    straight = w[15] == STRAIGHT_TAPERED
-    beta = math.sqrt(mach**2 - 1.)
-    r: Dict[str, float] = {'beta': beta}
+    win_f = {int(k): float(v) for k, v in win.items()}
+    geom = {int(k): float(v) for k, v in a.items()}
+    zero_sweep = 1.0e-5
+    tanleo = geom[86] if geom[86] != 0.0 else zero_sweep
+    tanlei = geom[62] if geom[62] != 0.0 else zero_sweep
+    straight = win_f[15] == STRAIGHT_TAPERED
+    beta = math.sqrt(mach ** 2 - 1.0)
+    result: Dict[str, float] = {'beta': beta}
     rach = float(stale['rach'])
     rlcoff = float(stale['rlcoff'])
 
     def friction(cbar):
         nonlocal rach, rlcoff
-        rnn = cbar * g[129]
+        reynolds_mac = cbar * geom[129]
         if roughness != 0.0:
             arg = 12. * cbar / roughness
             rach = min(mach, 3.0)
             cept = tbfunx(_FIG_415127_MACH, _FIG_415127_CEPT, rach, 0, 0)[0]
             rlcoff = arg**1.0482 * 10.0**cept
-            if rlcoff < rnn:
-                rnn = rlcoff
-        return rnn, fig26(rnn, rach)
+            if rlcoff < reynolds_mac:
+                reynolds_mac = rlcoff
+        return reynolds_mac, fig26(reynolds_mac, rach)
 
-    rnn, cf = friction(g[15])
+    reynolds_mac, cf = friction(geom[15])
     if straight:
-        cdf = cf * g[3] / sref * 2.
+        cdf = cf * geom[3] / sref * 2.0
     else:
         cfi = float(stale['cfi'])
-        if g[15] != g[17]:
-            r['rni'], r['cfi'] = rnn, cf
+        if geom[15] != geom[17]:
+            result['rni'], result['cfi'] = reynolds_mac, cf
             cfi = cf
-            rnn, cf = friction(g[17])
-        r['rno'], r['cfo'] = rnn, cf
-        cdf = (cfi * g[1] + cf * g[2]) / sref * 2.
-    r.update({'rnn': rnn, 'cf': cf, 'rlcoff': rlcoff, 'cdf': cdf})
+            reynolds_mac, cf = friction(geom[17])
+        result['rno'], result['cfo'] = reynolds_mac, cf
+        cdf = (cfi * geom[1] + cf * geom[2]) / sref * 2.0
+    result.update({
+        'rnn': reynolds_mac, 'cf': cf, 'rlcoff': rlcoff, 'cdf': cdf,
+    })
 
     if straight:
-        ta, s, ca = tanlei, g[3], g[61]
-        lerbw = w[62] * ((w[6] + w[1]) / 2.)
+        sweep_tangent, panel_area, cos_le = tanlei, geom[3], geom[61]
+        lerbw = win_f[62] * ((win_f[6] + win_f[1]) / 2.0)
     else:
-        ta, s, ca = tanleo, sbw, g[85]
-        lerbw = w[63] * ((w[6] + w[1] + 2. * w[5]) / 4.)
-    bovert = beta / ta
-    ksharp, tceff = w[71], w[70]
+        sweep_tangent, panel_area, cos_le = tanleo, sbw, geom[85]
+        lerbw = win_f[63] * ((win_f[6] + win_f[1] + 2.0 * win_f[5]) / 4.0)
+    bovert = beta / sweep_tangent
+    sonic_leading_edge = bovert >= 1.0
+    wave_denominator = beta if sonic_leading_edge else sweep_tangent
+    ksharp, tceff = win_f[71], win_f[70]
     if ksharp != UNUSED:
-        arg = ksharp * tceff**2 * s / sref
-        cdw = arg / ta if bovert < 1. else arg / beta
+        volume_term = ksharp * tceff ** 2 * panel_area / sref
+        cdw = volume_term / wave_denominator
     else:
-        arg1 = 1.28 * mach**3 * ca**6 / (1. + mach**3 * ca**3)
-        arg2 = 2. * lerbw * (2. * w[3]) / (sref * ca)
-        arg = 16. * tceff**2 * s / (3. * sref)
-        cdw = arg1 * arg2 + (arg / beta if bovert >= 1. else arg / ta)
-    r.update({'bovert': bovert, 'cdw': cdw, 'cdo': cdf + cdw,
-              'a62': tanlei, 'a86': tanleo})
+        blunt_le = (1.28 * mach ** 3 * cos_le ** 6 /
+                    (1.0 + mach ** 3 * cos_le ** 3))
+        le_drag = 2.0 * lerbw * (2.0 * win_f[3]) / (sref * cos_le)
+        thickness_term = 16.0 * tceff ** 2 * panel_area / (3.0 * sref)
+        cdw = blunt_le * le_drag + thickness_term / wave_denominator
+    result.update({
+        'bovert': bovert,
+        'cdw': cdw,
+        'cdo': cdf + cdw,
+        'a62': tanlei,
+        'a86': tanleo,
+    })
     if not straight:
-        return r
-    rlw = w[1] + g[18] * g[10]
-    p = g[3] / (rlw * 2. * w[3])
+        return result
+    rlw = win_f[1] + geom[18] * geom[10]
+    p = geom[3] / (rlw * 2.0 * win_f[3])
     table = _FIG_415258_SHARP if ksharp != UNUSED else _FIG_415258_ROUND
-    r['dragc'] = interx(1, _FIG_415258_X, [beta * w[3] / rlw], [5], table,
-                        lind=5, lx1u=1)
-    r['p'] = p
-    r['a62'] = 0.0 if tanlei == 0.00001 else tanlei
-    r['a86'] = 0.0 if tanleo == 0.00001 else tanleo
-    return r
+    result['dragc'] = interx(
+        1, _FIG_415258_X, [beta * win_f[3] / rlw], [5], table,
+        lind=5, lx1u=1,
+    )
+    result['p'] = p
+    result['a62'] = 0.0 if tanlei == zero_sweep else tanlei
+    result['a86'] = 0.0 if tanleo == zero_sweep else tanleo
+    return result
 
 
 def m18o22_options(sref: float, cbarr: float, roughness: float,

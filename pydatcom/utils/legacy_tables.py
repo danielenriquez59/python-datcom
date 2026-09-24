@@ -38,8 +38,13 @@ def _grid(x):
     x = np.asarray(x, dtype=float)
     if x.ndim != 1 or not len(x) or not np.all(np.isfinite(x)):
         raise ValueError("A grid must be a nonempty finite one-dimensional array")
-    if len(x) > 1 and not (np.all(np.diff(x) > 0) or np.all(np.diff(x) < 0)):
-        raise ValueError("Grid coordinates must be strictly monotonic")
+    # A repeated coordinate is accepted, as GLOOK accepts it: a query can
+    # only reach the zero-width interval by snapping to its first node.
+    # TRANJT's Figure 6.3.2-30 grid repeats 4.04.
+    d = np.diff(x)
+    if len(x) > 1 and (x[0] == x[-1] or
+                       not (np.all(d >= 0) or np.all(d <= 0))):
+        raise ValueError("Grid coordinates must be monotonic")
     return x
 
 

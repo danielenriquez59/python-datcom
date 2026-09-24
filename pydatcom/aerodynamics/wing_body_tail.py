@@ -64,8 +64,10 @@ def calculate_clwbt(cl_wing_body: float, cl_tail_at_alpt: float,
     if qoqi < 0.0:
         raise ValueError("dynamic-pressure ratio cannot be negative")
     cli = cla_tail * alih_deg
-    cl_tail_term = ((cl_tail_at_alpt - cli) * (khb + kbh) +
-                    cli * (kkhb + kkbh) + vortex_increment)
+    carryover_sum = khb + kbh
+    incidence_carryover_sum = kkhb + kkbh
+    cl_tail_term = ((cl_tail_at_alpt - cli) * carryover_sum +
+                    cli * incidence_carryover_sum + vortex_increment)
     cl_tail_increment = cl_tail_term * qoqi
     cl_total = cl_tail_increment + cl_wing_body
 
@@ -82,7 +84,7 @@ def calculate_clwbt(cl_wing_body: float, cl_tail_at_alpt: float,
     }
     if cla_wing_body is not None and deda is not None:
         result['cla_total'] = float(
-            cla_wing_body + (khb + kbh) * cla_tail * (1.0 - deda) * qoqi)
+            cla_wing_body + carryover_sum * cla_tail * (1.0 - deda) * qoqi)
         result['cla_wing_body'] = float(cla_wing_body)
     return result
 
@@ -112,8 +114,9 @@ def calculate_cdwbt(cd_wing_body: float, cd_tail: float, cl_tail: float,
     if qoqi < 0.0:
         raise ValueError("dynamic-pressure ratio cannot be negative")
     eps_rad = np.deg2rad(eps_deg)
-    cd_tail_increment = qoqi * (cd_tail * np.cos(eps_rad) +
-                                cl_tail * np.sin(eps_rad))
+    cos_eps = np.cos(eps_rad)
+    sin_eps = np.sin(eps_rad)
+    cd_tail_increment = qoqi * (cd_tail * cos_eps + cl_tail * sin_eps)
     cd_total = cdo_vertical + cd_wing_body + cd_tail_increment
     return {
         'cd_total': float(cd_total),

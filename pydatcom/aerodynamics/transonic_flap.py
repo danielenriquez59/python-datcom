@@ -56,59 +56,61 @@ def calculate_trnyrl(data: Mapping[str, object]) -> Dict[str, object]:
         all-moving tail's subsonic rolling moment uses ``pi*A/RAD`` with
         the wing's aspect ratio.
     """
-    f = data['flap']
-    ndelta = int(float(f['ndelta']) + .5)
-    ftype, stype = float(f['type']), float(f['stype'])
+    flap_cfg = data['flap']
+    ndelta = int(float(flap_cfg['ndelta']) + .5)
+    ftype, stype = float(flap_cfg['type']), float(flap_cfg['stype'])
     transl = ftype not in (1.0, 5.0, 6.0)
-    claw = float(data['wing_cla'])
-    save = claw / float(data['tra70'])
-    r: Dict[str, object] = {'transl': transl}
+    cla = float(data['wing_cla'])
+    cla_ratio = cla / float(data['tra70'])
+    result: Dict[str, object] = {'transl': transl}
     if not data['asyfp']:
         if data['htpl']:
-            claw = float(data['tail_cla'])
-            save = claw / float(data['trah70'])
-        r['delcl'] = [float(v) * save for v in data['delcl6'][:ndelta]]
+            cla = float(data['tail_cla'])
+            cla_ratio = cla / float(data['trah70'])
+        result['delcl'] = [float(v) * cla_ratio for v in data['delcl6'][:ndelta]]
         if transl:
-            r['claldl'] = [claw * (1. + float(c)) + claw
-                           for c in data['cfact'][:ndelta]]
+            result['claldl'] = [cla * (1. + float(c)) + cla
+                                for c in data['cfact'][:ndelta]]
         else:
-            r['claldl'] = [UNUSED] * ndelta
-        return r
+            result['claldl'] = [UNUSED] * ndelta
+        return result
     if stype != 5.:
-        r['clafs'] = [float(v) * save for v in data['clrlm6'][:ndelta]]
+        result['clafs'] = [float(v) * cla_ratio for v in data['clrlm6'][:ndelta]]
         if stype == 4.:
             ncrol = ndelta * int(data['nalpha'])
-            r['cnafs'] = [v if v == UNUSED else v * save
-                          for v in (float(x) for x in
-                                    data['cnym6'][:ncrol])]
-        return r
+            result['cnafs'] = [v if v == UNUSED else v * cla_ratio
+                               for v in (float(x) for x in
+                                         data['cnym6'][:ncrol])]
+        return result
     sspn, sspne = float(data['sspn']), float(data['sspne'])
-    rad = sspn - sspne
-    bd = [float(v) for v in data['bd']]
-    encepe = ((.352 * bd[0] + .503 * bd[1] + .344 * bd[2] + .041 * bd[3]) /
-              (.383 * bd[0] + .707 * bd[1] + .924 * bd[2] + .5 * bd[3]))
-    dl = [float(v) for v in f['deltal'][:ndelta]]
-    dr = [float(v) for v in f['deltar'][:ndelta]]
+    exposed_span = sspn - sspne
+    tcd = [float(v) for v in data['bd']]
+    encepe = ((.352 * tcd[0] + .503 * tcd[1] + .344 * tcd[2] + .041 * tcd[3]) /
+              (.383 * tcd[0] + .707 * tcd[1] + .924 * tcd[2] + .5 * tcd[3]))
+    delta_left = [float(v) for v in flap_cfg['deltal'][:ndelta]]
+    delta_right = [float(v) for v in flap_cfg['deltar'][:ndelta]]
     cnah = float(data['tail_cla'])
     blref = float(data['blref'])
-    r['encepe'] = encepe
+    result['encepe'] = encepe
     if float(data['mach']) < 1.:
-        yh = encepe * sspne + rad
+        yh = encepe * sspne + exposed_span
         # The call passes NP=4: the table's last two points are unread.
-        etaqrs = tbfunx(_X12222[:4], _Y21222[:4], rad / sspn, 1, 2)[0]
+        etaqrs = tbfunx(_X12222[:4], _Y21222[:4], exposed_span / sspn, 1, 2)[0]
         cldelc = (.5 * (1. - (PI * float(data['astrw']) / RAD) *
                         float(data['depsda'])) * etaqrs * yh * cnah) / blref
-        r.update({'yh': yh, 'etaqrs': etaqrs, 'cldelc': cldelc,
-                  'clrolt': [cldelc * (a - b) for a, b in zip(dl, dr)]})
+        result.update({'yh': yh, 'etaqrs': etaqrs, 'cldelc': cldelc,
+                       'clrolt': [cldelc * (left - right)
+                                  for left, right in zip(delta_left, delta_right)]})
     else:
-        yh = .4 * sspne + rad
-        ratio = (sspn - sspne) / (2. * sspn)
-        khb = tbfunx(_X12A1, _Y12A1, ratio, 0, 0)[0]
-        kbh = tbfunx(_X12A2, _Y12A2, ratio, 0, 0)[0]
+        yh = .4 * sspne + exposed_span
+        span_ratio = (sspn - sspne) / (2. * sspn)
+        khb = tbfunx(_X12A1, _Y12A1, span_ratio, 0, 0)[0]
+        kbh = tbfunx(_X12A2, _Y12A2, span_ratio, 0, 0)[0]
         cldalc = .35 * (khb + kbh) * cnah * yh / blref
-        r.update({'yh': yh, 'khb': khb, 'kbh': kbh, 'cldalc': cldalc,
-                  'clrolt': [cldalc * (a - b) for a, b in zip(dl, dr)]})
-    return r
+        result.update({'yh': yh, 'khb': khb, 'kbh': kbh, 'cldalc': cldalc,
+                       'clrolt': [cldalc * (left - right)
+                                  for left, right in zip(delta_left, delta_right)]})
+    return result
 
 
 def m40o50_words(asyfp: bool) -> Dict[int, float]:

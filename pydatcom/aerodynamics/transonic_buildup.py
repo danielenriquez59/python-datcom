@@ -542,17 +542,18 @@ def calculate_tracm0(surface: Dict[str, float], x_surface: float,
         ``cm0`` (``BW(41)``/``BH(41)``, and ``TRA(74)``/``TRAH(74)``),
         ``computed`` and the regression inputs formed.
     """
-    s = {k: float(v) for k, v in surface.items()}
-    db = 2.0 * (s['sspn'] - s['sspne'])
-    xln = (x_surface + 0.5 * db * s['a38']) / db
-    xla = (x_surface + s['chrdr'] + 0.5 * db * s['a80']) / db
-    xla = body_length / db - xla
-    rn = mach * s['a122']
+    surf = {k: float(v) for k, v in surface.items()}
+    exposed_diameter = 2.0 * (surf['sspn'] - surf['sspne'])
+    xln = (x_surface + 0.5 * exposed_diameter * surf['a38']) / exposed_diameter
+    xla = (x_surface + surf['chrdr'] + 0.5 * exposed_diameter * surf['a80'])
+    xla = xla / exposed_diameter
+    xla = body_length / exposed_diameter - xla
+    rn = mach * surf['a122']
     wl = 0.5 * wing_height / max_diameter
-    dob = 0.5 * max_diameter / s['sspn']
-    cm0 = calculate_wbcm0(s['a120'], s['a38'], s['tovc'], xln, xla,
-                          s['a118'], s['ler'], s['twista'], s['ycm'],
-                          s['cld'], rn, tr, wl, 0.0, 0.0, dob, mach)
+    dob = 0.5 * max_diameter / surf['sspn']
+    cm0 = calculate_wbcm0(surf['a120'], surf['a38'], surf['tovc'], xln, xla,
+                          surf['a118'], surf['ler'], surf['twista'], surf['ycm'],
+                          surf['cld'], rn, tr, wl, 0.0, 0.0, dob, mach)
     return {'cm0': float(stale_cm0 if cm0 is None else cm0),
             'computed': cm0 is not None, 'nose_length': xln,
             'afterbody_length': xla, 'reynolds': rn, 'wing_height': wl,
@@ -581,32 +582,36 @@ def calculate_wbcm1(a: Mapping[int, float], sspn: float, bd87: float,
         ``wb13`` ((x_ac/c)_B(W) on the reference chord), ``wb14`` (on the
         root chord), ``wb15``, and ``ellipse_failed``.
     """
-    g = {int(k): float(v) for k, v in a.items()}
-    temp0 = 0.25 * g[7] * (1.0 + g[27]) * g[38]
+    a_block = {int(k): float(v) for k, v in a.items()}
+    aspect_taper_term = 0.25 * a_block[7] * (1.0 + a_block[27]) * a_block[38]
     wb15 = 0.50
-    if temp0 < 1.0:
-        wb15, _ = tbfunx(_X38B, _Y38B, temp0, 0, 0)
+    if aspect_taper_term < 1.0:
+        wb15, _ = tbfunx(_X38B, _Y38B, aspect_taper_term, 0, 0)
     brac, _ = tbfunx(_X21C, _Y21C, bd87 / (2.0 * sspn), 0, 0)
-    temp4 = 0.25 + (2.0 * sspn - bd87) / (2.0 * g[10]) * g[44] * brac
-    arg = 0.80 * g[7]
-    result = {'wb15': float(wb15), 'temp4': float(temp4),
+    ac_offset = (0.25 + (2.0 * sspn - bd87) / (2.0 * a_block[10]) *
+                 a_block[44] * brac)
+    beta_ar = 0.80 * a_block[7]
+    result = {'wb15': float(wb15), 'temp4': float(ac_offset),
               'ellipse_failed': False}
-    if arg >= 4.0:
-        wb14 = temp4
+    if beta_ar >= 4.0:
+        wb14 = ac_offset
     else:
-        y1, q = wb15, abs(temp4 - wb15)
-        bb = -2.0 * y1
-        cc = y1 * y1 - q * q + ((q / 4.0)**2) * (arg - 4.0)**2
-        disc = bb * bb - 4.0 * cc
-        if not disc > 0.0:
+        ellipse_y1 = wb15
+        ellipse_radius = abs(ac_offset - wb15)
+        quad_b = -2.0 * ellipse_y1
+        quad_c = (ellipse_y1 * ellipse_y1 - ellipse_radius * ellipse_radius +
+                  ((ellipse_radius / 4.0)**2) * (beta_ar - 4.0)**2)
+        discriminant = quad_b * quad_b - 4.0 * quad_c
+        if not discriminant > 0.0:
             result.update({'wb13': float(stale_wb13),
                            'wb14': float(stale_wb14),
                            'ellipse_failed': True})
             return result
-        ymax = (-bb + math.sqrt(disc)) / 2.0
-        ymin = (-bb - math.sqrt(disc)) / 2.0
-        wb14 = ymin if temp4 < y1 else ymax
-    result.update({'wb14': float(wb14), 'wb13': float(wb14 * g[10] / cbarr)})
+        ymax = (-quad_b + math.sqrt(discriminant)) / 2.0
+        ymin = (-quad_b - math.sqrt(discriminant)) / 2.0
+        wb14 = ymin if ac_offset < ellipse_y1 else ymax
+    result.update({'wb14': float(wb14),
+                   'wb13': float(wb14 * a_block[10] / cbarr)})
     return result
 
 
@@ -642,52 +647,52 @@ def calculate_wbtran(mach: float, alpha_deg: Sequence[float],
         onward), and where reached ``rkbw`` (``SWB(32)``) and ``trino``
         (``SWB(60)``).
     """
-    g = {int(k): float(v) for k, v in a.items()}
+    a_block = {int(k): float(v) for k, v in a.items()}
     span, spans, cr = (float(surface['sspn']), float(surface['sspne']),
                        float(surface['chrdr']))
     dd = 2.0 * (span - spans)
-    tanle = g[62] if g[62] != 0.0 else 0.00001
-    tapexp, arstar, crstar = g[27], g[7], g[10]
+    tan_le = a_block[62] if a_block[62] != 0.0 else 0.00001
+    taper, arstar, crstar = a_block[27], a_block[7], a_block[10]
     result: Dict[str, object] = {'dd': dd}
     supersonic_kbw = False
     if mach == 1.0:
         beta = 0.0000001
     else:
         beta = math.sqrt(abs(mach**2 - 1.0))
-        if tapexp == 0.0:
+        if taper == 0.0:
             supersonic_kbw = beta * arstar > 1.0
         else:
-            trino = beta * arstar * (1.0 + tapexp) * (1.0 + tanle / beta)
+            trino = beta * arstar * (1.0 + taper) * (1.0 + tan_le / beta)
             result['trino'] = trino
             supersonic_kbw = trino > 4.0
     if supersonic_kbw:
-        var = [beta * dd / crstar, beta / tanle]
+        fig311_args = [beta * dd / crstar, beta / tan_le]
         if (x_surface + cr) / body_length <= 1.0:
-            rkbw = interx(2, _T4311A, var, [15, 19], _D4311A, lind=19,
+            rkbw = interx(2, _T4311A, fig311_args, [15, 19], _D4311A, lind=19,
                           lx1l=2, lx1u=1)
         else:
-            rkbw = interx(2, _T4311B, var, [15, 9], _D4311B, lind=15,
+            rkbw = interx(2, _T4311B, fig311_args, [15, 9], _D4311B, lind=15,
                           lx1l=2, lx1u=1)
-        kbw = rkbw / (RAD * beta * (sref / g[3]) * cla_surface *
-                      (tapexp + 1.0) * (2.0 * span / dd - 1.0))
+        kbw = rkbw / (RAD * beta * (sref / a_block[3]) * cla_surface *
+                      (taper + 1.0) * (2.0 * span / dd - 1.0))
         result['rkbw'] = rkbw
     else:
         kbw = interx(1, _TFIG10, [dd / (2.0 * span)], [11], _DKBW10,
                      lind=11)
-    albo = 0.0 if alpha0_body == UNUSED else alpha0_body
+    alpha0_offset = 0.0 if alpha0_body == UNUSED else alpha0_body
     kwb = interx(1, _TFIG10, [(span - spans) / span], [11], _DKWB10,
                  lind=11)
     clawb, clabw = cla_surface * kwb, cla_surface * kbw
-    var = [0.98 * dd / crstar, 0.98 / tanle]
+    fig337_args = [0.98 * dd / crstar, 0.98 / tan_le]
     if (x_surface + cr) / body_length <= 1.0:
-        xaca = interx(2, _T4337A, var, [8, 3], _D4337A, lind=8, lx1u=1)
+        xaca = interx(2, _T4337A, fig337_args, [8, 3], _D4337A, lind=8, lx1u=1)
     else:
-        xaca = interx(2, _T4337B, var, [10, 2], _D4337B, lind=10)
+        xaca = interx(2, _T4337B, fig337_args, [10, 2], _D4337B, lind=10)
     result.update({
         'kbw': float(kbw), 'kwb': float(kwb), 'clawb': float(clawb),
         'clabw': float(clabw), 'cla': float(clabw + clawb + cla_body),
         'xaca': float(xaca), 'xacbw': float(xaca * crstar / cbarr),
-        'alpha_body': np.asarray(alpha_deg, dtype=float) + albo,
+        'alpha_body': np.asarray(alpha_deg, dtype=float) + alpha0_offset,
         'method': 'legacy_wbtran'})
     return result
 
@@ -755,37 +760,43 @@ def calculate_trancm(mach: float, mfb: float, tovc: float,
         wing pass did not run).  Kept: pass the wing's ``SWB(8)`` as
         ``body['xacbw_14']``; without it the tail's own value is used.
     """
-    g = {int(k): float(v) for k, v in a.items()}
-    arstar, tanle, tapr, crstar = g[7], g[62], g[27], g[10]
-    dxcg = g[173]
+    a_block = {int(k): float(v) for k, v in a.items()}
+    aspect_star, tan_le, taper, crstar = (a_block[7], a_block[62],
+                                          a_block[27], a_block[10])
+    dxcg = a_block[173]
     if wgpl and body is None:
         dxcg = xcg - x_surface
-    var1 = arstar * tovc**0.3333
-    var2 = arstar * tanle
+    ar_times_tovc_cbrt = aspect_star * tovc**0.3333
+    ar_times_tan_le = aspect_star * tan_le
     xmv = [0.60, 0.0, 0.0, 0.0, 0.0, 1.40]
     xacv = [0.0] * 6
-    x1, x2 = _T425AD[9:18], _T425AD[0:7]
-    x3, x4 = _T425AD[18:22], _T425AD[27:30]
+    fig425_x1, fig425_x2 = _T425AD[9:18], _T425AD[0:7]
+    fig425_x3, fig425_x4 = _T425AD[18:22], _T425AD[27:30]
     for i, vbar in enumerate((-2.0, -1.0, 0.0, 1.0), start=1):
         xmv[i] = math.sqrt(1.0 + vbar * tovc**.6666)
-        xacv[i] = float(tlin4x(x1, x2, x3, x4, _Y425AD, var2, var1, vbar,
-                               tapr, 0, 0, 0, 0, 2, 1, 0, 1))
+        xacv[i] = float(tlin4x(fig425_x1, fig425_x2, fig425_x3, fig425_x4,
+                               _Y425AD, ar_times_tan_le, ar_times_tovc_cbrt,
+                               vbar, taper, 0, 0, 0, 0, 2, 1, 0, 1))
     with np.errstate(divide='ignore'):
-        sub = [float(np.float64(tanle) / math.sqrt(1.0 - m**2))
-               for m in _XM[:3]]
-        sup = [float(math.sqrt(m**2 - 1.0) / np.float64(tanle))
-               for m in _XM[3:]]
-    v = [_fig26_af(t, var2, tapr, False) for t in sub]
-    dxac1, xacv[0] = (v[1] - v[0]) / 0.2, v[2]
-    v = [_fig26_af(t, var2, tapr, True) for t in sup]
-    dxac2, xacv[5] = (v[1] - v[0]) / 0.2, v[2]
+        subsonic_tan_beta = [
+            float(np.float64(tan_le) / math.sqrt(1.0 - m**2))
+            for m in _XM[:3]]
+        supersonic_beta_tan = [
+            float(math.sqrt(m**2 - 1.0) / np.float64(tan_le))
+            for m in _XM[3:]]
+    fig26_sub = [_fig26_af(t, ar_times_tan_le, taper, False)
+                 for t in subsonic_tan_beta]
+    dxac1, xacv[0] = (fig26_sub[1] - fig26_sub[0]) / 0.2, fig26_sub[2]
+    fig26_sup = [_fig26_af(t, ar_times_tan_le, taper, True)
+                 for t in supersonic_beta_tan]
+    dxac2, xacv[5] = (fig26_sup[1] - fig26_sup[0]) / 0.2, fig26_sup[2]
     xac = tranac(xmv, xacv, dxac1, dxac2, mach)['value']
     result: Dict[str, object] = {
         'xmv': [float(x) for x in xmv], 'xacv': [float(x) for x in xacv],
         'dxac1': float(dxac1), 'dxac2': float(dxac2), 'dxcg': float(dxcg)}
     if tovc > 0.07:
-        delxac = interx(2, _T428, [tovc * 100.0, arstar * g[73]**2], [4, 7],
-                        _D428, lind=7, lx2l=-1, lx1u=1)
+        delxac = interx(2, _T428, [tovc * 100.0, aspect_star * a_block[73]**2],
+                        [4, 7], _D428, lind=7, lx2l=-1, lx1u=1)
         zmt = [0.60, (mfb + .6) / 2.0, mfb, mfb + .03, mfb + .07, mfb + .14,
                xmv[4], 1.4]
         if zmt[5] + 0.01 >= zmt[6]:
@@ -800,20 +811,26 @@ def calculate_trancm(mach: float, mfb: float, tovc: float,
                    'method': 'legacy_trancm'})
     if body is None:
         return result
-    b = dict(body)
-    wbtran = calculate_wbtran(mach, b['alpha_deg'], b['surface'], g,
-                              x_surface, b['body_length'], b['alpha0_body'],
-                              cla, b['cla_body'], b['sref'], cbarr)
-    wbcm1 = calculate_wbcm1(g, float(b['surface']['sspn']), b['bd87'], cbarr,
-                            b.get('stale_wb13', 0.0), b.get('stale_wb14', 0.0))
-    xacbw4 = float(b.get('xacbw_14', wbtran['xacbw']))
-    xacbw6 = wbcm1['wb13']
-    xacbw = xacbw6 + abs(xacbw4 - xacbw6) / 0.80 * (mach - 0.60)
-    clab, cmab = float(b['cla_body']), float(b['cma_body'])
+    body_inputs = dict(body)
+    wbtran = calculate_wbtran(mach, body_inputs['alpha_deg'],
+                              body_inputs['surface'], a_block,
+                              x_surface, body_inputs['body_length'],
+                              body_inputs['alpha0_body'],
+                              cla, body_inputs['cla_body'],
+                              body_inputs['sref'], cbarr)
+    wbcm1 = calculate_wbcm1(
+        a_block, float(body_inputs['surface']['sspn']),
+        body_inputs['bd87'], cbarr,
+        body_inputs.get('stale_wb13', 0.0),
+        body_inputs.get('stale_wb14', 0.0))
+    xacbw_m14 = float(body_inputs.get('xacbw_14', wbtran['xacbw']))
+    xacbw_m06 = wbcm1['wb13']
+    xacbw = xacbw_m06 + abs(xacbw_m14 - xacbw_m06) / 0.80 * (mach - 0.60)
+    clab, cmab = float(body_inputs['cla_body']), float(body_inputs['cma_body'])
     cnob = (-cmab / clab * cbarr + dxcg) * clab / cbarr
-    dnum = cnob + xacw * wbtran['clawb'] + xacbw * wbtran['clabw']
-    dnom = clab + wbtran['clawb'] + wbtran['clabw']
-    xacwb = dnum / dnom
+    xacwb_num = (cnob + xacw * wbtran['clawb'] + xacbw * wbtran['clabw'])
+    xacwb_den = clab + wbtran['clawb'] + wbtran['clabw']
+    xacwb = xacwb_num / xacwb_den
     result.update({'xacbw': float(xacbw), 'xacwb': float(xacwb),
                    'cma_wing_body': float((dxcg / cbarr - xacwb) *
                                           wbtran['cla']),
@@ -868,49 +885,54 @@ def calculate_trawbt(wing: Dict[str, float], a: Mapping[int, float],
     """
     if not _stra(tail['type']) or float(wing['sspn']) < 1.5 * float(tail['sspn']):
         return None
-    g = {int(k): float(v) for k, v in a.items()}
+    a_block = {int(k): float(v) for k, v in a.items()}
     sspn = float(wing['sspn'])
-    adoad = (float(position['aliw']) - g[126]) / (g[127] - g[126])
-    tl2ob = g[24] / sspn
-    sac4, trrt = g[40], g[118]
-    tmp = _tlinex(_X155A1, _X155A2, _Y4155A, sac4, adoad, 0, 1, 2, 0)
-    aeefoa = _tlinex(_X155B1, _X155B2, _Y4155B, trrt, tmp, 0, 0, 0, 0)
-    beffob = _tlinex(_X155C1, _X155C2, _Y4155C, trrt, aeefoa, 0, 1, 0, 0)
-    aeff = g[120] * aeefoa
-    an1 = _tlinex(_X156A1, _X156A2, _Y156A, aeff, tl2ob, 2, 1, 2, 2)
-    an2 = _tlinex(_X156B1, _X156B2, _Y4156B, sac4, aeff, 0, 2, 2, 2)
-    y = .8 - (-an1 * an2 + an1) / 5.0
-    fans = .8 - y + an2
+    dihedral_blend = ((float(position['aliw']) - a_block[126]) /
+                      (a_block[127] - a_block[126]))
+    tip_to_ob = a_block[24] / sspn
+    sweep_c4, taper_ratio = a_block[40], a_block[118]
+    fig155a = _tlinex(_X155A1, _X155A2, _Y4155A, sweep_c4, dihedral_blend,
+                      0, 1, 2, 0)
+    aeefoa = _tlinex(_X155B1, _X155B2, _Y4155B, taper_ratio, fig155a,
+                     0, 0, 0, 0)
+    beffob = _tlinex(_X155C1, _X155C2, _Y4155C, taper_ratio, aeefoa,
+                     0, 1, 0, 0)
+    aeff = a_block[120] * aeefoa
+    an1 = _tlinex(_X156A1, _X156A2, _Y156A, aeff, tip_to_ob, 2, 1, 2, 2)
+    an2 = _tlinex(_X156B1, _X156B2, _Y4156B, sweep_c4, aeff, 0, 2, 2, 2)
+    downwash_y = .8 - (-an1 * an2 + an1) / 5.0
+    fans = .8 - downwash_y + an2
     beff = 2.0 * sspn * beffob
-    bdff = sspn - float(wing['span_break'])
-    dihd = beff * math.tan(abs(float(wing['dihedral_in']) / RAD))
-    if beff / 2.0 > bdff:
-        dihd = (bdff * math.tan(float(wing['dihedral_in']) / RAD) +
-                (beff / 2.0 - bdff) *
-                math.tan(float(wing['dihedral_out']) / RAD))
-    aa = g[12] - dihd / 2.0
-    debode = _tlinex(_X157B1, _X157B2, _Y4157B, abs(2.0 * aa / beff),
+    span_outboard = sspn - float(wing['span_break'])
+    dihedral_height = beff * math.tan(abs(float(wing['dihedral_in']) / RAD))
+    if beff / 2.0 > span_outboard:
+        dihedral_height = (span_outboard * math.tan(float(wing['dihedral_in']) / RAD) +
+                           (beff / 2.0 - span_outboard) *
+                           math.tan(float(wing['dihedral_out']) / RAD))
+    vortex_axis = a_block[12] - dihedral_height / 2.0
+    debode = _tlinex(_X157B1, _X157B2, _Y4157B, abs(2.0 * vortex_axis / beff),
                      2.0 * float(tail['sspn']) / beff, 0, 2, 0, 2)
     deda = (debode * fans * cla_wing / b48 if downwash_gradient is None
             else float(downwash_gradient))
-    arg = g[24] / g[16]
-    zwc = 0.68 * math.sqrt(cd0_wing * sref / g[3] * (arg + 0.15))
-    zc = arg * math.tan(g[11])
-    dqoq = 2.42 * math.sqrt(cd0_wing * sref / g[3]) / (arg + 0.3)
-    dj = PI * zc / (2.0 * zwc)
-    qoq = (1.0 - dqoq * math.cos(dj)**2 if dynamic_pressure_ratio is None
+    span_ratio = a_block[24] / a_block[16]
+    zwc = 0.68 * math.sqrt(cd0_wing * sref / a_block[3] * (span_ratio + 0.15))
+    zc = span_ratio * math.tan(a_block[11])
+    dqoq = 2.42 * math.sqrt(cd0_wing * sref / a_block[3]) / (span_ratio + 0.3)
+    wake_angle = PI * zc / (2.0 * zwc)
+    qoq = (1.0 - dqoq * math.cos(wake_angle)**2
+           if dynamic_pressure_ratio is None
            else float(dynamic_pressure_ratio))
-    arg1 = (clawb_tail + clabw_tail) * (1.0 - deda) * qoq
+    tail_cla_contrib = (clawb_tail + clabw_tail) * (1.0 - deda) * qoq
     cma = (-(float(position['xcg']) - float(position['xw']) - xac_wing) /
            cbarr * cla_wing_body -
            (float(position['xcg']) - float(position['xh']) -
-            float(aht[161])) / cbarr * arg1)
+            float(aht[161])) / cbarr * tail_cla_contrib)
     return {'deda': float(deda), 'q_ratio': float(qoq),
-            'cla': float(cla_wing_body + arg1), 'cma': float(cma),
+            'cla': float(cla_wing_body + tail_cla_contrib), 'cma': float(cma),
             'cd0_tail': float(qoq * cd0_tail), 'fans': float(fans),
             'debode': float(debode), 'aeff': float(aeff),
             'beff': float(beff), 'zwc': float(zwc), 'zc': float(zc),
-            'dqoq': float(dqoq), 'dj': float(dj),
+            'dqoq': float(dqoq), 'dj': float(wake_angle),
             'method': 'legacy_trawbt'}
 
 
@@ -1007,28 +1029,29 @@ def calculate_wbclb(alpha_deg: Sequence[float], body_alpha_deg: Sequence[float],
     ratio = yb / sspn
     kkwb, _ = tbfunx(_FIG_431212A_RATIO, _FIG_431212A_KKWB, ratio, 0, 0)
     kkbw, _ = tbfunx(_FIG_431212A_RATIO, _FIG_431212A_KKBW, ratio, 0, 0)
-    cli = cla_surface * incidence
+    cl_incidence = cla_surface * incidence
     clwb = [float(v) for v in cl_wing_body]
     cdwb = [float(v) for v in cd_wing_body]
     clbb = [float(v) for v in clb_wing_body]
-    drag = abs(cdwb[1]) != UNUSED
-    for j, alp in enumerate(alpha_deg):
+    has_drag_sum = abs(cdwb[1]) != UNUSED
+    for j, alpha in enumerate(alpha_deg):
         if abs(clwb[j]) == UNUSED:
-            value = (cla_body + (kwb + kbw) * cla_surface) * alp
+            value = (cla_body + (kwb + kbw) * cla_surface) * alpha
             if abs(cl_body[j]) != UNUSED and abs(cl_surface[j]) != UNUSED:
-                value = cl_body[j] + (kwb + kbw) * (cl_surface[j] - cli)
-            value += (kkwb + kkbw) * cli
+                value = (cl_body[j] + (kwb + kbw) *
+                         (cl_surface[j] - cl_incidence))
+            value += (kkwb + kkbw) * cl_incidence
             if ratio >= 1.0 / 3.0:
                 value += ratio * ivbw[j] * go2pav[j] * cla_surface * (
-                    alp - incidence)
+                    alpha - incidence)
             clwb[j] = value
-        if not drag and abs(cd_surface[j]) != UNUSED and \
+        if not has_drag_sum and abs(cd_surface[j]) != UNUSED and \
                 abs(cd_body[j]) != UNUSED:
             cdwb[j] = cd_body[j] + cd_surface[j]
-    c = {k: float(v) for k, v in clb_cl.items()}
-    low = c['clb_mfb'] / c['cla_mfb']**2
-    clbcl = (((c['clb_14'] / c['cna_14']**2 - low) * (mach - mfb) /
-              (1.4 - mfb) + low) * cla_wing_body**2)
+    clb_inputs = {k: float(v) for k, v in clb_cl.items()}
+    clbcl_at_mfb = clb_inputs['clb_mfb'] / clb_inputs['cla_mfb']**2
+    clbcl = (((clb_inputs['clb_14'] / clb_inputs['cna_14']**2 - clbcl_at_mfb) *
+              (mach - mfb) / (1.4 - mfb) + clbcl_at_mfb) * cla_wing_body**2)
     for j in range(len(alpha_deg)):
         if clwb[j] != UNUSED and clbb[j] == UNUSED:
             clbb[j] = clbcl * clwb[j]
@@ -1080,70 +1103,70 @@ def setup2_step(nf: int, state: Dict[str, object]) -> int:
     blocks ``wing``, ``ht``, ``bw``, ``bh`` for CLBCLC; ``bw101``,
     ``bh101``.
     """
-    s = state
-    sec = s['sec']
-    i = int(s.get('i', 1))
+    st = state
+    sec = st['sec']
+    i = int(st.get('i', 1))
     while True:
-        n = -nf
-        if n == 1:
-            sec[17] = s['mach']
-            s['subson'], s['transn'] = True, False
-            sec[18], sec[19] = s['tra6'], s['trah6']
-            _setup2_mach(s, 0.6, 0.8, i)
-            s['wingin'][i + 40] = s['wingin'][68]
-            s['htin'][i + 40] = s['htin'][68]
-            flag = s['wgpl'] or s['htpl']
-        elif n == 2:
-            sec[11] = s['wbt67']
-            sec[1] = calculate_clbclc(s['wing'], s['nalpha'])
-            sec[3] = calculate_clbclc(s['ht'], s['nalpha'])
-            _setup2_mach(s, 0.7, 0.71414284, i)
-            flag = s['bo'] and s['wgpl'] and s['htpl']
-        elif n == 3:
-            sec[12] = s['wbt67']
+        step_num = -nf
+        if step_num == 1:
+            sec[17] = st['mach']
+            st['subson'], st['transn'] = True, False
+            sec[18], sec[19] = st['tra6'], st['trah6']
+            _setup2_mach(st, 0.6, 0.8, i)
+            st['wingin'][i + 40] = st['wingin'][68]
+            st['htin'][i + 40] = st['htin'][68]
+            proceed = st['wgpl'] or st['htpl']
+        elif step_num == 2:
+            sec[11] = st['wbt67']
+            sec[1] = calculate_clbclc(st['wing'], st['nalpha'])
+            sec[3] = calculate_clbclc(st['ht'], st['nalpha'])
+            _setup2_mach(st, 0.7, 0.71414284, i)
+            proceed = st['bo'] and st['wgpl'] and st['htpl']
+        elif step_num == 3:
+            sec[12] = st['wbt67']
             sec[18] = min(sec[18], 0.95)
-            _setup2_mach(s, sec[18], math.sqrt(1.0 - sec[18]**2), i)
-            flag = s['bo'] and s['wgpl']
-        elif n == 4:
-            sec[5] = calculate_clbclc(s['bw'], s['nalpha'])
+            _setup2_mach(st, sec[18], math.sqrt(1.0 - sec[18]**2), i)
+            proceed = st['bo'] and st['wgpl']
+        elif step_num == 4:
+            sec[5] = calculate_clbclc(st['bw'], st['nalpha'])
             sec[19] = min(sec[19], 0.95)
-            _setup2_mach(s, sec[19], math.sqrt(1.0 - sec[19]**2), i)
-            flag = s['bo'] and s['htpl']
-        elif n == 5:
-            sec[7] = calculate_clbclc(s['bh'], s['nalpha'])
-            s['subson'], s['supers'] = False, True
-            s['mach'] = 1.4
-            flag = s['wgpl'] or s['htpl']
-        elif n == 6:
+            _setup2_mach(st, sec[19], math.sqrt(1.0 - sec[19]**2), i)
+            proceed = st['bo'] and st['htpl']
+        elif step_num == 5:
+            sec[7] = calculate_clbclc(st['bh'], st['nalpha'])
+            st['subson'], st['supers'] = False, True
+            st['mach'] = 1.4
+            proceed = st['wgpl'] or st['htpl']
+        elif step_num == 6:
             for k, block in ((2, 'wing'), (4, 'ht'), (6, 'bw'), (8, 'bh')):
-                sec[k] = calculate_clbclc(s[block], s['nalpha'])
-            sec[9], sec[10], sec[14] = s['bw101'], s['bh101'], s['stp155']
-            s['mach'] = 1.1
-            flag = s['bo'] and s['wgpl'] and s['htpl']
-        elif n == 7:
-            sec[13] = s['stp155']
-            s['mach'] = sec[17]
-            s['nalpha'] = int(s['flc2'] + 0.5)
-            s['done'] = True
-            s['supers'], s['transn'] = False, True
+                sec[k] = calculate_clbclc(st[block], st['nalpha'])
+            sec[9], sec[10], sec[14] = st['bw101'], st['bh101'], st['stp155']
+            st['mach'] = 1.1
+            proceed = st['bo'] and st['wgpl'] and st['htpl']
+        elif step_num == 7:
+            sec[13] = st['stp155']
+            st['mach'] = sec[17]
+            st['nalpha'] = int(st['flc2'] + 0.5)
+            st['done'] = True
+            st['supers'], st['transn'] = False, True
             absent = []
-            if not s['wgpl']:
+            if not st['wgpl']:
                 absent += [1, 2]
-            if not s['htpl']:
+            if not st['htpl']:
                 absent += [3, 4]
-            if not (s['bo'] and s['wgpl']):
+            if not (st['bo'] and st['wgpl']):
                 absent += [5, 6, 9]
-            if not (s['bo'] and s['htpl']):
+            if not (st['bo'] and st['htpl']):
                 absent += [7, 8, 10]
-            if not (s['bo'] and s['wgpl'] and s['htpl']):
+            if not (st['bo'] and st['wgpl'] and st['htpl']):
                 absent += [11, 12, 13, 14]
             for k in absent + list(range(17, 24)):
                 sec[k] = UNUSED
-            flag = True
+            proceed = True
         else:
-            raise ValueError(f"SETUP2 has no step {n}")
+            raise ValueError(f"SETUP2 has no step {step_num}")
         nf -= 1
-        if flag:
+        if proceed:
             return nf
 
 

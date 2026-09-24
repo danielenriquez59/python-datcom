@@ -175,10 +175,11 @@ def calculate_wingcl_clb(cl: Sequence[float], mach: float, cla: float,
     if cla_mach06 == 0.0 or cla_mach14 == 0.0:
         raise ValueError("WINGCL CLB divides by the anchor lift slopes")
 
-    subsonic = clb_subsonic / cla_mach06**2
-    supersonic = clb_supersonic / cla_mach14**2
-    # The 0.8 denominator is the 1.4 - 0.6 anchor separation.
-    clb_per_cl = (supersonic - subsonic) * (mach - 0.6) / 0.8 + subsonic
+    clb_per_cl_mach06 = clb_subsonic / cla_mach06 ** 2
+    clb_per_cl_mach14 = clb_supersonic / cla_mach14 ** 2
+    anchor_separation = 0.8  # Mach 1.4 minus Mach 0.6
+    clb_per_cl = ((clb_per_cl_mach14 - clb_per_cl_mach06) *
+                  (mach - 0.6) / anchor_separation + clb_per_cl_mach06)
     clb_per_cl *= cla**2
 
     supplied = ([None] * lift.size if clb_supplied is None
@@ -240,22 +241,31 @@ def calculate_wingcl_cdl(mach: float, thickness_ratio: float,
     if thickness_ratio <= 0.0:
         raise ValueError("CDL requires a positive thickness ratio")
 
-    tc13 = thickness_ratio**(1.0 / 3.0)
-    tc23 = thickness_ratio**(2.0 / 3.0)
-    query = [(mach**2 - 1.0) / tc23, aspect_ratio * tc13, taper_ratio]
+    tc_one_third = thickness_ratio ** (1.0 / 3.0)
+    tc_two_thirds = thickness_ratio ** (2.0 / 3.0)
+    lookup = [
+        (mach ** 2 - 1.0) / tc_two_thirds,
+        aspect_ratio * tc_one_third,
+        taper_ratio,
+    ]
 
-    anchors = []
-    for table in (table_55a, table_55b):
-        anchors.append(interx(3, _PARM, query, list(_CDL_SHAPE), table,
-                              lind=7, lx1l=1, lx2l=1, lx3l=1,
-                              lx1u=1, lx2u=1, lx3u=1))
-
-    blended = tbfunx(_CDL_ANCHORS, np.array(anchors),
-                     aspect_ratio * np.tan(sweep_le_rad),
-                     lower=1, upper=1)[0]
+    anchor_at_sweep0 = interx(
+        3, _PARM, lookup, list(_CDL_SHAPE), table_55a,
+        lind=7, lx1l=1, lx2l=1, lx3l=1, lx1u=1, lx2u=1, lx3u=1,
+    )
+    anchor_at_sweep3 = interx(
+        3, _PARM, lookup, list(_CDL_SHAPE), table_55b,
+        lind=7, lx1l=1, lx2l=1, lx3l=1, lx1u=1, lx2u=1, lx3u=1,
+    )
+    anchor_values = np.array([anchor_at_sweep0, anchor_at_sweep3])
+    blended = tbfunx(
+        _CDL_ANCHORS, anchor_values,
+        aspect_ratio * np.tan(sweep_le_rad),
+        lower=1, upper=1,
+    )[0]
     return {
-        'cdl_per_cl2': float(blended * tc13),
-        'anchor_sweep0': float(anchors[0]),
-        'anchor_sweep3': float(anchors[1]),
+        'cdl_per_cl2': float(blended * tc_one_third),
+        'anchor_sweep0': float(anchor_at_sweep0),
+        'anchor_sweep3': float(anchor_at_sweep3),
         'method': 'legacy_wingcl_cdl',
     }

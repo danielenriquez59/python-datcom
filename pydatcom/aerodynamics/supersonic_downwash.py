@@ -200,13 +200,13 @@ def calculate_sdwc(x: float, y: float, z: float,
                     lx1l=2, lx2l=0, lx1u=1, lx2u=2)
     stage2 = interx(2, _XC2, [stage1, beta_aspect], [2, 6], _YC2, lind=6,
                     lx1l=0, lx2l=2, lx1u=1, lx2u=2)
-    results = []
-    for curve in (_YC3A, _YC3B):
-        stage3 = tbfunx(_XC3, curve, stage2, lower=0, upper=1)[0]
-        results.append(interx(2, _XC4, [stage3, y], [2, 2], _YC4, lind=2,
-                              lx1l=0, lx2l=1, lx1u=1, lx2u=1))
+    sdw_by_taper = []
+    for taper_curve in (_YC3A, _YC3B):
+        stage3 = tbfunx(_XC3, taper_curve, stage2, lower=0, upper=1)[0]
+        sdw_by_taper.append(interx(2, _XC4, [stage3, y], [2, 2], _YC4, lind=2,
+                                   lx1l=0, lx2l=1, lx1u=1, lx2u=1))
     return {
-        'sdw': np.array(results),
+        'sdw': np.array(sdw_by_taper),
         'stage1': float(stage1),
         'stage2': float(stage2),
         'taper': (0.25, 0.50),
@@ -232,13 +232,13 @@ def calculate_sdwd(x: float, y: float, z: float,
                     lx1l=2, lx2l=0, lx1u=1, lx2u=2)
     stage2 = interx(2, _XD2, [stage1, beta_aspect], [5, 4], _YD2, lind=5,
                     lx1l=0, lx2l=2, lx1u=1, lx2u=2)
-    results = []
-    for curve in (_YD3A, _YD3B, _YD3C):
-        stage3 = tbfunx(_XD3, curve, stage2, lower=0, upper=1)[0]
-        results.append(interx(2, _XD4, [stage3, y], [5, 3], _YD4, lind=5,
-                              lx1l=0, lx2l=1, lx1u=1, lx2u=1))
+    sdw_by_taper = []
+    for taper_curve in (_YD3A, _YD3B, _YD3C):
+        stage3 = tbfunx(_XD3, taper_curve, stage2, lower=0, upper=1)[0]
+        sdw_by_taper.append(interx(2, _XD4, [stage3, y], [5, 3], _YD4, lind=5,
+                                    lx1l=0, lx2l=1, lx1u=1, lx2u=1))
     return {
-        'sdw': np.array(results),
+        'sdw': np.array(sdw_by_taper),
         'stage1': float(stage1),
         'stage2': float(stage2),
         'taper': (0.00, 0.25, 0.50),

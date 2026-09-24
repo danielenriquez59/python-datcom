@@ -186,10 +186,12 @@ def calculate_total_drag(state: Dict, cl: float, mach: float,
             mach, thickness_ratio, aspect_ratio,
         )
     else:
-        cd_sub = calculate_wave_drag_subsonic(0.9, thickness_ratio)
-        cd_sup = calculate_wave_drag_supersonic(1.2, thickness_ratio, aspect_ratio)
-        transonic_frac = (mach - 0.9) / 0.3
-        cd_wave = cd_sub + transonic_frac * (cd_sup - cd_sub)
+        cd_at_mach09 = calculate_wave_drag_subsonic(0.9, thickness_ratio)
+        cd_at_mach12 = calculate_wave_drag_supersonic(
+            1.2, thickness_ratio, aspect_ratio,
+        )
+        mach_fraction = (mach - 0.9) / 0.3
+        cd_wave = cd_at_mach09 + mach_fraction * (cd_at_mach12 - cd_at_mach09)
 
     cd_misc = state.get('drag_misc', 0.0015)
     cd_total = cd_friction + cd_induced + cd_wave + cd_misc
@@ -252,8 +254,10 @@ class DragCalculator:
             cl_range = np.linspace(-0.5, 2.0, 26)
 
         cd_values = np.zeros_like(cl_range)
-        for i, cl in enumerate(cl_range):
-            cd_values[i] = self.calculate_drag(cl, mach, reynolds)['cd_total']
+        for index, cl_value in enumerate(cl_range):
+            cd_values[index] = self.calculate_drag(
+                cl_value, mach, reynolds,
+            )['cd_total']
 
         return {
             'cl': cl_range,

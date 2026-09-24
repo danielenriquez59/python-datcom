@@ -37,20 +37,21 @@ def ptint2(xb: Sequence[float], rb: Sequence[float], a: Sequence[float],
         (nonzero where the line passes behind the base) and ``abort``.
     """
     nx = len(xb)
-    tamu = math.sin(amu) / math.cos(amu)
-    tmamu = -tamu
+    tan_mach_angle = math.sin(amu) / math.cos(amu)
+    neg_tan_mach = -tan_mach_angle
     dx = -0.0001 * xb[-1]
     xp = list(xb) + [xb[-1]]
     yp = list(rb) + [-rb[-1]]
-    c, s = math.cos(-a[2] / RAD), math.sin(-a[2] / RAD)
+    cos_incidence, sin_incidence = (math.cos(-a[2] / RAD),
+                                    math.sin(-a[2] / RAD))
     x = [0.0] * 43
     y = [0.0] * 43
     for i in range(1, nx + 2):
         px, py = xp[i - 1], yp[i - 1]
-        x[i] = (px - a[0]) * c + (py - a[1]) * s
-        y[i] = (py - a[1]) * c - (px - a[0]) * s
-        x[i + 21] = (px - a[0]) * c + (-py - a[1]) * s
-        y[i + 21] = (-py - a[1]) * c - (px - a[0]) * s
+        x[i] = (px - a[0]) * cos_incidence + (py - a[1]) * sin_incidence
+        y[i] = (py - a[1]) * cos_incidence - (px - a[0]) * sin_incidence
+        x[i + 21] = (px - a[0]) * cos_incidence + (-py - a[1]) * sin_incidence
+        y[i + 21] = (-py - a[1]) * cos_incidence - (px - a[0]) * sin_incidence
     nx22m1 = nx + 21
     if dx < x[nx] < 0.0:
         x[nx] = 0.0
@@ -67,7 +68,7 @@ def ptint2(xb: Sequence[float], rb: Sequence[float], a: Sequence[float],
             if xdif == 0.0 and ydif == 0.0:
                 continue
             xi[k] = (y[k] * xdif - x[k] * ydif) / (xdif * slope - ydif)
-            yi[k] = sign * xi[k] * tamu
+            yi[k] = sign * xi[k] * tan_mach_angle
             if k == first:
                 if x[last] < 0.0:
                     return None
@@ -80,10 +81,10 @@ def ptint2(xb: Sequence[float], rb: Sequence[float], a: Sequence[float],
                 out[tag] = last - 1
         return last
 
-    ku = run(indexu, nx, tamu, 1.0, True, 'inxuie')
+    ku = run(indexu, nx, tan_mach_angle, 1.0, True, 'inxuie')
     if ku is None:
         return out
-    kl = run(indexl, nx22m1, tmamu, -1.0, False, 'inxlie')
+    kl = run(indexl, nx22m1, neg_tan_mach, -1.0, False, 'inxlie')
     if kl is None:
         return out
     out.update({'indxui': ku, 'indxli': kl, 'abort': False})
