@@ -493,9 +493,14 @@ def calculate_wbaero(alpha_deg: Sequence[float],
                      flight: Dict[str, float],
                      cbarr: float,
                      experimental: Optional[Dict[str, object]] = None,
-                     stale: Optional[Dict[str, float]] = None
+                     stale: Optional[Dict[str, float]] = None,
+                     moment_cutoff: bool = True
                      ) -> Dict[str, object]:
-    """Translate WBAERO's wing pass: the complete wing-body buildup.
+    """Translate WBAERO's surface-body pass: the complete buildup.
+
+    The same routines run for the wing (``BW``) and, with the tail's own
+    blocks, for the horizontal tail (``BH``); see
+    :func:`tail_body_inputs` for how the tail pass differs.
 
     Args:
         alpha_deg: ``FLC(23)`` onward.
@@ -518,6 +523,9 @@ def calculate_wbaero(alpha_deg: Sequence[float],
         cbarr: ``CBARR``.
         experimental: See :func:`calculate_wbdrag`.
         stale: See :func:`calculate_wblift`.
+        moment_cutoff: The wing pass stops the CMa slope at the first
+            unavailable moment and marks later ones unavailable; the tail
+            pass has no such cutoff and takes the slope over every angle.
 
     Returns:
         Dictionary with ``cd``, ``cl``, ``cm``, ``cn``, ``ca``, ``cla`` and
@@ -571,7 +579,7 @@ def calculate_wbaero(alpha_deg: Sequence[float],
     cd, cl, cm = drag['cd'], lift['cl'], moment['cm']
     available = len(alpha)
     for j, value in enumerate(cm):
-        if value == NOT_AVAILABLE:
+        if moment_cutoff and value == NOT_AVAILABLE:
             available = j
             break
     cla = np.array([tbfunx(alpha, cl, a, 0, 0)[1] for a in alpha])
@@ -586,3 +594,73 @@ def calculate_wbaero(alpha_deg: Sequence[float],
         'drag': drag, 'lift': lift, 'moment': moment, 'vortex': vortex,
         'method': 'legacy_wbaero',
     }
+
+
+def tail_body_inputs(tail: Dict[str, float], tail_alone: Dict[str, object],
+                     synthesis: Dict[str, float], bd63: float,
+                     cbarr: float) -> Dict[str, object]:
+    """The arguments WBAERO's horizontal-tail pass hands the shared routines.
+
+    The tail pass differs from the wing pass only in what it passes: the
+    tail's ``AHT``/``BHT``/``HTIN`` blocks, ``XH``, ``ZH`` and ``ALIH`` for
+    ``XW``, ``ZW`` and ``ALIW``, a quarter-chord station ``AHT(161)+XH``,
+    and for WBCM's ``CMA`` the product ``(BD(63)/CBARR)*HT(101)`` in place
+    of the surface's own moment slope.
+
+    Args:
+        tail: The tail's ``surface`` entries, as for the wing pass, with
+            ``a161`` for the quarter-chord station.
+        tail_alone: The tail-alone curves; ``cla`` is ``HT(101)``.
+        synthesis: ``xcg``, ``xh``, ``zh``, ``zcg``, ``alih``.
+        bd63: ``BD(63)``, the tail moment arm.  See Notes.
+        cbarr: ``CBARR``.
+
+    Returns:
+        ``{'surface', 'surface_alone', 'synthesis'}`` for
+        :func:`calculate_wbaero`, called with ``moment_cutoff=False``.
+
+    Notes:
+        ``BD(63)`` is written by WBTAIL, in overlay M10O12, which the main
+        program runs *after* WBAERO's overlay M07O07 within each Mach
+        iteration.  The tail pass therefore reads the previous Mach's arm,
+        and zero on the first.  It enters only the tail-body zero-lift
+        moment ``HB(16)``, not the moment curve.  The caller supplies the
+        value the source would read.
+    """
+    surface = dict(tail, x_quarter_chord=float(tail['a161']) +
+                   float(synthesis['xh']))
+    alone = dict(tail_alone, cma=(bd63 / cbarr) * float(tail_alone['cla']))
+    return {
+        'surface': surface, 'surface_alone': alone,
+        'synthesis': {'xcg': synthesis['xcg'], 'xw': synthesis['xh'],
+                      'zw': synthesis['zh'], 'zcg': synthesis['zcg'],
+                      'aliw': synthesis['alih']},
+    }
+
+
+def calculate_body_vertical(alpha_deg: Sequence[float],
+                            body: Dict[str, Sequence[float]],
+                            vertical_cd0: float) -> Dict[str, np.ndarray]:
+    """Translate WBAERO's body-vertical pass, the BV set.
+
+    The body's curves with the vertical tail and ventral fin zero-lift drag
+    ``DVT(20)+DVF(20)`` added to its drag; the lift and moment slopes are
+    retaken by TBFUNX from the second angle, the first keeping the body's.
+
+    Args:
+        alpha_deg: ``FLC(23)`` onward.
+        body: ``cd``, ``cl``, ``cm``, ``cla``, ``cma`` (``BODY(1)``, ``(21)``,
+            ``(41)``, ``(101)``, ``(121)`` onward).
+        vertical_cd0: ``DVT(20)+DVF(20)``.
+    """
+    alpha = np.asarray(alpha_deg, dtype=float)
+    out = {k: np.array(body[k], dtype=float)
+           for k in ('cd', 'cl', 'cm', 'cla', 'cma')}
+    out['cd'] = out['cd'] + vertical_cd0
+    ca, sa = np.cos(alpha / RAD), np.sin(alpha / RAD)
+    out['cn'] = out['cl'] * ca + out['cd'] * sa
+    out['ca'] = out['cd'] * ca - out['cl'] * sa
+    for j in range(1, len(alpha)):
+        out['cla'][j] = tbfunx(alpha, out['cl'], alpha[j], 0, 0)[1]
+        out['cma'][j] = tbfunx(alpha, out['cm'], alpha[j], 0, 0)[1]
+    return out

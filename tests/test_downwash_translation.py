@@ -16,7 +16,7 @@ import pytest
 from pydatcom.aerodynamics.downwash import (
     fig4417_68a, fig4417_68b, calculate_downwash_geometry,
     calculate_downwash_gradient_441, calculate_downwash, calculate_dyprls,
-    calculate_dwash,
+    calculate_dwash, calculate_dyprls_curve,
 )
 from pydatcom.aerodynamics.wing_body_tail import (
     calculate_clwbt, calculate_cdwbt, calculate_tail_load,
@@ -447,10 +447,13 @@ def test_dyprls_matches_source_expression():
 
     area, mac, sref = wing['area'], wing['mac'], 135.0
     gamma = geometry['tail_angle']
-    distance = geometry['tail_arm'] / np.cos(gamma)
-    ej = np.deg2rad(2.46)
-    alpha = np.deg2rad(8.0)
-    i2ocb = distance * np.cos(gamma - alpha + ej) / (np.cos(gamma) * mac)
+    # M09O11 passes I2 = A(24), the streamwise arm; DYPRLS itself divides
+    # by cos(GAMMA).  The source converts with its own truncated RAD.
+    rad = 57.2957795
+    ej = np.deg2rad(2.46) * rad / rad
+    alpha = 8.0 / rad
+    i2ocb = (geometry['tail_arm'] * np.cos(gamma - alpha + ej) /
+             (np.cos(gamma) * mac))
     zwocb = 0.68 * np.sqrt(0.008 * (i2ocb + 0.15) * sref / area)
     dqoq0 = 2.42 * np.sqrt(0.008 * sref / area) / (i2ocb + 0.3)
     zocb = i2ocb * np.tan(ej + gamma - alpha)
@@ -459,7 +462,7 @@ def test_dyprls_matches_source_expression():
     assert result['wake_half_width'] == pytest.approx(zwocb, rel=1e-12)
     assert result['centerline_loss'] == pytest.approx(dqoq0, rel=1e-12)
     assert result['surface_offset'] == pytest.approx(zocb, rel=1e-12)
-    expected = 1.0 - dqoq0 * np.cos(0.5 * np.pi * zocb / zwocb)**2
+    expected = 1.0 - dqoq0 * np.cos(0.5 * 3.141592654 * zocb / zwocb)**2
     assert result['qoqi'] == pytest.approx(expected, rel=1e-12)
 
 
@@ -650,3 +653,61 @@ def test_dwash_rejects_coincident_reference_angles():
     inputs['wing_geometry']['alpha_clmax_reference'] = 0.0
     with pytest.raises(ValueError, match=r"A\(127\)-A\(126\)"):
         calculate_dwash(**inputs)
+
+
+# --------------------------------------------------------------------------
+# Overlay M09O11: DWASH then DYPRLS, against the compiled overlay
+# --------------------------------------------------------------------------
+
+_M09O11_PROBE = json.loads(
+    (Path(__file__).parent / 'fixtures' / 'probes' / 'm09o11.json').read_text())
+
+
+def _m09o11(inputs):
+    inputs = dict(inputs)
+    dyprls = inputs.pop('dyprls')
+    downwash = calculate_dwash(**inputs)
+    g = inputs['wing_geometry']
+    wake = calculate_dyprls_curve(
+        dyprls['cdow'], inputs['tail_geometry']['tail_arm'], dyprls['mac'],
+        inputs['wing_alone']['cl'], g['aspect_ratio'], dyprls['gamma'],
+        inputs['wing_alone']['alpha'], inputs['sref'], g['area'],
+        downwash['angle'] if dyprls['kepsln'] else None)
+    return downwash, wake
+
+
+@pytest.mark.parametrize("case", range(len(_M09O11_PROBE)))
+def test_m09o11_matches_compiled_overlay(case):
+    """The dynamic-pressure ratios DYPRLS writes into DWASH(1) onward."""
+    probe = _M09O11_PROBE[case]
+    downwash, wake = _m09o11(probe['inputs'])
+    np.testing.assert_allclose(wake['qoqi'], probe['outputs']['QOQI'],
+                               rtol=1e-12, atol=1e-14)
+    np.testing.assert_allclose(downwash['angle'], probe['outputs']['ANGLE'],
+                               rtol=1e-9, atol=1e-12)
+
+
+def test_m09o11_probe_reaches_both_wake_sources_and_both_regions():
+    kepsln = {p['inputs']['dyprls']['kepsln'] for p in _M09O11_PROBE}
+    assert kepsln == {True, False}
+    inside = [bool(np.any(_m09o11(p['inputs'])[1]['in_wake']))
+              for p in _M09O11_PROBE]
+    outside = [bool(np.any(~_m09o11(p['inputs'])[1]['in_wake']))
+               for p in _M09O11_PROBE]
+    assert any(inside) and any(outside)
+
+
+def test_dyprls_takes_the_streamwise_arm_not_the_line_length():
+    """I2 is A(24), the streamwise arm; DYPRLS divides by cos(GAMMA) itself.
+
+    An earlier translation first formed the line length A(24)/cos(GAMMA),
+    applying that factor twice; the compiled overlay rules it out.
+    """
+    args = dict(cdow=0.008, cbar=7.0, cl_wing=[0.5], aspect_ratio=6.0,
+                alpha_deg=[6.0], sref=150.0, area=140.0)
+    gamma = 0.15
+    right = calculate_dyprls_curve(i2=22.0, gamma=gamma, **args)
+    doubled = calculate_dyprls_curve(i2=22.0 / np.cos(gamma), gamma=gamma,
+                                     **args)
+    assert right['streamwise_distance'][0] == pytest.approx(
+        doubled['streamwise_distance'][0] * np.cos(gamma))
