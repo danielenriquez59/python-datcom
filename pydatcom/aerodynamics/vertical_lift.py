@@ -258,18 +258,21 @@ def _three_component(beta: float, ar: float, tanlei: float, tanleo: float,
         # The subtracted delta-wing component.  S2 is a triangle of semispan
         # SPANIN whose leading edge is TANLEO, so A2*TANLEO is identically
         # 4.0 -- it looks variable but never is.
-        s2 = spanin**2 * tanleo
-        a2 = 4.0 * spanin**2 / s2
+        delta_wing_area = spanin ** 2 * tanleo
+        delta_wing_aspect = 4.0 * spanin ** 2 / delta_wing_area
         # LGB(1) is still 12 here, left over from the figure 4.1.3.2-62
         # lookup above.  See the note in calculate_vtlift.
-        bcna2 = fig4132_56a(bovert, a2 * tanleo, 0.0,
-                            first_length=_LEAKED_FIRST_LENGTH)
+        bcna2 = fig4132_56a(
+            bovert, delta_wing_aspect * tanleo, 0.0,
+            first_length=_LEAKED_FIRST_LENGTH,
+        )
         truncated = True
         # The source's divisor convention here is the inverse of CNTHRY's.
         cnt2 = bcna2 / tanleo if bovert > 1.0 else bcna2 / beta
         cnt2_consistent = bcna2 / beta if bovert > 1.0 else bcna2 / tanleo
         inverted = True
-        cnabw = (cnthry * sbw / sref - cnt2 * s2 / sref) * clebw
+        cnabw = ((cnthry * sbw / sref - cnt2 * delta_wing_area / sref) *
+                 clebw)
 
     # ---- glove ----------------------------------------------------------
     crglv = tanlei * spanin

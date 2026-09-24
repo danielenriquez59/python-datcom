@@ -98,24 +98,20 @@ def calculate_lift_distribution_subsonic(state: Dict, cl: float) -> np.ndarray:
     Returns:
         Array of spanwise lift distribution
     """
-    # Get wing parameters
     span = state.get('wing_span', 50.0)
     taper = state.get('wing_taper_ratio', 0.5)
-    
-    # Create spanwise stations
+    semispan = span / 2.0
+
     n_stations = 20
-    y = np.linspace(0, span / 2.0, n_stations)  # Half-span
-    
-    # Elliptical distribution (classical result)
-    # cl_local / cl_avg = π/4 * sqrt(1 - (y/(b/2))²)
-    cl_distribution = (np.pi / 4.0) * np.sqrt(1.0 - (y / (span / 2.0))**2)
-    
-    # Scale to match total CL
-    cl_distribution *= cl
-    
-    # Taper effect (modify distribution)
-    # More taper → more root loading
-    taper_effect = 1.0 + 0.3 * (1.0 - taper) * (1.0 - 2.0 * y / span)
+    span_stations = np.linspace(0.0, semispan, n_stations)
+
+    # Elliptical distribution: cl_local / cl_avg = (pi/4) sqrt(1 - (y/(b/2))^2)
+    elliptical_shape = (np.pi / 4.0) * np.sqrt(
+        1.0 - (span_stations / semispan) ** 2
+    )
+    cl_distribution = elliptical_shape * cl
+
+    taper_effect = 1.0 + 0.3 * (1.0 - taper) * (1.0 - 2.0 * span_stations / span)
     cl_distribution *= taper_effect
     
     return cl_distribution

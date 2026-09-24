@@ -106,16 +106,22 @@ def calculate_tranwg(a: Mapping[int, float], deltay: float,
         slopes.append(theory * ratio * float(a[3]) / (sref * RAD))
         branches.append(branch)
 
-    cn, bb = slopes, betas
-    f1 = (cn[1] * bb[1]**2 - cn[0] * bb[0]**2) / (bb[1] - bb[0])
-    f2 = (cn[2] * bb[2]**2 - cn[0] * bb[0]**2) / (bb[2] - bb[0])
-    aa = (f2 - f1) / (bb[2] - bb[1])
-    b = f1 - aa * (bb[1] + bb[0])
-    c = cn[1] * bb[1]**2 - aa * bb[1]**2 - b * bb[1]
-    dcna = (-b * _ANCHOR_MACH[1] / bb[1]**3 -
-            2.0 * c * _ANCHOR_MACH[1] / bb[1]**4)
-    return {'cna': float(cn[1]), 'dcna': float(dcna),
-            'anchor_slopes': [float(v) for v in cn], 'branches': branches,
+    anchor_cna = slopes
+    anchor_beta = betas
+    chord_01 = (anchor_cna[1] * anchor_beta[1]**2 -
+                anchor_cna[0] * anchor_beta[0]**2) / (anchor_beta[1] - anchor_beta[0])
+    chord_02 = (anchor_cna[2] * anchor_beta[2]**2 -
+                anchor_cna[0] * anchor_beta[0]**2) / (anchor_beta[2] - anchor_beta[0])
+    quad_a = (chord_02 - chord_01) / (anchor_beta[2] - anchor_beta[1])
+    quad_b = chord_01 - quad_a * (anchor_beta[1] + anchor_beta[0])
+    quad_c = (anchor_cna[1] * anchor_beta[1]**2 - quad_a * anchor_beta[1]**2 -
+              quad_b * anchor_beta[1])
+    mach_14 = _ANCHOR_MACH[1]
+    beta_14 = anchor_beta[1]
+    dcna = (-quad_b * mach_14 / beta_14**3 -
+            2.0 * quad_c * mach_14 / beta_14**4)
+    return {'cna': float(anchor_cna[1]), 'dcna': float(dcna),
+            'anchor_slopes': [float(v) for v in anchor_cna], 'branches': branches,
             'a62': tan_le, 'a86': tan_out, 'method': 'legacy_tranwg'}
 
 

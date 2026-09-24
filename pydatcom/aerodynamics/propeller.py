@@ -325,12 +325,12 @@ def _sqrt(x: float) -> float:
     return math.sqrt(x) if x >= 0.0 else math.nan
 
 
-def _div(a: float, b: float) -> float:
+def _div(dividend: float, divisor: float) -> float:
     """IEEE division as the source runs it: 0/0 is NaN, x/0 infinite."""
-    if b == 0.0:
-        return math.nan if a == 0.0 or math.isnan(a) else math.copysign(
-            math.inf, a) * math.copysign(1.0, b)
-    return a / b
+    if divisor == 0.0:
+        return math.nan if dividend == 0.0 or math.isnan(dividend) else math.copysign(
+            math.inf, dividend) * math.copysign(1.0, divisor)
+    return dividend / divisor
 
 
 def _funcb(tri: float) -> float:
@@ -395,55 +395,56 @@ def calculate_prpwef(inputs: Mapping[str, object],
         test is ``ZS-ZW > PRPRAD``; the tail arm ``TN`` places the wing's
         MAC with the tail's incidence cosine.  All kept.
     """
-    p = {k: v for k, v in inputs['power'].items()}
-    w = inputs['wing']
-    a = {int(k): float(v) for k, v in inputs['a'].items()}
+    power_in = {k: v for k, v in inputs['power'].items()}
+    wing_in = inputs['wing']
+    a_block = {int(k): float(v) for k, v in inputs['a'].items()}
     pos = {k: float(v) for k, v in inputs['position'].items()}
-    t, vt, bd = inputs['tail'], inputs['vertical'], inputs['body']
-    dw = inputs['dwash']
+    tail_in, vertical_in, body_in = (inputs['tail'], inputs['vertical'],
+                                     inputs['body'])
+    dwash_in = inputs['dwash']
     srw, cbarr, htpl = float(inputs['sref']), float(inputs['cbarr']), \
         bool(inputs['htpl'])
-    alsch = [float(x) for x in inputs['alpha']]
-    nalpha = len(alsch)
-    st = dict(stale or {})
-    r: Dict[str, object] = {}
-    nengsp, prprad, yp = float(p['nengsp']), float(p['prprad']), \
-        float(p['yp'])
-    phaloc, phvloc = float(p['phaloc']), float(p['phvloc'])
-    thstcp, aietlp = float(p['thstcp']), float(p['aietlp'])
-    ct, bst0o2, bsto2, bo2 = (float(w[k]) for k in ('ct', 'bst0o2', 'bsto2',
-                                                    'bo2'))
-    cb, cr = float(w['cb']), float(w['cr'])
+    alpha_schedule = [float(x) for x in inputs['alpha']]
+    nalpha = len(alpha_schedule)
+    stale_words = dict(stale or {})
+    result: Dict[str, object] = {}
+    nengsp, prprad, yp = float(power_in['nengsp']), float(power_in['prprad']), \
+        float(power_in['yp'])
+    phaloc, phvloc = float(power_in['phaloc']), float(power_in['phvloc'])
+    thstcp, aietlp = float(power_in['thstcp']), float(power_in['aietlp'])
+    ct, bst0o2, bsto2, bo2 = (float(wing_in[k]) for k in ('ct', 'bst0o2', 'bsto2',
+                                                          'bo2'))
+    cb, cr = float(wing_in['cb']), float(wing_in['cr'])
     xw, zw, aliw = pos['xw'], pos['zw'], pos['aliw']
     xh, zh, alih, xcg = pos['xh'], pos['zh'], pos['alih'], pos['xcg']
-    ar, crstr, alpha0, xbarrw = a[120], a[10], a[134], a[161]
+    ar, crstr, alpha0, xbarrw = a_block[120], a_block[10], a_block[134], a_block[161]
     argcs = zerang()
 
     # The propeller's chord station and the wing's upwash.
     if nengsp != 1.0 and bst0o2 != UNUSED and yp > bo2 - bst0o2:
         crp = cb - (cb - ct) * ((yp - (bo2 - bst0o2)) / bst0o2)
-        xbarp = (xw + a[62] * (bo2 - bst0o2) + a[86] *
+        xbarp = (xw + a_block[62] * (bo2 - bst0o2) + a_block[86] *
                  (yp - (bo2 - bst0o2)) - phaloc) * math.cos(DEG * aliw)
     else:
         ct_ = cb if (nengsp != 1.0 and bst0o2 != UNUSED) else ct
         crp = cr - (cr - ct_) * yp / (bo2 - bst0o2)
-        xbarp = (xw + a[62] * yp + crp / 4.0 - phaloc) * math.cos(DEG * aliw)
+        xbarp = (xw + a_block[62] * yp + crp / 4.0 - phaloc) * math.cos(DEG * aliw)
     deuda = -1.0
     if xbarp / crp >= 0.25:
         deuda = _tlinex(_X14161, _X24161, _Y44161, ar, xbarp, 2, 2, 2, 2)
     cosaiw = math.cos(DEG * aliw)
     prprd2 = prprad**2
     srtpco = srw * thstcp / (8.0 * prprd2)
-    kn = float(p['kn'])
+    kn = float(power_in['kn'])
     if kn == UNUSED:
-        kn = float(p['nopbpe']) * (262.0 * float(p['bwapr3']) +
-                                   262. * float(p['bwapr6']) +
-                                   135. * float(p['bwapr9'])) / prprad
-    if bool(p['crot']) and float(p['nopbpe']) >= 6:
-        cnap80 = _value(_X6111B, _Y6111B, float(p['bapr75']), 2, 2)
+        kn = float(power_in['nopbpe']) * (262.0 * float(power_in['bwapr3']) +
+                                   262. * float(power_in['bwapr6']) +
+                                   135. * float(power_in['bwapr9'])) / prprad
+    if bool(power_in['crot']) and float(power_in['nopbpe']) >= 6:
+        cnap80 = _value(_X6111B, _Y6111B, float(power_in['bapr75']), 2, 2)
     else:
-        cnap80 = _tlinex(_X1S11B, _X2S11B, _YSR11B, float(p['nopbpe']),
-                         float(p['bapr75']), 0, 2, 2, 2)
+        cnap80 = _tlinex(_X1S11B, _X2S11B, _YSR11B, float(power_in['nopbpe']),
+                         float(power_in['bapr75']), 0, 2, 2, 2)
     cnap = cnap80 * (1. + .8 * (kn / 80.7 - 1.))
     c1 = _value(_X46113[:18], _C16113, srtpco, 0, 1)
     c2 = _value(_X46113, _C26113, srtpco, 0, 1)
@@ -459,12 +460,12 @@ def calculate_prpwef(inputs: Mapping[str, object],
          'srtpco': srtpco, 'cnap80': cnap80, 'cnap': cnap, 'c1': c1,
          'c2': c2, 'depdap': depdap, 'f': f, 'combo1': combo1,
          'combo': combo, 'alphap': alphap, 'sinap': sinap, 'zs': zs,
-         'sih': float(st.get('sih', 0.0)),
-         'ytemp': float(st.get('ytemp', 0.0))}
+         'sih': float(stale_words.get('sih', 0.0)),
+         'ytemp': float(stale_words.get('ytemp', 0.0))}
 
     # The tail's immersed area.
-    bo2h, crh, cth = (float(t[k]) for k in ('bo2', 'cr', 'ct'))
-    srh, xbarrh = float(t['area']), float(t['xbarr'])
+    bo2h, crh, cth = (float(tail_in[k]) for k in ('bo2', 'cr', 'ct'))
+    srh, xbarrh = float(tail_in['area']), float(tail_in['xbarr'])
     if htpl:
         cosaih = math.cos(DEG * alih)
         tn = xh + xbarrh * cosaih - (xw + xbarrw * cosaih)
@@ -496,28 +497,28 @@ def calculate_prpwef(inputs: Mapping[str, object],
         sstri = bio2 * crp * 4.0
         astari = _div(4.0 * bio2**2, .50 * sstri)
         trpsi = 1.0
-        sweepa = a[112] if yp > bo2 - bst0o2 else a[106]
+        sweepa = a_block[112] if yp > bo2 - bst0o2 else a_block[106]
         cbarli = crp
         si = sstri
-        dcd0s = srtpco * 8.0 / (PI * srw) * (sstri * float(w['cf']))
+        dcd0s = srtpco * 8.0 / (PI * srw) * (sstri * float(wing_in['cf']))
         if yp > bo2 - bst0o2:
-            dcd0s = srtpco * 8.0 / (PI * srw) * (sstri * float(w['d12']))
+            dcd0s = srtpco * 8.0 / (PI * srw) * (sstri * float(wing_in['d12']))
     else:
         if bio2 > bo2 - bst0o2:
             bst0i2 = bst0o2 - (bo2 - bio2)
             cti = cb - bst0i2 * (cb - ct) / bst0o2
             sst0i = (cb + cti) * bst0i2
-            sstri = a[1] + sst0i
+            sstri = a_block[1] + sst0i
             scapi = (cr + cb) * (bo2 - bst0o2)
             si = scapi + sst0i
             trs0i = cti / cb
             cbsr0i = cb * _funcb(trs0i)
-            cbarli = (scapi * a[121] + sst0i * cbsr0i) / si
-            argcs[3] = (sstri * a[67] + sst0i * a[91]) / sstri
+            cbarli = (scapi * a_block[121] + sst0i * cbsr0i) / si
+            argcs[3] = (sstri * a_block[67] + sst0i * a_block[91]) / sstri
             argcs = angles(4, argcs)
             sweepa = argcs[1]
-            trpsi = a[26] * trs0i
-            bstio2 = a[23] + bst0i2
+            trpsi = a_block[26] * trs0i
+            bstio2 = a_block[23] + bst0i2
             s.update({'bst0i2': bst0i2, 'sst0i': sst0i, 'scapi': scapi,
                       'trs0i': trs0i, 'cbsr0i': cbsr0i})
         else:
@@ -527,27 +528,27 @@ def calculate_prpwef(inputs: Mapping[str, object],
             si = (cr + cti) * bio2
             tri = cti / cr
             cbarli = cr * _funcb(tri)
-            sweepa = a[69]
+            sweepa = a_block[69]
             trpsi = cti / crstr
             s['tri'] = tri
         astari = 4.0 * (bstio2**2) / sstri
         s.update({'cti': cti, 'bstio2': bstio2})
         dcd0s = (srtpco * 8.0 / (PI * srw)) * (
-            float(w['cf']) * sstri + float(t['cf']) * s['sih'] +
-            .50 * float(vt['cf']) * float(vt['area']) +
-            float(bd['cf']) * float(bd['wetted_area']))
-    cd0pow = float(w['cd0']) + dcd0s
+            float(wing_in['cf']) * sstri + float(tail_in['cf']) * s['sih'] +
+            .50 * float(vertical_in['cf']) * float(vertical_in['area']) +
+            float(body_in['cf']) * float(body_in['wetted_area']))
+    cd0pow = float(wing_in['cd0']) + dcd0s
     rpnob = .5 * nengsp * prprad / bo2
     aak = _value(_X4648A, _Y4648A, srtpco, 0, 2)
     ebroep = _tlinex(_X1648B, _X2648B, _Y4648B, rpnob, srtpco, 2, 0, 2, 2)
     dcmt = thstcp * (pos['zcg'] - phvloc) * nengsp / cbarr
     cossw = math.cos(DEG * sweepa)
-    cm0in, cm02 = float(w['cmo']), float(w['cmot'])
+    cm0in, cm02 = float(wing_in['cmo']), float(wing_in['cmot'])
     cm0ova = cm0in
     if not (abs(cm0in) < 1.e-10 or abs(cm02) < 1.e-10):
         cm0ova = 0.5 * (cm0in + cm02)
     cm0te0 = astari * cossw**2 * cm0ova / (astari + 2.0 * cossw)
-    twista = float(w['twista'])
+    twista = float(wing_in['twista'])
     cm0i = cm0te0
     if not twista < 1.e-10:
         y = np.asarray(_Y41412).reshape(3, 5, 16).transpose(2, 1, 0)
@@ -555,8 +556,8 @@ def calculate_prpwef(inputs: Mapping[str, object],
                                      sweepa, trpsi, 2, 0, 0, 2, 2,
                                      0)) * twista
     dcmq = (srtpco * si / srw * cbarli / cbarr * cm0i) * 8.0 / PI
-    xbrsrr = a[16] / 4. + (a[1] * a[32] * a[62] + a[2] *
-                           (a[23] * a[62] + (a[33] - a[23]) * a[86])) / a[3]
+    xbrsrr = a_block[16] / 4. + (a_block[1] * a_block[32] * a_block[62] + a_block[2] *
+                           (a_block[23] * a_block[62] + (a_block[33] - a_block[23]) * a_block[86])) / a_block[3]
     s.update({'sstri': sstri, 'astari': astari, 'trpsi': trpsi,
               'sweepa': sweepa, 'cbarli': cbarli, 'si': si, 'dcd0s': dcd0s,
               'cd0pow': cd0pow, 'rpnob': rpnob, 'aak': aak,
@@ -569,14 +570,14 @@ def calculate_prpwef(inputs: Mapping[str, object],
     arrays = {k: [0.0] * nalpha for k in (
         'dclt', 'dclnp', 'dclq', 'dclaw', 'dclhq', 'dcmnp', 'dcml', 'dcmhq',
         'dcmhe', 'dclhe', 'cdpow', 'dclpon', 'dcm')}
-    cl_w = [float(x) for x in w['cl']]
-    cdl = [float(x) for x in w['cdl']]
-    cla = float(w['cla'])
-    dlh = float(st.get('dlh', 0.0))
+    cl_w = [float(x) for x in wing_in['cl']]
+    cdl = [float(x) for x in wing_in['cdl']]
+    cla = float(wing_in['cla'])
+    dlh = float(stale_words.get('dlh', 0.0))
     for j in range(nalpha):
-        alphat = alsch[j] + aietlp
+        alphat = alpha_schedule[j] + aietlp
         cosat, sinat = math.cos(DEG * alphat), math.sin(DEG * alphat)
-        alphap = alphat + deuda * (aliw + alsch[j] - alpha0)
+        alphap = alphat + deuda * (aliw + alpha_schedule[j] - alpha0)
         cnp = cnap * alphap / RAD * PI * prprad**2 / srw
         ebar = ebroep * depdap * alphap
         arrays['dclnp'][j] = combo1 * alphap * cosat
@@ -597,8 +598,8 @@ def calculate_prpwef(inputs: Mapping[str, object],
             bst0i2 = bst0o2 - (bo2 - bio2)
             cti = cb - bst0i2 * (cb - ct) / bst0o2
             sst0i = (cb + cti) * bst0i2
-            sstri = a[1] + sst0i
-            bstio2 = a[23] + bst0i2
+            sstri = a_block[1] + sst0i
+            bstio2 = a_block[23] + bst0i2
             astari = 4.0 * (bstio2**2) / sstri
             s.update({'bst0i2': bst0i2, 'cti': cti, 'sst0i': sst0i,
                       'bstio2': bstio2})
@@ -629,7 +630,7 @@ def calculate_prpwef(inputs: Mapping[str, object],
             s['dxhmac'] = xh + xbarrh * math.cos(DEG * alih) - phaloc
             zht = zh - phvloc + s['dxhmac'] * math.tan(DEG * aietlp)
             zhtorp = zht / prprad
-            eps = float(dw['epsilon'][j])
+            eps = float(dwash_in['epsilon'][j])
             if nengsp > 1.0:
                 step1 = _tlinex(_X1639A, _X2639A, _Y4639A, eps, srtpco,
                                 2, 2, 2, 2)
@@ -641,7 +642,7 @@ def calculate_prpwef(inputs: Mapping[str, object],
                                 0, 0, 2, 2)
                 depowr = _tlinex(_X1638B, _X2638B, _Y4638B, zhtorp, step1,
                                  0, 1, 2, 1)
-            clh, clalph = tbfunx(alsch, t['cl'], alsch[j], 1, 1)
+            clh, clalph = tbfunx(alpha_schedule, tail_in['cl'], alpha_schedule[j], 1, 1)
             cosaih = math.cos(DEG * alih)
             tn = xh + xbarrh * cosaih - (xw + xbarrw * cosaih)
             epowr = eps + depowr
@@ -651,7 +652,7 @@ def calculate_prpwef(inputs: Mapping[str, object],
                              s['ytemp'], 0, 0, 2, 1)
             arrays['dclhq'][j] = dqhoqi * clh
             arrays['dclhe'][j] = -clalph * depowr * (
-                float(dw['q_ratio'][j]) + dqhoqi)
+                float(dwash_in['q_ratio'][j]) + dqhoqi)
             dlh = xh + xbarrh * cosaih - xcg
             arrays['dcmhe'][j] = -dlh * arrays['dclhe'][j] / cbarr
             s.update({'zht': zht, 'zhtorp': zhtorp, 'step1': step1,
@@ -685,10 +686,10 @@ def calculate_prpwef(inputs: Mapping[str, object],
                   'sinap': sinap, 'zs': zs, 'bio2': bio2, 'sstri': sstri,
                   'astari': astari, 'xcp': xcp, 'dlh': dlh, 'clp': clp,
                   'cdlrat': cdlrat, 'cdlpow': cdlpow})
-    r.update(arrays)
-    r.update({'powr': s, 'kn': kn, 'cosaiw': cosaiw, 'nalpha': nalpha,
-              'argcs': argcs, 'method': 'legacy_prpwef'})
-    return r
+    result.update(arrays)
+    result.update({'powr': s, 'kn': kn, 'cosaiw': cosaiw, 'nalpha': nalpha,
+                   'argcs': argcs, 'method': 'legacy_prpwef'})
+    return result
 
 
 def calculate_m13o15(inputs: Mapping[str, object],

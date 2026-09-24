@@ -106,21 +106,22 @@ def calculate_supdrg_straight_wing(state: Dict, mach: float,
 
     # SUPDRG labels 1050-1090: zero-lift wave drag.
     tan_for_branch = tan_le if tan_le != 0.0 else 1.0e-5
+    sonic_leading_edge = beta / tan_for_branch >= 1.0
+    wave_drag_denominator = beta if sonic_leading_edge else tan_for_branch
     tceff = float(state.get('wing_tceff', state.get('wing_tovc', 0.0)) or 0.0)
     if sharp:
-        numerator = float(ksharp) * tceff**2 * area_ratio
-        cd_wave_volume = (numerator / beta if beta / tan_for_branch >= 1.0
-                          else numerator / tan_for_branch)
+        volume_numerator = float(ksharp) * tceff ** 2 * area_ratio
+        cd_wave_volume = volume_numerator / wave_drag_denominator
     else:
-        cos_le = 1.0 / np.sqrt(1.0 + tan_le**2)
+        cos_le = 1.0 / np.sqrt(1.0 + tan_le ** 2)
         leri = float(state.get('wing_leri', 0.0) or 0.0)
-        lerbw = leri * (root + tip) / 2.0
-        cd_le = (1.28 * mach**3 * cos_le**6 /
-                 (1.0 + mach**3 * cos_le**3) *
+        average_chord = (root + tip) / 2.0
+        lerbw = leri * average_chord
+        cd_le = (1.28 * mach ** 3 * cos_le ** 6 /
+                 (1.0 + mach ** 3 * cos_le ** 3) *
                  (2.0 * lerbw * (2.0 * semispan) / (sref * cos_le)))
-        numerator = 16.0 * tceff**2 * area_ratio / 3.0
-        cd_wave_volume = cd_le + (numerator / beta if beta / tan_for_branch >= 1.0
-                                  else numerator / tan_for_branch)
+        volume_numerator = 16.0 * tceff ** 2 * area_ratio / 3.0
+        cd_wave_volume = cd_le + volume_numerator / wave_drag_denominator
 
     return {
         'cd_wave_volume': cd_wave_volume,
@@ -153,29 +154,23 @@ def calculate_supersonic_lift_slope(mach: float, aspect_ratio: float,
         logger.warning(f"Supersonic method called with M={mach} < 1.0")
         return 2.0 * np.pi
     
-    beta = np.sqrt(mach**2 - 1.0)
-    
-    # Linearized supersonic theory
-    # CL_α = 4 / β for infinite aspect ratio
+    beta = np.sqrt(mach ** 2 - 1.0)
     cla_2d = 4.0 / beta
-    
-    # Finite span correction
+
     if aspect_ratio > 0:
-        # Simplified correction
-        ar_correction = aspect_ratio / (aspect_ratio + 2.0 / beta)
-        cla_3d = cla_2d * ar_correction
+        finite_span_factor = aspect_ratio / (aspect_ratio + 2.0 / beta)
+        cla_3d = cla_2d * finite_span_factor
     else:
+        finite_span_factor = 1.0
         cla_3d = cla_2d
-    
-    # Sweep correction
+
     if abs(sweep_deg) > 1.0:
         sweep_rad = np.deg2rad(abs(sweep_deg))
-        # Component of Mach normal to leading edge
         mach_normal = mach * np.cos(sweep_rad)
         if mach_normal > 1.0:
-            beta_normal = np.sqrt(mach_normal**2 - 1.0)
-            cla_3d = 4.0 / beta_normal * ar_correction
-    
+            beta_normal = np.sqrt(mach_normal ** 2 - 1.0)
+            cla_3d = 4.0 / beta_normal * finite_span_factor
+
     return cla_3d
 
 
@@ -259,21 +254,24 @@ def calculate_supersonic_coefficients(state: Dict, alpha_deg: float,
     cl = cl_wing * reference_ratio
     
     # Calculate wave drag
-    has_supdrg_geometry = all(state.get(key) is not None for key in
-                              ('wing_chrdr', 'wing_chrdtp', 'wing_sspn'))
-    if has_supdrg_geometry and float(state.get('wing_type', 1.0) or 1.0) == 1.0:
+    straight_wing = float(state.get('wing_type', 1.0) or 1.0) == 1.0
+    has_supdrg_geometry = all(
+        state.get(key) is not None
+        for key in ('wing_chrdr', 'wing_chrdtp', 'wing_sspn')
+    )
+    use_supdrg = straight_wing and has_supdrg_geometry
+    if use_supdrg:
         wave_drag = calculate_supdrg_straight_wing(state, mach, cl_wing)
     else:
         wave_drag = calculate_supersonic_wave_drag(
-            mach, thickness_ratio, aspect_ratio, cl_wing
+            mach, thickness_ratio, aspect_ratio, cl_wing,
         )
         for key in ('cd_wave_volume', 'cd_wave_lift', 'cd_wave_total'):
             wave_drag[key] *= reference_ratio
         wave_drag['method'] = 'linearized_fallback'
-    
-    # Skin friction (still present in supersonic)
+
     from pydatcom.aerodynamics.drag import calculate_skin_friction_drag
-    if has_supdrg_geometry and float(state.get('wing_type', 1.0) or 1.0) == 1.0:
+    if use_supdrg:
         friction = calculate_supdrg_skin_friction(state, mach, reynolds)
         cd_friction = friction['cd_friction']
         friction_method = friction['method']

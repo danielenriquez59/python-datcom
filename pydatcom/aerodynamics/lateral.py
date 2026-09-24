@@ -353,9 +353,10 @@ _FIG24B = _two(_Y24B, 10, 2)
 _FIG24C = _two(_Y24C, 11, 5)
 
 
-def _div(a, b):
+def _div(dividend, divisor):
+    """IEEE division, matching the source's unset-handling propagation."""
     with np.errstate(divide='ignore', invalid='ignore'):
-        return float(np.float64(a) / np.float64(b))
+        return float(np.float64(dividend) / np.float64(divisor))
 
 
 def calculate_sublat(stb: Mapping[int, float],
@@ -427,7 +428,7 @@ def calculate_sublat(stb: Mapping[int, float],
     """
     stb = {int(k): float(v) for k, v in stb.items()}
     alpha = np.asarray(flight['alpha'], dtype=float)
-    n = len(alpha)
+    alpha_count = len(alpha)
     mach = float(flight['mach'])
     straight = float(win['type']) == STRAIGHT_TAPERED
     result: Dict[str, object] = {'method': 'legacy_sublat'}
@@ -435,83 +436,83 @@ def calculate_sublat(stb: Mapping[int, float],
           '30a': UNUSED, '30b': UNUSED, '31i': UNUSED, '31o': UNUSED}
 
     if flags['wgpl']:
-        bdat = 2.0 * win[4]
+        double_span = 2.0 * win[4]
         if not flags['transn']:
             cl = np.asarray(surface['cl'], dtype=float)
             cm = np.asarray(surface['cm'], dtype=float)
             cn = np.asarray(surface['cn'], dtype=float)
-            anum1 = 6.0 * a[44] * a[42]
-            den1 = PI * a[120] * (a[120] + 4.0 * a[43])
-            bb = math.sqrt(1.0 - (mach * a[43])**2)
-            anum2 = a[120] + 4.0 * a[43]
-            den2 = a[120] * bb + 4.0 * a[43]
-            apart = 1.0 / (4.0 * PI * a[120])
-            bpart = abs(a[44]) / (PI * a[120] * (a[120] + 4.0 * a[43]))
-            cpart = a[43] - 0.5 * a[120] - a[120]**2 / (8.0 * a[43])
-            epart = (a[120] + 4.0 * a[43]) / (a[120] * bb + 4.0 * a[43])
-            anum3 = ((a[120] * bb)**2 + 4.0 * a[120] * bb * a[43] -
-                     8.0 * a[43] * a[43])
-            den3 = (a[120] * a[120] + 4.0 * a[120] * a[43] -
-                    8.0 * a[43] * a[43])
-            cyb, cnb = np.zeros(n), np.zeros(n)
-            for j in range(n):
-                cl0 = b[j + 3]
-                stb[j + 16] = ((1.0 / RAD) * cl0**2 * (anum1 / den1) -
+            stb16_num = 6.0 * a[44] * a[42]
+            stb16_den = PI * a[120] * (a[120] + 4.0 * a[43])
+            mach_beta = math.sqrt(1.0 - (mach * a[43])**2)
+            cyb36_num = a[120] + 4.0 * a[43]
+            cyb36_den = a[120] * mach_beta + 4.0 * a[43]
+            cnb_a = 1.0 / (4.0 * PI * a[120])
+            cnb_b = abs(a[44]) / (PI * a[120] * (a[120] + 4.0 * a[43]))
+            cnb_c = a[43] - 0.5 * a[120] - a[120]**2 / (8.0 * a[43])
+            cnb_e = (a[120] + 4.0 * a[43]) / (a[120] * mach_beta + 4.0 * a[43])
+            cnb_num = ((a[120] * mach_beta)**2 + 4.0 * a[120] * mach_beta * a[43] -
+                       8.0 * a[43] * a[43])
+            cnb_den = (a[120] * a[120] + 4.0 * a[120] * a[43] -
+                       8.0 * a[43] * a[43])
+            cyb, cnb = np.zeros(alpha_count), np.zeros(alpha_count)
+            for j in range(alpha_count):
+                cl_at_mach0 = b[j + 3]
+                stb[j + 16] = ((1.0 / RAD) * cl_at_mach0**2 * (stb16_num / stb16_den) -
                                .0001 * abs(stb[122]))
-                if cl0 == 0.0:
+                if cl_at_mach0 == 0.0:
                     stb[j + 36] = 0.0
                 else:
-                    stb[j + 36] = (anum2 / den2) * (stb[j + 16] / cl0)
+                    stb[j + 36] = (cyb36_num / cyb36_den) * (stb[j + 16] / cl_at_mach0)
                     cyb[j] = stb[j + 36] * cl[j]
-                dpart = (0.0 if cn[j] == 0.0 else
-                         6.0 * (cm[j] / cn[j] / cbarr) * (abs(a[42]) / a[120]))
-                stb[j + 76] = (apart - bpart * (cpart + dpart)) / RAD
-                cnb[j] = (epart * (anum3 / den3) * stb[j + 76] * cl[j]**2 *
-                          bdat * sref / (blref * a[3]))
+                cm_arm_term = (0.0 if cn[j] == 0.0 else
+                               6.0 * (cm[j] / cn[j] / cbarr) * (abs(a[42]) / a[120]))
+                stb[j + 76] = (cnb_a - cnb_b * (cnb_c + cm_arm_term)) / RAD
+                cnb[j] = (cnb_e * (cnb_num / cnb_den) * stb[j + 76] * cl[j]**2 *
+                          double_span * sref / (blref * a[3]))
 
             if straight and a[120] < 1.0:
                 clb = ((-2.0 / (RAD * 3.0 * a[120]) * cl -
                         stb[122] * a[120] / (6.0 * RAD**2) * (a[4] / sref))
-                       * bdat / blref)
+                       * double_span / blref)
             elif straight:
-                xa2 = mach * a[73]
+                mach_a73 = mach * a[73]
                 x1arg = abs(a[70])
-                xa1 = a[120] / a[73]
+                ar_over_a73 = a[120] / a[73]
                 ya['27'] = tlin3x(_X127, _X227, _X327, _FIG27, a[120], x1arg,
                                   a[118], 0, 1, 0, 2, 2, 0)
                 if a[70] < 0.0:
                     ya['27'] = abs(ya['27'])
-                ya['28a'] = tlinex(_X128A, _X228A, _FIG28A, xa1, xa2,
+                ya['28a'] = tlinex(_X128A, _X228A, _FIG28A, ar_over_a73, mach_a73,
                                    0, 2, 1, 2)
                 ya['28b'] = tlinex(_X128B, _X228B, _FIG28B, a[118], a[120],
                                    0, 0, 0, 0)
                 ya['30b'] = tlinex(_X130B, _X230B, _FIG30B, a[118], a[120],
                                    0, 2, 0, 2)
-                for j in range(n):
+                for j in range(alpha_count):
                     stb[j + 96] = ((ya['27'] * ya['28a'] + ya['28b']) * cl[j] *
                                    sref / a[4] + win[11] * a[68] * ya['30b'])
-                base = np.array([stb[j + 96] for j in range(n)])
+                base = np.array([stb[j + 96] for j in range(alpha_count)])
                 if win[12] != UNUSED and win[12] != 0.0:
                     stb[7] = a[131] / (2.0 * PI) * RAD
                     x1arg = math.atan(a[68] / b[2]) * RAD
                     x3arg = b[2] * a[120] / stb[7]
-                    akovb = stb[7] / b[2]
+                    k_over_b2 = stb[7] / b[2]
                     ya['31i'] = tlin4x(_X131, _X231, _X331, _X431, _FIG31,
                                        x1arg, stb[2], x3arg, a[118],
                                        0, 0, 1, 0, 2, 2, 1, 0)
                     ya['31o'] = tlin4x(_X131, _X231, _X331, _X431, _FIG31,
                                        x1arg, stb[3], x3arg, a[118],
                                        0, 0, 1, 0, 2, 2, 1, 0)
-                    clb = ((base + (ya['31o'] - ya['31i']) * akovb * win[14] /
-                            RAD + ya['31i'] / RAD * akovb * win[13]) *
-                           a[4] / sref * bdat / blref)
+                    clb = ((base + (ya['31o'] - ya['31i']) * k_over_b2 * win[14] /
+                            RAD + ya['31i'] / RAD * k_over_b2 * win[13]) *
+                           a[4] / sref * double_span / blref)
                 else:
-                    ya['30a'] = tlinex(_X130A, _X230A, _FIG30A, xa1, xa2,
+                    ya['30a'] = tlinex(_X130A, _X230A, _FIG30A, ar_over_a73, mach_a73,
                                        2, 2, 2, 2)
                     ya['29'] = tlin3x(_X129, _X229, _X329, _FIG29, x1arg,
                                       a[120], a[118], 0, 0, 0, 2, 2, 0)
                     clb = ((base + win[13] * ya['29'] * ya['30a']) * a[4] /
-                           sref * bdat / blref)
+                           sref * double_span / blref)
             else:
                 # Double delta or cranked: the two panels separately.
                 stb[135] = -2.0 / (3.0 * RAD * a[163])
@@ -540,7 +541,7 @@ def calculate_sublat(stb: Mapping[int, float],
                 outer = (stb[131] if a[168] < 1.0 else
                          stb[128] * stb[130] + stb[129])
                 stb[126] = a[172] * (a[167] / sref) * outer
-                clb = (cl / stb[58]) * (stb[127] + stb[126]) * bdat / blref
+                clb = (cl / stb[58]) * (stb[127] + stb[126]) * double_span / blref
 
             result['surface'] = {'cyb': cyb, 'cnb': cnb,
                                  'clb': np.asarray(clb, dtype=float)}
@@ -558,12 +559,12 @@ def calculate_sublat(stb: Mapping[int, float],
         cyb_bw = -stb[57] * body_cla - 0.0001 * abs(stb[122])
         stb[56] = 1.0 + math.log(1.0e-6 * float(flight['reynolds_per_length'])
                                  * bd1) / 4.86
-        first = tlinex(_X158A, _X258A, _FIG58A, bd1**2 / stb[62],
-                       syna[1] / bd1, 2, 1, 2, 1)
-        second = tlinex(_X158B, _X258B, _FIG58B,
-                        math.sqrt(stb[61] / stb[60]), first, 2, 0, 2, 1)
+        fig58a = tlinex(_X158A, _X258A, _FIG58A, bd1**2 / stb[62],
+                        syna[1] / bd1, 2, 1, 2, 1)
+        fig58b = tlinex(_X158B, _X258B, _FIG58B,
+                        math.sqrt(stb[61] / stb[60]), fig58a, 2, 0, 2, 1)
         stb[15] = tlinex(_X158C, _X258C, _FIG58C, stb[59] / stb[123],
-                         second, 2, 0, 2, 1)
+                         fig58b, 2, 0, 2, 1)
         cnb_bw = -stb[15] * stb[56] * (stb[62] * bd1) / (sref * blref)
         combination = {'cyb': float(cyb_bw), 'cnb': float(cnb_bw)}
         result['combination'] = combination
@@ -578,48 +579,49 @@ def calculate_sublat(stb: Mapping[int, float],
         stb[8] = tlinex(_X1526, _X2526, _FIG526, a[120] / a[49],
                         stb[63] / (2.0 * win[4]), 0, 0, 0, 1)
         if not straight:
-            apart = (stb[8] * (stb[132] * stb[134] + stb[128] * stb[130]) +
-                     stb[133] + stb[129])
-            fpart = 0.0
-            epart = stb[13]
+            clb_scale = (stb[8] * (stb[132] * stb[134] + stb[128] * stb[130]) +
+                         stb[133] + stb[129])
+            clb_fpart = 0.0
+            clb_epart = stb[13]
         else:
-            apart = stb[68] * stb[71] * stb[8] + stb[70]
-            fpart = win[11] * a[68] * stb[69]
-            epart = (result['surface']['clb'][0] * blref / bdat -
-                     (stb[96] - stb[13]) * a[4] / sref)
+            clb_scale = stb[68] * stb[71] * stb[8] + stb[70]
+            clb_fpart = win[11] * a[68] * stb[69]
+            clb_epart = (result['surface']['clb'][0] * blref / double_span -
+                         (stb[96] - stb[13]) * a[4] / sref)
         combination['clb'] = ((np.asarray(combination_cl, dtype=float) *
-                               apart + epart + (stb[14] + fpart) * a[4] /
-                               sref) * bdat / blref)
+                               clb_scale + clb_epart + (stb[14] + clb_fpart) * a[4] /
+                               sref) * double_span / blref)
 
     # The vertical panels.
     if not (flags['vtpl'] or flags['tvtpan']):
         result['stb'] = stb
         return result
-    cyb_v, cnb_v, clb_v = 0.0, 0.0, np.zeros(n)
-    ca, sa = np.cos(alpha / RAD), np.sin(alpha / RAD)
+    cyb_v, cnb_v, clb_v = 0.0, 0.0, np.zeros(alpha_count)
+    cos_alpha, sin_alpha = np.cos(alpha / RAD), np.sin(alpha / RAD)
     if flags['vtpl']:
-        arg2 = vtin[4] / (2.0 * (vtin[4] - vtin[3]))
-        stb[120] = tlinex(_X122A, _X222A, _FIG22A, avt[118], arg2, 0, 0, 0, 0)
-        stb[118] = tbfunx(_X5322D, _Y5322D, arg2, 0, 0)[0]
-        zh = syna[7] - ((htin[4] - htin[3]) * aht[62] + aht[30] -
-                        aht[16] / 4.0) * math.sin(syna[8] / RAD)
-        if not flags['htpl'] or zh < 0.0:
+        vt_span_ratio = vtin[4] / (2.0 * (vtin[4] - vtin[3]))
+        stb[120] = tlinex(_X122A, _X222A, _FIG22A, avt[118], vt_span_ratio,
+                          0, 0, 0, 0)
+        stb[118] = tbfunx(_X5322D, _Y5322D, vt_span_ratio, 0, 0)[0]
+        tail_height = syna[7] - ((htin[4] - htin[3]) * aht[62] + aht[30] -
+                                 aht[16] / 4.0) * math.sin(syna[8] / RAD)
+        if not flags['htpl'] or tail_height < 0.0:
             stb[121] = 0.0
             stb[119] = 0.0
         else:
             stb[121] = tlinex(_X122B, _X222B, _FIG22B, stb[9] / stb[10],
-                              -zh / vtin[4], 0, 0, 2, 0)
+                              -tail_height / vtin[4], 0, 0, 2, 0)
             stb[119] = tbfunx(_X5322C, _Y5322C,
                               (aht[2] + aht[119]) / avt[4], 0, 0)[0]
         stb[116] = stb[120] * avt[120] * (1.0 + stb[119] * (stb[121] - 1.0))
         stb[117] = (0.724 + 3.06 * ((avt[4] / a[4]) / (1.0 + a[43])) +
                     .4 * stb[4] / stb[59] + .009 * a[120])
-        ratio = stb[116]**2 / (vt_cla * RAD / (2.0 * PI))**2
-        sweep = 1.0 + avt[50]**2 / b[2]**2
-        stb[5] = 2.0 * PI * stb[116] / (2.0 + math.sqrt(ratio * sweep + 4.0))
+        cla_ratio_sq = stb[116]**2 / (vt_cla * RAD / (2.0 * PI))**2
+        sweep_factor = 1.0 + avt[50]**2 / b[2]**2
+        stb[5] = 2.0 * PI * stb[116] / (2.0 + math.sqrt(cla_ratio_sq * sweep_factor + 4.0))
         cyb_v = -stb[118] * stb[5] * stb[117] * avt[4] / (RAD * sref)
         cnb_v = -cyb_v * stb[11] / blref
-        clb_v = cyb_v * (stb[12] * ca - stb[11] * sa) / blref
+        clb_v = cyb_v * (stb[12] * cos_alpha - stb[11] * sin_alpha) / blref
         if not (syna[18] == UNUSED and syna[19] == UNUSED):
             angle = syna[18] if ity == 0 else syna[19]
             twin = 2.0 * math.cos(angle / RAD)**2
@@ -633,10 +635,10 @@ def calculate_sublat(stb: Mapping[int, float],
                          0, 2, 0, 2)
         stb[74] = tlinex(_X124C, _X224C, _FIG24C, tvtin[3] / bd1,
                          tvtin[2] / tvtin[1], 2, 0, 0, 0)
-        tvt = -stb[74] * stb[73] * 2.0 * tvtin[4] / (sref * RAD)
-        cyb_v = cyb_v + tvt
-        cnb_v = cnb_v - tvt * tvtin[6] / blref
-        clb_v = clb_v + tvt * (tvtin[7] * ca - tvtin[6] * sa) / blref
+        tvt_cyb = -stb[74] * stb[73] * 2.0 * tvtin[4] / (sref * RAD)
+        cyb_v = cyb_v + tvt_cyb
+        cnb_v = cnb_v - tvt_cyb * tvtin[6] / blref
+        clb_v = clb_v + tvt_cyb * (tvtin[7] * cos_alpha - tvtin[6] * sin_alpha) / blref
     result['vertical'] = {'cyb': float(cyb_v), 'cnb': float(cnb_v),
                           'clb': np.asarray(clb_v, dtype=float)}
     result['stb'] = stb
@@ -698,10 +700,10 @@ def calculate_m29o35_block(win: Mapping[int, float], a: Mapping[int, float],
     incidence = syna[8] if tail_pass else syna[4]
     x_surface = syna[6] if tail_pass else syna[2]
     if surface_on and body_on:
-        sinsyn = math.sin(incidence / RAD)
-        stb[1] = (-height + (.25 * a10 + bd66) * sinsyn -
+        sin_incidence = math.sin(incidence / RAD)
+        stb[1] = (-height + (.25 * a10 + bd66) * sin_incidence -
                   (win[4] - win[3]) * math.tan(win[13] / RAD))
-        stb[4] = -height + win[6] / 4.0 * sinsyn
+        stb[4] = -height + win[6] / 4.0 * sin_incidence
         stb[72] = (win[4] - win[3]) * 2.0
         stb[63] = (x_surface + bd66 + win[2] * a[86] + a[23] * a[62] +
                    win[1] / 2.0)
@@ -723,19 +725,22 @@ def calculate_m29o35_block(win: Mapping[int, float], a: Mapping[int, float],
         stb[123] = 2.0 * getmax(x, r)[1]
         if panel_on:
             stb[11] = (xv - syna[1]) + avt[195] + avt[122] / 4.0
-            up = vertical_up if not tail_pass else not vertical_up
-            stb[12] = -syna[5] + avt[136] if up else -syna[5] - avt[136]
+            panel_points_up = vertical_up if not tail_pass else not vertical_up
+            if panel_points_up:
+                stb[12] = -syna[5] + avt[136]
+            else:
+                stb[12] = -syna[5] - avt[136]
             if htpl and syna[7] >= 0.0:
-                xpart = syna[6] + aht[161] - xv
+                tail_arm_x = syna[6] + aht[161] - xv
                 if float(vtin['type']) == STRAIGHT_TAPERED:
-                    stb[9] = xpart - syna[7] * avt[62]
+                    stb[9] = tail_arm_x - syna[7] * avt[62]
                     stb[10] = vtin[6] - (vtin[6] - vtin[1]) * syna[7] / vtin[4]
                 elif syna[7] <= vtin[4] - vtin[2]:
-                    stb[9] = xpart - syna[7] * avt[62]
+                    stb[9] = tail_arm_x - syna[7] * avt[62]
                     stb[10] = (vtin[6] - (vtin[6] - vtin[5]) * syna[7] /
                                (vtin[4] - vtin[2]))
                 else:
-                    stb[9] = (xpart - (vtin[4] - vtin[2]) * avt[62] -
+                    stb[9] = (tail_arm_x - (vtin[4] - vtin[2]) * avt[62] -
                               (syna[7] + vtin[2] - vtin[4]) * avt[86])
                     stb[10] = (vtin[1] + (vtin[5] - vtin[1]) *
                                (vtin[4] - syna[7]) / vtin[2])
@@ -777,32 +782,37 @@ def calculate_m17o21(alpha_count: int,
         On a transonic pass the source overwrites these sets, and the
         wing's and tail's first values, with ``UNUSED``.
     """
-    zero = {'cyb': 0.0, 'cnb': 0.0, 'clb': np.zeros(alpha_count)}
+    zero_block = {'cyb': 0.0, 'cnb': 0.0, 'clb': np.zeros(alpha_count)}
 
-    def part(res, key):
-        # A block or component SUBLAT did not reach keeps the zero the
-        # source's arrays held; on a transonic pass it returns before the
-        # combination's Cl_beta.
-        if res is None or key not in res:
-            return zero
-        return dict(zero, **res[key])
+    def block_or_zero(result, key):
+        """Missing SUBLAT output stays at the source's zero block."""
+        if result is None or key not in result:
+            return zero_block
+        return dict(zero_block, **result[key])
 
-    vt, vf = part(wing, 'vertical'), part(tail, 'vertical')
-    bw, ht = part(wing, 'combination'), part(tail, 'surface')
+    vertical_tail = block_or_zero(wing, 'vertical')
+    ventral_fin = block_or_zero(tail, 'vertical')
+    wing_body = block_or_zero(wing, 'combination')
+    tail_surface = block_or_zero(tail, 'surface')
 
-    def first(value):
+    def first_angle(value):
         return float(np.asarray(value, dtype=float).ravel()[0])
 
     def combine(*blocks):
-        return {'cyb': sum(first(b['cyb']) for b in blocks),
-                'cnb': sum(first(b['cnb']) for b in blocks),
-                'clb': sum(np.asarray(b['clb'], dtype=float)
-                           for b in blocks)}
+        return {
+            'cyb': sum(first_angle(b['cyb']) for b in blocks),
+            'cnb': sum(first_angle(b['cnb']) for b in blocks),
+            'clb': sum(np.asarray(b['clb'], dtype=float) for b in blocks),
+        }
 
     body_block = {'cyb': body['cyb'], 'cnb': body['cnb'], 'clb': body['clb']}
-    bwh = combine(bw, ht)
-    out = {'bv': combine(body_block, vt, vf), 'bwh': bwh,
-           'bwv': combine(bw, vt, vf), 'bwhv': combine(bwh, vt, vf)}
+    bwh = combine(wing_body, tail_surface)
+    out = {
+        'bv': combine(body_block, vertical_tail, ventral_fin),
+        'bwh': bwh,
+        'bwv': combine(wing_body, vertical_tail, ventral_fin),
+        'bwhv': combine(bwh, vertical_tail, ventral_fin),
+    }
     if transonic:
         # Labels 1060-1070: everything but BW-V's first CY_beta and
         # Cn_beta, which were summed before the overwrite.

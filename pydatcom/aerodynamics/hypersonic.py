@@ -48,30 +48,37 @@ def _hypbod_coefficients(state: Dict, alpha_deg: float, mach: float,
     theta[-1] = theta[-2]  # HYPBOD: THETA(NX)=THETA(NX-1)
 
     angle = abs(np.deg2rad(alpha_deg))
-    sa, ca = np.sin(angle), np.cos(angle)
-    ta = np.tan(angle)
+    sin_alpha = np.sin(angle)
+    cos_alpha = np.cos(angle)
+    tan_alpha = np.tan(angle)
     ktheta = np.empty_like(r)
     kaf = np.empty_like(r)
 
-    for n, local_theta in enumerate(theta):
-        tn = np.tan(local_theta)
-        cnn, sn = np.cos(local_theta), np.sin(local_theta)
-        if angle > abs(local_theta):
-            phe = np.arccos(np.clip(tn / ta, -1.0, 1.0))
+    for index, slope_angle in enumerate(theta):
+        tan_slope = np.tan(slope_angle)
+        cos_slope = np.cos(slope_angle)
+        sin_slope = np.sin(slope_angle)
+        if angle > abs(slope_angle):
+            windward_angle = np.arccos(np.clip(tan_slope / tan_alpha, -1.0, 1.0))
         else:
-            phe = 0.0 if local_theta > 0.0 else np.pi
+            windward_angle = 0.0 if slope_angle > 0.0 else np.pi
 
-        sp, cp = np.sin(phe), np.cos(phe)
-        arg1 = (2.0 / 3.0) * (cnn * sa) ** 2 * sp * (cp ** 2 + 2.0)
-        arg2 = 4.0 * sn * cnn * ca * sa * (
-            np.pi / 2.0 - 0.5 * sp * cp - phe / 2.0)
-        arg3 = 2.0 * (sn * ca) ** 2 * sp
-        ktheta[n] = arg1 + arg2 + arg3
+        sin_wind = np.sin(windward_angle)
+        cos_wind = np.cos(windward_angle)
+        normal_term1 = ((2.0 / 3.0) * (cos_slope * sin_alpha) ** 2 *
+                        sin_wind * (cos_wind ** 2 + 2.0))
+        normal_term2 = (4.0 * sin_slope * cos_slope * cos_alpha * sin_alpha *
+                        (np.pi / 2.0 - 0.5 * sin_wind * cos_wind -
+                         windward_angle / 2.0))
+        normal_term3 = 2.0 * (sin_slope * cos_alpha) ** 2 * sin_wind
+        ktheta[index] = normal_term1 + normal_term2 + normal_term3
 
-        arg6 = 2.0 * (ca * sn) ** 2 * tn * (np.pi - phe)
-        arg7 = 4.0 * ca * sa * sp * sn ** 2
-        arg8 = cnn * sn * sa ** 2 * (np.pi - phe - sp * cp)
-        kaf[n] = arg6 + arg7 + arg8
+        axial_term1 = (2.0 * (cos_alpha * sin_slope) ** 2 * tan_slope *
+                       (np.pi - windward_angle))
+        axial_term2 = 4.0 * cos_alpha * sin_alpha * sin_wind * sin_slope ** 2
+        axial_term3 = (cos_slope * sin_slope * sin_alpha ** 2 *
+                       (np.pi - windward_angle - sin_wind * cos_wind))
+        kaf[index] = axial_term1 + axial_term2 + axial_term3
 
     # HYPBOD integrates against X/RLB and multiplies by K*RLB/SR.  The
     # cancellation below keeps every moment arm dimensional until /CBAR.
@@ -112,13 +119,15 @@ def calculate_hypersonic_coefficients(state: Dict, alpha_deg: float,
     if body is not None:
         return _hypbod_coefficients(state, alpha_deg, mach, *body)
 
-    alpha = np.deg2rad(alpha_deg)
+    alpha_rad = np.deg2rad(alpha_deg)
     sign = -1.0 if alpha_deg < 0.0 else 1.0
     cp_max = min(2.0, 1.84 + 0.032 * max(mach - 5.0, 0.0))
-    cn = sign * cp_max * np.sin(alpha) ** 2
+    cn = sign * cp_max * np.sin(alpha_rad) ** 2
     ca_force = 0.2
-    cl = cn * np.cos(alpha) - ca_force * np.sin(alpha)
-    cd = ca_force * np.cos(alpha) + cn * np.sin(alpha)
+    sin_alpha = np.sin(alpha_rad)
+    cos_alpha = np.cos(alpha_rad)
+    cl = cn * cos_alpha - ca_force * sin_alpha
+    cd = ca_force * cos_alpha + cn * sin_alpha
 
     chord = float(state.get('wing_chrdtp', 0.0) or
                   state.get('wing_chrdr', 0.0) or

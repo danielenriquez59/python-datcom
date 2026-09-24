@@ -67,8 +67,8 @@ def calculate_pitch_damping(state: Dict, mach: float) -> Dict[str, float]:
     htail_area = state.get('htail_area', 0.0)
     if htail_area and htail_area > 0:
         sref = state.get('options_sref', 1.0)
-        tail_volume = htail_area / sref
-        cmq_tail = -10.0 * tail_volume  # Tail provides significant damping
+        tail_area_ratio = htail_area / sref
+        cmq_tail = -10.0 * tail_area_ratio
     else:
         cmq_tail = 0.0
     
@@ -96,22 +96,19 @@ def calculate_roll_damping(state: Dict, mach: float) -> float:
     Returns:
         Cl_p (per radian)
     """
-    # Get geometry
     aspect_ratio = state.get('wing_aspect_ratio', 6.0)
-    taper_ratio = state.get('wing_taper_ratio', 0.5)
-    
-    # Empirical formula (simplified)
-    # Cl_p ≈ -CL_α / 12 for straight wing
-    
-    # Approximate lift slope
+
     if mach < 0.9:
-        beta = np.sqrt(1.0 - mach**2)
-        cla = (2.0 * np.pi * aspect_ratio) / (2.0 + np.sqrt(4.0 + aspect_ratio**2)) / beta
+        beta = np.sqrt(1.0 - mach ** 2)
+        lift_slope_per_rad = (
+            (2.0 * np.pi * aspect_ratio) /
+            (2.0 + np.sqrt(4.0 + aspect_ratio ** 2)) / beta
+        )
     else:
-        beta_super = np.sqrt(mach**2 - 1.0) if mach > 1.0 else 0.1
-        cla = 4.0 / beta_super
-    
-    clp = -cla / 12.0
+        supersonic_beta = np.sqrt(mach ** 2 - 1.0) if mach > 1.0 else 0.1
+        lift_slope_per_rad = 4.0 / supersonic_beta
+
+    clp = -lift_slope_per_rad / 12.0
     
     return clp
 
@@ -200,11 +197,16 @@ def calculate_static_stability_margin(state: Dict, mach: float) -> Dict[str, flo
         q_ratio = state.get('htail_dynamic_pressure_ratio', 1.0)
         downwash = state.get('htail_downwash_gradient', 0.0)
         interference = state.get('htail_lift_interference_factor', 1.0)
-        effective_tail_cla = (tail_cla * htail_area / sref * q_ratio *
-                              (1.0 - downwash) * interference)
+        effective_tail_cla = (
+            tail_cla * htail_area / sref * q_ratio *
+            (1.0 - downwash) * interference
+        )
         total_cla = wing_cla + effective_tail_cla
-        xnp = ((wing_cla * xnp_wing + effective_tail_cla * xac_h) /
-               total_cla if total_cla != 0.0 else xnp_wing)
+        if total_cla != 0.0:
+            xnp = ((wing_cla * xnp_wing + effective_tail_cla * xac_h) /
+                   total_cla)
+        else:
+            xnp = xnp_wing
     else:
         xnp = xnp_wing
     

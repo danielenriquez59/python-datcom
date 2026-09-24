@@ -153,8 +153,9 @@ def calculate_vertical_panel_cdo(
     if straight:
         tangent = tan_le
         cosine = cos_le
-        area = (root_chord + tip_chord) / 2.0 * semispan
-        le_radius = leading_edge_radius * ((root_chord + tip_chord) / 2.0)
+        average_chord = (root_chord + tip_chord) / 2.0
+        area = average_chord * semispan
+        le_radius = leading_edge_radius * average_chord
     else:
         tangent = tan_le_outboard
         cosine = cos_le_outboard
@@ -170,19 +171,20 @@ def calculate_vertical_panel_cdo(
             "wave drag divides by tan(leading-edge sweep); an unswept panel "
             "needs the source's UNUSED floor rather than exactly zero")
     sonic_leading_edge = beta / tangent >= 1.0
-    denominator = beta if sonic_leading_edge else tangent
+    wave_drag_denominator = beta if sonic_leading_edge else tangent
 
     if ksharp is not None:
         cd_leading_edge = 0.0
-        cd_wave = ksharp * thickness_ratio**2 * area / sref / denominator
+        cd_wave = (ksharp * thickness_ratio ** 2 * area / sref /
+                   wave_drag_denominator)
         edge = 'sharp'
     else:
-        blunt = (1.28 * mach**3 * cosine**6 /
-                 (1.0 + mach**3 * cosine**3))
+        blunt = (1.28 * mach ** 3 * cosine ** 6 /
+                 (1.0 + mach ** 3 * cosine ** 3))
         cd_leading_edge = blunt * 2.0 * le_radius * semispan / (sref * cosine)
         cd_wave = (cd_leading_edge +
-                   16.0 * thickness_ratio**2 * area / (3.0 * sref) /
-                   denominator)
+                   16.0 * thickness_ratio ** 2 * area / (3.0 * sref) /
+                   wave_drag_denominator)
         edge = 'round'
 
     return {

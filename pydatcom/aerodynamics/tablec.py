@@ -87,8 +87,9 @@ def calculate_tablec(mach: float) -> Dict[str, object]:
         endpoint rather than extrapolated.
     """
     values = np.array([
-        tbfunx(_MACH, _CCM[index], float(mach), lower=0, upper=0)[0]
-        for index in range(_COEFFICIENTS)])
+        tbfunx(_MACH, _CCM[coeff_index], float(mach), lower=0, upper=0)[0]
+        for coeff_index in range(_COEFFICIENTS)
+    ])
     return {
         'c': values,
         'mach_grid': np.asarray(_MACH, dtype=float),

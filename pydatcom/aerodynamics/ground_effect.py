@@ -441,19 +441,19 @@ def ground_effect_incidence(geometry: Dict[str, object],
         lolom1 = np.zeros_like(alpha)
         flap_dcl = float(wing_alone.get('flap_dcl', 0.0) or 0.0)
         for index in range(alpha.size):
-            clwf = cl_body_wing[index]
+            body_wing_cl = cl_body_wing[index]
             if not has_horizontal_tail:
-                clwf = clwf + flap_dcl
+                body_wing_cl = body_wing_cl + flap_dcl
             clocos[index] = (RAD * cl_wing[index] /
                              (2.0 * PI * cosl4**2))
             lolom1[index] = figure_4711_15(float(clocos[index]),
                                            float(geometry['hwcocr']))
             dalpha[index] = (
                 -(9.12 / aspect_ratio + 7.16 * chrdr / (2.0 * sspn)) *
-                clwf * factor_x
+                body_wing_cl * factor_x
                 - (aspect_ratio * chrdr /
                    (4.0 * cla_body_wing[0] * sspn)) *
-                lolom1[index] * clwf * r)
+                lolom1[index] * body_wing_cl * r)
             alphwg[index] = (alpha[index] + dalpha[index] -
                              ddclf * deflection**2 /
                              (2500.0 * cla_body_wing[index]))

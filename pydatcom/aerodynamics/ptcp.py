@@ -56,6 +56,25 @@ _STATIONS = np.array([.1, .2, .3, .4, .5, .6, .7, .8, .9, 1.,
                       2., 3., 4., 5., 6., 7., 8., 9., 10.])
 
 
+def _accumulated(count: int):
+    """The stations as the source's loops build them, ``EN=EN+.1`` from
+    ``.1`` and then steps of 1.0: 0.1, 0.2, 0.30000000000000004, ...,
+    0.9999999999999999, 1.9999999999999998, ...  The difference matters
+    at the last ten-point station, where ``ARCCOS`` of exactly -1 is 0
+    (the source's sign defect) but of -0.99999... is nearly pi."""
+    out, value, step = [], .1, .1
+    for k in range(count):
+        out.append(value)
+        if k == 9:
+            step = 1.0
+        value = value + step
+    return np.array(out)
+
+
+_ACC19 = _accumulated(19)
+_ACC10 = _ACC19[:10]
+
+
 def _area_first(pp: np.ndarray, root: bool) -> float:
     """AREA(1), whose weights differ between the tip and the root."""
     if root:
@@ -240,7 +259,7 @@ def calculate_ptcp(station: float, region: int, location: float,
                 arccos(numerator /
                        (1.0 - squared *
                         ((1.0 - n) / (1.0 - generator * n))**2) - 1.0) / np.pi
-                for n in np.arange(1, 11) * 0.1])
+                for n in _ACC10])
         else:
             # The ten-point tip block after label 1110.
             one_plus = 1.0 + tan_le_beta
@@ -249,7 +268,7 @@ def calculate_ptcp(station: float, region: int, location: float,
             pp = np.array([
                 arccos((one_plus - two_plus * n) /
                        (one_plus - difference * n)) / np.pi
-                for n in np.arange(1, 11) * 0.1])
+                for n in _ACC10])
     else:
         generator = 0.0
         if at_root:
@@ -259,12 +278,12 @@ def calculate_ptcp(station: float, region: int, location: float,
             pp = np.array([
                 arccos((squared + one_minus_two * (1.0 + r)**2) /
                        ((1.0 + r)**2 - squared)) / np.pi
-                for r in _STATIONS])
+                for r in _ACC19])
         else:
             # The nineteen-point tip block after label 1000.
             one_plus = 1.0 + tan_le_beta
             pp = np.array([arccos((one_plus - r) / (one_plus + r)) / np.pi
-                           for r in _STATIONS])
+                           for r in _ACC19])
 
     area = [_area_first(pp, root=at_root)] + _area_two_to_four(pp)
     if ten_point and not at_root:
@@ -287,7 +306,7 @@ def calculate_ptcp(station: float, region: int, location: float,
     count = 10 if ten_point else 19
     stations = _STATIONS[:count]
 
-    pressure = cumulative_area / stations
+    pressure = cumulative_area / _ACC19[:count]
     if not ten_point:
         centre = cumulative_area / (cumulative_area + cumulative_moment)
     elif at_root:

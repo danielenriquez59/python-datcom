@@ -40,22 +40,25 @@ def calculate_transonic_coefficients(state: Dict, alpha_deg: float,
     elif mach > 1.2:
         return calculate_supersonic_coefficients(state, alpha_deg, mach, reynolds)
     
-    # Interpolate between subsonic (M=0.9) and supersonic (M=1.2)
-    sub_result = calculate_subsonic_coefficients(state, alpha_deg, 0.9, reynolds)
-    sup_result = calculate_supersonic_coefficients(state, alpha_deg, 1.2, reynolds)
-    
-    # Interpolation factor
-    frac = (mach - 0.9) / 0.3
-    
-    # Interpolate coefficients
-    cl = sub_result['cl'] + frac * (sup_result['cl'] - sub_result['cl'])
-    cd = sub_result['cd'] + frac * (sup_result['cd'] - sub_result['cd'])
-    cm = sub_result['cm'] + frac * (sup_result['cm'] - sub_result['cm'])
-    
-    # Drag divergence effect (additional drag in transonic)
-    cd_divergence = 0.01 * np.sin(np.pi * frac)**2  # Peak at M=1.05
+    subsonic_anchor = calculate_subsonic_coefficients(
+        state, alpha_deg, 0.9, reynolds,
+    )
+    supersonic_anchor = calculate_supersonic_coefficients(
+        state, alpha_deg, 1.2, reynolds,
+    )
+
+    mach_fraction = (mach - 0.9) / 0.3
+
+    cl = (subsonic_anchor['cl'] +
+          mach_fraction * (supersonic_anchor['cl'] - subsonic_anchor['cl']))
+    cd = (subsonic_anchor['cd'] +
+          mach_fraction * (supersonic_anchor['cd'] - subsonic_anchor['cd']))
+    cm = (subsonic_anchor['cm'] +
+          mach_fraction * (supersonic_anchor['cm'] - subsonic_anchor['cm']))
+
+    cd_divergence = 0.01 * np.sin(np.pi * mach_fraction) ** 2
     cd += cd_divergence
-    
+
     return {
         'cl': cl,
         'cd': cd,
@@ -64,6 +67,6 @@ def calculate_transonic_coefficients(state: Dict, alpha_deg: float,
         'regime': 'transonic',
         'mach': mach,
         'alpha': alpha_deg,
-        'interpolation_factor': frac,
+        'interpolation_factor': mach_fraction,
     }
 
