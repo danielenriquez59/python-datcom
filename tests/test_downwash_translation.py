@@ -7,12 +7,16 @@ gradient tests check the translated result against an independently written
 form of the published DATCOM Section 4.4.1 equation.
 """
 
+import json
+from pathlib import Path
+
 import numpy as np
 import pytest
 
 from pydatcom.aerodynamics.downwash import (
     fig4417_68a, fig4417_68b, calculate_downwash_geometry,
     calculate_downwash_gradient_441, calculate_downwash, calculate_dyprls,
+    calculate_dwash,
 )
 from pydatcom.aerodynamics.wing_body_tail import (
     calculate_clwbt, calculate_cdwbt, calculate_tail_load,
@@ -536,3 +540,113 @@ def test_dynamic_pressure_loss_reduces_tail_moment():
     in_wake = calculate_total_pitching_moment(
         dict(_aircraft_state(), htail_qoqi=0.85), 0.6, 8.0, 0.3)
     assert abs(in_wake['cm_tail']) < abs(clean['cm_tail'])
+
+
+# --------------------------------------------------------------------------
+# DWASH alpha loop, against the compiled routine
+# --------------------------------------------------------------------------
+
+_DWASH_PROBE = json.loads(
+    (Path(__file__).parent / 'fixtures' / 'probes' / 'dwash.json').read_text())
+
+_DWASH_OUTPUTS = [('ANGLE', 'angle'), ('GRADIENT', 'gradient'),
+                  ('HEIGHT', 'vortex_height'), ('SPAN', 'vortex_span')]
+
+
+@pytest.mark.parametrize("case", range(len(_DWASH_PROBE)))
+def test_dwash_matches_compiled_routine(case):
+    """Every DWASHI and FACT entry DWASH writes, against execution.
+
+    The fixture is produced by tools/probes/dwash.py, which runs the legacy
+    dwash.f built in double precision; see tools/probe.py.
+    """
+    probe = _DWASH_PROBE[case]
+    result = calculate_dwash(**probe['inputs'])
+    for tag, key in _DWASH_OUTPUTS:
+        np.testing.assert_allclose(result[key], probe['outputs'][tag],
+                                   rtol=1e-9, atol=1e-12, err_msg=tag)
+    assert result['a20'] == pytest.approx(probe['outputs']['A20'][0],
+                                          rel=1e-9)
+
+
+def test_dwash_probe_exercises_every_branch():
+    """Guard the fixture: its cases must keep reaching each source branch."""
+    results = [calculate_dwash(**p['inputs']) for p in _DWASH_PROBE]
+    inputs = [p['inputs'] for p in _DWASH_PROBE]
+    assert {r['leading_edge_separation'] for r in results} == {True, False}
+    assert {r['method'] for r in results} == {'legacy_dwash_vortex',
+                                              'legacy_dwash_section_441'}
+    # The cranked CTEFF, and the vortex sheet crossing the dihedral break.
+    assert any(i['wing']['sspnop'] > 0.0 and
+               max(r['vortex_span']) / 2 > i['wing']['sspn'] - i['wing']['sspndd']
+               for i, r in zip(inputs, results))
+    # The LEX=-1 scaling below the first tabulated angle.
+    assert any(i['wing_geometry']['alpha_zero_lift_reference'] <
+               i['wing_alone']['alpha'][0] for i in inputs)
+    # The CLWJ=0 span, reached only at the zero-lift angle itself.
+    assert any(r['angle'][0] == 0.0 for r in results)
+
+
+def _dwash_inputs_from_state(state, twash):
+    """DWASH inputs assembled from the translated WTGEOM and INFTGM."""
+    wing = calculate_straight_exposed_geometry(state, component='wing')
+    tail = calculate_straight_exposed_geometry(state, component='htail')
+    geometry = calculate_downwash_geometry(state)
+    sweep = np.degrees(np.arctan(wing['tan_c4']))
+    alpha = [-2.0, 0.0, 4.0, 8.0]
+    return {
+        'alpha_deg': alpha,
+        'wing_alone': {'alpha': alpha, 'cl': [0.07 * a for a in alpha]},
+        'wing': {'sspn': state['wing_sspn'], 'sspne': state['wing_sspne'],
+                 'chrdtp': state['wing_chrdtp'], 'chrdr': state['wing_chrdr'],
+                 'deltay': 2.5, 'twash': twash},
+        'wing_geometry': {
+            'area': wing['area'], 'aspect_ratio': wing['aspect_ratio'],
+            'taper_ratio': wing['taper_ratio'],
+            'taper_ratio_theoretical': wing['taper_ratio_theoretical'],
+            'sweep_c4_deg': sweep, 'cos_c4': np.cos(np.radians(sweep)),
+            'tan_c4': wing['tan_c4'], 'tan_le': wing['tan_le'],
+            'mac_c4_theoretical': wing['mac_c4_theoretical'],
+            'alpha_zero_lift': 0.0, 'alpha_clmax_reference': 14.0},
+        'synthesis': {'aliw': 0.0, 'xw': state['synths_xw'],
+                      'xh': state['synths_xh'], 'alih': 0.0},
+        'tail': {'sspn': state['htail_sspn']},
+        'tail_geometry': {
+            'tail_arm': geometry['tail_arm'],
+            'tail_height': geometry['tail_height'],
+            'a22': state['wing_chrdr'] - wing['mac_le_theoretical'],
+            'mac_c4_theoretical': tail['mac_c4_theoretical']},
+        'sref': state['options_sref'], 'kwb': 1.0,
+    }
+
+
+def test_dwash_section_441_branch_agrees_with_standalone_gradient():
+    """The TWASH=2 loop reproduces calculate_downwash_gradient_441.
+
+    The two translations share no code, so this ties the alpha loop's
+    Section 4.4.1 branch to the state-level gradient already in use.
+    """
+    state = _aircraft_state()
+    result = calculate_dwash(**_dwash_inputs_from_state(state, 2.0))
+    deda = calculate_downwash_gradient_441(state)['deda']
+    np.testing.assert_allclose(result['gradient'], deda, rtol=1e-12)
+    np.testing.assert_allclose(result['angle'],
+                               deda * np.array([-2.0, 0.0, 4.0, 8.0]),
+                               rtol=1e-12, atol=1e-14)
+
+
+def test_dwash_vortex_gradient_is_physical():
+    """The vortex method gives 0 < de/da < 1 and zero downwash at zero lift."""
+    result = calculate_dwash(**_dwash_inputs_from_state(_aircraft_state(), 0.0))
+    assert np.all(result['gradient'] > 0.0)
+    assert np.all(result['gradient'] < 1.0)
+    assert result['angle'][1] == pytest.approx(0.0, abs=1e-14)
+    assert np.all(np.sign(result['angle']) == np.sign([-2.0, 0.0, 4.0, 8.0]))
+
+
+def test_dwash_rejects_coincident_reference_angles():
+    """A(127)=A(126) would divide by zero in the effective aspect ratio."""
+    inputs = _dwash_inputs_from_state(_aircraft_state(), 0.0)
+    inputs['wing_geometry']['alpha_clmax_reference'] = 0.0
+    with pytest.raises(ValueError, match=r"A\(127\)-A\(126\)"):
+        calculate_dwash(**inputs)

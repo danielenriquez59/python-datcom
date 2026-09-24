@@ -1,0 +1,588 @@
+"""
+Subsonic wing-body buildup: WBAERO and the routines it calls.
+
+``WBAERO`` combines a lifting surface with the body in four steps, each a
+separate legacy routine:
+
+- ``WBDRAG``: zero-lift drag with the Figure 4.3.3.1-37 interference factor,
+  plus both components' drag due to lift.
+- ``WBLIFT``: the Figure 4.3.1.2-10 carryover factors K_W(B) and K_B(W),
+  the -12 incidence factors, and the body-vortex lift increment.
+- ``WBCM``: the Section 4.3.2 aerodynamic centre, the zero-lift moment
+  (``WBCM0``'s regression where it applies), and the moment buildup at each
+  angle.
+- ``WBAERO`` itself: the lift- and moment-curve slopes by TBFUNX, and the
+  normal and axial forces.
+
+``EXSUBT`` (experimental data substitution) is an input-file operation and
+has no numerical content here.  ``EXIT``, which WBCM calls when its ellipse
+fit fails, only closes files; the translation raises instead.
+
+The tables were extracted from the source DATA statements by parsing, with
+``tools/fortran_data.py``, rather than by hand.
+
+Reference: datcom-legacy/datcom_2000/wbaero.f, wbdrag.f, wblift.f, wbcm.f,
+wbcm0.f
+"""
+
+import numpy as np
+from typing import Dict, Optional, Sequence
+import logging
+
+from pydatcom.aerodynamics.tablec import calculate_tablec
+from pydatcom.interactions.body_vortex import calculate_bodowg, getmax
+from pydatcom.utils.constants import PI, RAD, UNUSED
+from pydatcom.utils.legacy_numeric import tbfunx
+from pydatcom.utils.legacy_tables import tlinex
+
+logger = logging.getLogger(__name__)
+
+# The source's "not available" marker for a moment, 2*UNUSED.
+NOT_AVAILABLE = 2.0 * UNUSED
+
+# WBDRAG: Figure 4.3.3.1-37, the wing-body interference factor R_WB.
+# Y37 is (19,7): Reynolds number fastest, one run per Mach number.
+_X137 = np.array([
+    0.25, 0.4, 0.6, 0.7, 0.8, 0.85, 0.9,
+])
+_X237 = np.array([
+    3000000.0, 5000000.0, 7000000.0, 10000000.0, 15000000.0, 20000000.0, 25000000.0, 30000000.0, 35000000.0, 40000000.0,
+    45000000.0, 50000000.0, 60000000.0, 70000000.0, 80000000.0, 100000000.0, 150000000.0, 200000000.0, 700000000.0,
+])
+_Y37 = np.array([
+    1.063, 1.07, 1.073, 1.076, 1.072, 1.066, 1.057, 1.045, 1.025, 0.9935,
+    0.965, 0.9515, 0.939, 0.9335, 0.931, 0.928, 0.923, 0.9225, 0.954, 1.02,
+    1.023, 1.028, 1.036, 1.05, 1.058, 1.058, 1.05, 1.032, 1.018, 1.008,
+    1.001, 0.992, 0.9875, 0.9845, 0.98, 0.977, 0.9755, 0.975, 0.98, 0.984,
+    0.989, 0.9965, 1.008, 1.02, 1.0325, 1.0375, 1.035, 1.0315, 1.028, 1.023,
+    1.019, 1.0155, 1.015, 1.015, 1.015, 1.015, 1.015, 0.955, 0.96, 0.9647,
+    0.9725, 0.983, 0.995, 1.0085, 1.013, 1.014, 1.0145, 1.015, 1.015, 1.015,
+    1.015, 1.015, 1.015, 1.015, 1.015, 1.015, 0.925, 0.93, 0.934, 0.942,
+    0.953, 0.9655, 0.9775, 0.9885, 0.9965, 1.0025, 1.008, 1.011, 1.0145, 1.015,
+    1.015, 1.015, 1.015, 1.015, 1.015, 0.9025, 0.907, 0.912, 0.919, 0.931,
+    0.9425, 0.954, 0.969, 0.982, 0.992, 0.9985, 1.0035, 1.011, 1.014, 1.015,
+    1.015, 1.015, 1.015, 1.015, 0.87, 0.8715, 0.8775, 0.884, 0.896, 0.909,
+    0.9225, 0.94, 0.957, 0.9725, 0.9865, 0.9935, 1.0065, 1.012, 1.015, 1.015,
+    1.015, 1.015, 1.015,
+])
+
+# WBLIFT: Figures 4.3.1.2-10A/B (K_W(B), K_B(W)), -12A1/A2 (the incidence
+# factors k_W(B), k_B(W)) and -12C (a wing running the body's length).
+_X10A = np.array([
+    0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0,
+])
+_Y10A = np.array([
+    1.0, 1.08, 1.16, 1.26, 1.36, 1.46, 1.56, 1.67, 1.78, 1.89, 2.0,
+])
+_X10B = np.array([
+    0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0,
+])
+_Y10B = np.array([
+    0.0, 0.13, 0.29, 0.45, 0.62, 0.8, 1.0, 1.22, 1.45, 1.7, 2.0,
+])
+_X12A1 = np.array([
+    0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0,
+])
+_Y12A1 = np.array([
+    1.0, 0.97, 0.95, 0.94, 0.94, 0.94, 0.94, 0.95, 0.96, 0.98, 0.99,
+])
+_X12A2 = np.array([
+    0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0,
+])
+_Y12A2 = np.array([
+    0.0, 0.11, 0.21, 0.31, 0.41, 0.51, 0.6, 0.7, 0.8, 0.9, 1.0,
+])
+_X12C = np.array([
+    0.0, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.83, 0.9, 1.0,
+])
+_Y12C = np.array([
+    1.0, 1.0, 0.999, 0.99, 0.98, 0.965, 0.95, 0.933, 0.92, 0.92, 0.928, 0.95, 1.0,
+])
+
+# WBLIFT: Figure 4.3.1.4-12B/C, the wing-body CLMAX and stall-angle
+# ratios.  Each is (7,5): d/b fastest, one run per A(160) value.
+_XA12 = np.array([
+    1.0, 2.0, 4.0, 6.0, 12.0,
+])
+_XB12 = np.array([
+    0.0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3,
+])
+_Y412B = np.array([
+    1.0, 0.998, 0.995, 0.989, 0.982, 0.968, 0.95,
+    1.0, 0.995, 0.989, 0.978, 0.963, 0.937, 0.917,
+    1.0, 0.992, 0.982, 0.965, 0.942, 0.9, 0.864,
+    1.0, 0.967, 0.932, 0.911, 0.907, 0.945, 1.038,
+    1.0, 0.983, 0.968, 0.962, 0.977, 1.027, 1.134,
+])
+_Y412C = np.array([
+    1.0, 1.013, 1.017, 1.013, 1.0, 0.982, 0.956,
+    1.0, 1.003, 1.001, 0.992, 0.973, 0.937, 0.894,
+    1.0, 0.989, 0.973, 0.944, 0.898, 0.822, 0.745,
+    1.0, 0.98, 0.943, 0.879, 0.758, 0.648, 0.613,
+    1.0, 0.942, 0.845, 0.688, 0.594, 0.552, 0.532,
+])
+
+# WBCM: Figure 4.3.2.2-36B, and the carryover aerodynamic-centre curve
+# its source labels only 21C.
+_X38B = np.array([
+    0.0, 1.0, 1000000.0,
+])
+_Y38B = np.array([
+    0.0, 0.5, 0.5,
+])
+_X21C = np.array([
+    0.0, 0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8,
+])
+_Y21C = np.array([
+    0.0, 0.056, 0.101, 0.13, 0.152, 0.19, 0.22, 0.266, 0.301, 0.33, 0.348, 0.365, 0.375,
+])
+
+
+def _div(a: float, b: float) -> float:
+    """IEEE division, as the source gets it: inf or NaN rather than an
+    exception, so a degenerate input propagates the way it does there."""
+    with np.errstate(divide='ignore', invalid='ignore'):
+        return float(np.float64(a) / np.float64(b))
+
+
+def calculate_wbdrag(mach: float, reynolds_per_length: float,
+                     body_length: float, wing_cd0: float,
+                     body_cd_friction: float, body_cd_base: float,
+                     body_cdl: Sequence[float], wing_cdl: Sequence[float],
+                     experimental: Optional[Dict[str, object]] = None
+                     ) -> Dict[str, object]:
+    """Translate WBDRAG: subsonic wing-body drag.
+
+    ``CD0 = (CD0_wing + CD0_body,friction) * R_WB + CD_body,base`` with R_WB
+    from Figure 4.3.3.1-37 at the body-length Reynolds number, and at each
+    angle ``CD = CD0 + CDL_body + CDL_wing``.
+
+    Args:
+        mach: ``B(1)``.
+        reynolds_per_length: ``A(129)``, the flight Reynolds number per unit
+            length.
+        body_length: ``BD(1)``.
+        wing_cd0: ``D(20)``.
+        body_cd_friction: ``BD(59)``, body friction and pressure drag.
+        body_cd_base: ``BD(60)``, body base drag.
+        body_cdl: ``BD(215)`` onward, the body drag due to lift.
+        wing_cdl: ``D(36)`` onward, the wing drag due to lift.
+        experimental: Optional ``{'kbody', 'kwing', 'body_cd', 'wing_cd'}``.
+            With either flag set, an angle at which both supplied drag
+            values are available takes their plain sum instead.
+
+    Returns:
+        Dictionary with ``cd`` (``BW(1)`` onward), ``cd0`` (``WB(17)``),
+        ``interference`` (``WB(18)``) and ``reynolds`` (``WB(19)``).
+    """
+    reynolds = reynolds_per_length * body_length
+    interference = tlinex(_X137, _X237, _Y37.reshape(7, 19).T, mach,
+                          reynolds, 2, 2, 2, 1)
+    cd0 = (wing_cd0 + body_cd_friction) * interference + body_cd_base
+    cd = [cd0 + b + w for b, w in zip(body_cdl, wing_cdl)]
+    if experimental and (experimental.get('kbody') or
+                         experimental.get('kwing')):
+        for j, (b, w) in enumerate(zip(experimental['body_cd'],
+                                       experimental['wing_cd'])):
+            if b != UNUSED and w != UNUSED:
+                cd[j] = b + w
+    return {
+        'cd': np.array(cd), 'cd0': float(cd0),
+        'interference': float(interference), 'reynolds': float(reynolds),
+        'method': 'legacy_wbdrag',
+    }
+
+
+def calculate_wblift(alpha_deg: Sequence[float],
+                     local_alpha_deg: Sequence[float],
+                     body_diameter: float, incidence: float,
+                     semispan: float, alpha_zero_lift: float,
+                     surface_alone: Dict[str, object],
+                     body_cl: Sequence[float], body_cla: float,
+                     vortex: Dict[str, object],
+                     stall: Optional[Dict[str, float]] = None,
+                     stale: Optional[Dict[str, float]] = None
+                     ) -> Dict[str, object]:
+    """Translate WBLIFT: wing-body lift with carryover and body vortex.
+
+    ``CL = CL_body + (K_W(B)+K_B(W)) * CL_wing(alpha_eff) + vortex`` with
+    ``alpha_eff = alpha - alpha_0L + (k_W(B)+k_B(W))/(K_W(B)+K_B(W)) * i``,
+    looked up on the wing curve by TBFUNX end modes 1 and 1.
+
+    Args:
+        alpha_deg: ``FLC(23)`` onward.
+        local_alpha_deg: ``B(23)`` onward, the surface's local angles, which
+            the vortex term multiplies.
+        body_diameter: ``DB``, the body width at the surface.
+        incidence: ``AIW``, degrees.
+        semispan: ``WINGIN(4)``, the theoretical semispan.
+        alpha_zero_lift: ``B(49)``.
+        surface_alone: ``{'cl', 'cla'}``, ``WING(21)`` onward and
+            ``WING(101)``.
+        body_cl: ``BODY(21)`` onward.
+        body_cla: ``BODY(101)``.
+        vortex: ``{'ratio', 'ivbw', 'go2pav'}``: ``FACT(1)`` and BODOWG's
+            ``FACT(2)`` and ``FACT(22)`` arrays.
+        stall: ``{'a160', 'clmax', 'alpha_clmax'}`` for the Figure
+            4.3.1.4-12 ratios, which apply when ``d/b <= 0.30``.
+        stale: The ``WB(2)`` to ``WB(5)``, ``WB(7)`` and ``WB(8)`` a
+            previous case left, keyed ``kwb``, ``kbw``, ``wb4``, ``wb5``,
+            ``kwb_incidence`` and ``kbw_incidence``, and zero by default.
+            See Notes.
+
+    Returns:
+        Dictionary with ``cl`` (``BW(21)`` onward), ``cla`` (``BW(101)``)
+        and the ``WB`` factors: ``kwb`` (2), ``kbw`` (3), ``wb4``, ``wb5``,
+        and with incidence ``kwb_incidence`` (7), ``kbw_incidence`` (8),
+        ``wb9``, ``wb10``, ``wb11``; ``wb20`` to ``wb23`` for a small body.
+
+    Notes:
+        Above ``d/b = 0.8`` the source takes Figure 4.3.1.2-12C for the
+        slope but skips the lookups of K_W(B) and K_B(W), and still
+        multiplies the wing lift by ``WB(2)+WB(3)``.  It therefore reads
+        whatever an earlier case left there, as WBCM does with the
+        carryover slopes ``WB(4)`` and ``WB(5)``, also skipped.  Likewise ``WB(7)`` and
+        ``WB(8)`` are left untouched with no incidence, where they are
+        multiplied by zero.  Those values are taken from ``stale`` and the
+        branch is flagged; with fresh zeros the source's own arithmetic
+        gives ``0/0``, which propagates as NaN here as it does there.
+    """
+    stale = dict({'kwb': 0.0, 'kbw': 0.0, 'wb4': 0.0, 'wb5': 0.0,
+                  'kwb_incidence': 0.0, 'kbw_incidence': 0.0},
+                 **(stale or {}))
+    wing_cla = float(surface_alone['cla'])
+    ratio = body_diameter / (2.0 * semispan)
+    result = {'ratio': float(ratio), 'method': 'legacy_wblift'}
+
+    kwb, kbw = stale['kwb'], stale['kbw']
+    kwbi, kbwi = stale['kwb_incidence'], stale['kbw_incidence']
+    if ratio > 0.80:
+        extended, _ = tbfunx(_X12C, _Y12C, ratio, 0, 0)
+        cla = extended * wing_cla
+        result.update({'wb4': float(stale['wb4']),
+                       'wb5': float(stale['wb5']),
+                       'source_defect': 'ratio_above_0.8_reads_stale_kwb_kbw'})
+    else:
+        kwb, _ = tbfunx(_X10A, _Y10A, ratio, 0, 0)
+        kbw, _ = tbfunx(_X10B, _Y10B, ratio, 0, 0)
+        result.update({'wb4': kwb * wing_cla, 'wb5': kbw * wing_cla})
+        cla = body_cla + result['wb4'] + result['wb5']
+        if incidence != 0.0:
+            kwbi, _ = tbfunx(_X12A1, _Y12A1, ratio, 0, 0)
+            kbwi, _ = tbfunx(_X12A2, _Y12A2, ratio, 0, 0)
+            result.update({'wb9': kwbi * wing_cla, 'wb10': kbwi * wing_cla,
+                           'wb11': (kwbi + kbwi) * wing_cla})
+    result.update({'kwb': float(kwb), 'kbw': float(kbw),
+                   'kwb_incidence': float(kwbi),
+                   'kbw_incidence': float(kbwi), 'cla': float(cla)})
+
+    alpha = np.asarray(alpha_deg, dtype=float)
+    table = alpha + incidence - alpha_zero_lift
+    shift = _div(kwbi + kbwi, kwb + kbw) * incidence
+    cl = []
+    for j, a in enumerate(alpha):
+        clint, _ = tbfunx(table, surface_alone['cl'],
+                          a - alpha_zero_lift + shift, 1, 1)
+        cl.append(body_cl[j] + (kwb + kbw) * clint +
+                  vortex['ivbw'][j] * vortex['go2pav'][j] *
+                  local_alpha_deg[j] * vortex['ratio'] * wing_cla)
+    result['cl'] = np.array(cl)
+
+    if ratio <= 0.30 and stall is not None:
+        wb20 = tlinex(_XA12, _XB12, _Y412B.reshape(5, 7).T,
+                      stall['a160'], ratio, 0, 0, 0, 0)
+        wb21 = tlinex(_XA12, _XB12, _Y412C.reshape(5, 7).T,
+                      stall['a160'], ratio, 0, 0, 0, 0)
+        result.update({'wb20': float(wb20), 'wb21': float(wb21),
+                       'wb22': float(wb20 * stall['clmax']),
+                       'wb23': float(wb21 * stall['alpha_clmax'])})
+    return result
+
+
+def calculate_wbcm0(aspect_ratio: float, tan_le: float, tovc: float,
+                    nose_length: float, afterbody_length: float,
+                    taper_ratio: float, leading_edge_radius: float,
+                    twist: float, ycm: float, cld: float,
+                    reynolds: float, tr: float, wing_height: float,
+                    vt: float, hd: float, body_radius_ratio: float,
+                    mach: float) -> Optional[float]:
+    """Translate WBCM0: the regression zero-lift moment of a wing-body.
+
+    Returns ``None`` outside the regression's range, where the source
+    leaves its caller's value untouched.  The Reynolds number is clamped
+    to 8e5 to 8e6 before use, as in the source.
+
+    Args follow the source's names: ``AR``, ``TANLE``, ``TOVC``, ``LN``,
+    ``LA``, ``TAPR``, ``LER``, ``TWIST``, ``YCM``, ``CLD``, ``RN``, ``TR``,
+    ``WL``, ``VT``, ``HD``, ``DB``, ``MACH``.
+    """
+    inside = (mach <= 2.5 and 1.6 <= aspect_ratio <= 6.0 and
+              0.0 <= tan_le <= 2.74748 and 0.025 <= tovc <= 0.100 and
+              2.2 <= nose_length <= 8.4 and 0.3 <= afterbody_length <= 5.6 and
+              0.0 <= taper_ratio <= 1.0 and
+              0.0 <= leading_edge_radius <= 0.015 and
+              -9.4 <= twist <= UNUSED and 0.0 <= ycm <= 0.0263 and
+              0.0 <= cld <= 0.45)
+    if not inside:
+        return None
+    reynolds = min(max(reynolds, 8.0e5), 8.0e6)
+    c = calculate_tablec(mach)['c']
+    return float(c[0] + c[1] / aspect_ratio + c[2] * aspect_ratio +
+                 c[3] * tan_le + c[4] * tovc + c[5] * nose_length +
+                 c[6] * afterbody_length + c[7] * taper_ratio +
+                 c[8] * taper_ratio**2 + c[9] * tr +
+                 c[10] * leading_edge_radius + c[11] * twist + c[12] * ycm +
+                 c[13] * cld + c[14] * wing_height + c[15] * vt +
+                 c[16] * hd + c[17] * body_radius_ratio +
+                 c[18] * reynolds / 1.0e6)
+
+
+def calculate_wbcm(alpha_deg: Sequence[float],
+                   local_alpha_deg: Sequence[float],
+                   surface: Dict[str, float],
+                   surface_alone: Dict[str, object],
+                   body: Dict[str, object],
+                   synthesis: Dict[str, float],
+                   lift: Dict[str, object],
+                   vortex: Dict[str, object],
+                   flight: Dict[str, float],
+                   cbarr: float, c6: float) -> Dict[str, object]:
+    """Translate WBCM: wing-body pitching moment.
+
+    Args:
+        alpha_deg: ``FLC(23)`` onward.
+        local_alpha_deg: ``B(23)`` onward.
+        surface: ``WINGIN`` entries ``sspn`` (4), ``chrdr`` (6),
+            ``twista`` (11), ``tovc`` (16), ``ler`` (62), ``ycm`` (93) and
+            ``cld`` (94); ``A`` entries ``a7``, ``a10``, ``a27``, ``a38``,
+            ``a44``, ``a62``, ``a80``, ``a118``, ``a120``, ``a122``,
+            ``a173``; ``B`` entries ``beta`` (2), ``cm0`` (47) and
+            ``alpha_zero_lift`` (49).
+        surface_alone: ``cm``, ``cn``, ``ca`` (``WINGC(1)``, ``(21)``,
+            ``(41)`` onward: ``WING(41)``, ``(61)``, ``(81)``), ``cla``
+            (``WING(101)``) and ``cma``, the caller's ``CMA`` argument.
+        body: ``cm`` (``BODY(41)`` onward), ``cla`` and ``cma``
+            (``BODY(101)`` and ``BODY(121)`` onward), ``cm0`` (``CMOB``),
+            ``alpha_zero_lift`` (``BAL0``), ``length`` ``BD(1)`` and
+            ``max_area`` ``BD(3)``.
+        synthesis: ``xcg``, ``xw``, ``zw``, ``zcg``, ``incidence`` (``ALI``),
+            ``cos_incidence`` (``COSAIW``) and ``body_diameter`` (``DB``).
+        lift: WBLIFT's result: ``cl``, ``kwb``, ``kbw``, ``kwb_incidence``,
+            ``kbw_incidence``, ``wb4``, ``wb5``.
+        vortex: ``{'ratio', 'ivbw', 'go2pav'}``, as for WBLIFT.
+        flight: ``mach`` (``FLC(II+2)``), ``reynolds_per_length``
+            (``FLC(II+42)``) and ``tr`` (``FLC(96)``).
+        cbarr: ``CBARR``.
+        c6: ``C(6)`` of the surface's ``/WHAERO/`` block.
+
+    Returns:
+        Dictionary with ``cm`` (``BW(41)`` onward), ``cm0`` (``WB(16)``),
+        ``alpha_zero_lift`` (``ALOWB``), and ``WB(12)`` to ``WB(15)``.
+
+    Raises:
+        ValueError: If the ellipse fit has no real root, where the source
+            prints an error, "exits" into a routine that only closes files,
+            and carries on with the square root of a negative number.
+
+    Notes:
+        WBCM0 is called with ``TWIST = WINGIN(11)/RAD``, in radians, but
+        range-checks it against ``-9.4``, a degree value, so its twist
+        term is about 57 times smaller than a degree argument would give.
+        The source form is kept.
+    """
+    a7, a10 = float(surface['a7']), float(surface['a10'])
+    sspn = float(surface['sspn'])
+    db = float(synthesis['body_diameter'])
+    incidence = float(synthesis['incidence'])
+
+    temp0 = 0.25 * a7 * (1.0 + float(surface['a27'])) * float(surface['a38'])
+    wb15 = 0.50
+    if temp0 < 1.0:
+        wb15, _ = tbfunx(_X38B, _Y38B, temp0, 0, 0)
+    ratio = db / (2.0 * sspn)
+    brac, _ = tbfunx(_X21C, _Y21C, ratio, 0, 0)
+    temp4 = 0.25 + (2.0 * sspn - db) / (2.0 * a10) * float(surface['a44']) * brac
+
+    arg = float(surface['beta']) * a7
+    if arg >= 4.0:
+        wb14 = temp4
+    else:
+        # The ellipse through (0, WB(15)) and (4, TEMP4).
+        q = abs(temp4 - wb15)
+        bb = -2.0 * wb15
+        cc = wb15 * wb15 - q * q + ((q / 4.0)**2) * (arg - 4.0)**2
+        discriminant = bb * bb - 4.0 * cc
+        if not discriminant > 0.0:
+            raise ValueError("WBCM: ellipse curve fit in error")
+        root = np.sqrt(discriminant)
+        wb14 = (-bb - root) / 2.0 if temp4 < wb15 else (-bb + root) / 2.0
+    wb13 = wb14 * a10 / cbarr
+
+    dxcg = float(synthesis['xcg']) - (float(synthesis['xw']) + .50 * db *
+                                      float(surface['a62']) *
+                                      float(synthesis['cos_incidence']))
+    alpha_zero, _ = tbfunx(lift["cl"], alpha_deg, 0.0, 1, 1, ordered=False)
+    alpha_zero_surface = float(surface['alpha_zero_lift'])
+    cm0_surface = float(surface['cm0'])
+    body_cma = np.asarray(body['cma'], dtype=float)
+    cmowb = (float(body['cm0']) + cm0_surface +
+             body_cma[0] * (alpha_zero - float(body['alpha_zero_lift'])) +
+             float(surface_alone['cma']) *
+             (alpha_zero - alpha_zero_surface + incidence))
+
+    xw = float(synthesis['xw'])
+    diameter = 2.0 * np.sqrt(float(body['max_area']) / PI)
+    regression = calculate_wbcm0(
+        float(surface['a120']), float(surface['a38']), float(surface['tovc']),
+        (xw + 0.5 * db * float(surface['a38'])) / db,
+        float(body['length']) / db - (xw + float(surface['chrdr']) +
+                                      0.5 * db * float(surface['a80'])) / db,
+        float(surface['a118']), float(surface['ler']),
+        float(surface['twista']) / RAD, float(surface['ycm']),
+        float(surface['cld']),
+        float(flight['reynolds_per_length']) * float(surface['a122']),
+        float(flight['tr']), 0.5 + float(synthesis['zw']) / diameter, 0.0,
+        0.5, 0.5 * diameter / sspn, float(flight['mach']))
+    if regression is not None:
+        cmowb = regression
+    if abs(cmowb) <= UNUSED:
+        cmowb = 0.0
+
+    body_cla = np.asarray(body['cla'], dtype=float)
+    wb4, wb5 = float(lift['wb4']), float(lift['wb5'])
+    xac = _div(-body_cma[0] * cbarr, body_cla[0]) + dxcg
+    anum = xac * body_cla[0] / cbarr + c6 * wb4 * a10 / cbarr + wb13 * wb5
+    wb12 = _div(anum, body_cla[0] + wb4 + wb5)
+
+    cm_surface = np.asarray(surface_alone['cm'], dtype=float)
+    cn_surface = np.asarray(surface_alone['cn'], dtype=float)
+    ca_surface = np.asarray(surface_alone['ca'], dtype=float)
+    cla_surface = float(surface_alone['cla'])
+    dxcpbw = float(surface['a173']) / cbarr - wb13
+    lever = (float(synthesis['zw']) - float(synthesis['zcg'])) / cbarr
+    kwb, kbw = float(lift['kwb']), float(lift['kbw'])
+    kwbi, kbwi = float(lift['kwb_incidence']), float(lift['kbw_incidence'])
+    cm = []
+    for j in range(len(alpha_deg)):
+        dxcpwb = (0.0 if cn_surface[j] == 0.0 else
+                  (cm_surface[j] - cm0_surface) / cn_surface[j])
+        dcnv = (vortex['ivbw'][j] * vortex['go2pav'][j] * vortex['ratio'] *
+                local_alpha_deg[j] * cla_surface)
+        basic = cn_surface[j] - cla_surface * incidence
+        value = (body['cm'][j] + cm0_surface +
+                 basic * kwb * dxcpwb +
+                 cla_surface * incidence * kwbi * dxcpwb +
+                 basic * kbw * dxcpbw +
+                 cla_surface * incidence * kbwi * dxcpbw +
+                 dcnv * dxcpwb + ca_surface[j] * lever)
+        cm.append(NOT_AVAILABLE if cm_surface[j] == NOT_AVAILABLE else value)
+    return {
+        'cm': np.array(cm), 'cm0': float(cmowb),
+        'cm0_regression': regression is not None,
+        'alpha_zero_lift': float(alpha_zero),
+        'wb12': float(wb12), 'wb13': float(wb13), 'wb14': float(wb14),
+        'wb15': float(wb15), 'method': 'legacy_wbcm',
+    }
+
+
+def calculate_wbaero(alpha_deg: Sequence[float],
+                     surface: Dict[str, float],
+                     surface_alone: Dict[str, object],
+                     body: Dict[str, object],
+                     synthesis: Dict[str, float],
+                     flight: Dict[str, float],
+                     cbarr: float,
+                     experimental: Optional[Dict[str, object]] = None,
+                     stale: Optional[Dict[str, float]] = None
+                     ) -> Dict[str, object]:
+    """Translate WBAERO's wing pass: the complete wing-body buildup.
+
+    Args:
+        alpha_deg: ``FLC(23)`` onward.
+        surface: Everything :func:`calculate_wbcm` reads from ``surface``,
+            plus ``sspne`` (``WINGIN(3)``), ``a129``, ``a160``, ``clmax``
+            and ``alpha_clmax`` (``B(44)``, ``B(43)``), ``local_alpha``
+            (``B(23)`` onward), ``x_quarter_chord`` (``BD(83)``), ``cd0``
+            and ``cdl`` (``D(20)``, ``D(36)`` onward) and ``c6``.
+        surface_alone: ``cd``, ``cl``, ``cm``, ``cn``, ``ca`` (``WING(1)``,
+            ``(21)``, ``(41)``, ``(61)``, ``(81)`` onward), ``cla`` and
+            ``cma`` (``WING(101)``, ``WING(121)``).
+        body: ``cd``, ``cl``, ``cm``, ``cla``, ``cma`` (``BODY(1)``,
+            ``(21)``, ``(41)``, ``(101)``, ``(121)`` onward), ``cm0``
+            ``BD(62)``, ``alpha_zero_lift`` ``BD(81)``, ``cd_friction``
+            ``BD(59)``, ``cd_base`` ``BD(60)``, ``cdl`` ``BD(215)``
+            onward, and the station arrays ``x`` and ``s``, from which
+            GETMAX gives ``BD(3)`` and ``BD(1)`` is the last station.
+        synthesis: ``xcg``, ``xw``, ``zw``, ``zcg``, ``aliw`` (``BD(77)``).
+        flight: ``mach``, ``reynolds_per_length`` and ``tr``.
+        cbarr: ``CBARR``.
+        experimental: See :func:`calculate_wbdrag`.
+        stale: See :func:`calculate_wblift`.
+
+    Returns:
+        Dictionary with ``cd``, ``cl``, ``cm``, ``cn``, ``ca``, ``cla`` and
+        ``cma`` (``BW(1)``, ``(21)``, ``(41)``, ``(61)``, ``(81)``,
+        ``(101)``, ``(121)`` onward), and the component results under
+        ``drag``, ``lift`` and ``moment``.
+
+    Notes:
+        ``CMA`` is the TBFUNX slope over the angles before the first
+        unavailable moment only, and is itself marked unavailable past
+        them.  ``CN`` and ``CA`` here replace the ones WBLIFT and WBCM form
+        with the local angle; theirs are never read.
+    """
+    alpha = np.asarray(alpha_deg, dtype=float)
+    local = np.asarray(surface['local_alpha'], dtype=float)
+    sspn, sspne = float(surface['sspn']), float(surface['sspne'])
+    body_diameter = 2.0 * (sspn - sspne)
+    incidence = float(synthesis['aliw'])
+
+    # BODOWG, on the body's own angles BD(255) onward.
+    _, max_area, _ = getmax(body['x'], body['s'])
+    radius = np.sqrt(max_area / PI)
+    body_alpha = alpha + float(body['alpha_zero_lift'])
+    bodowg = [calculate_bodowg(a, float(surface['x_quarter_chord']), radius,
+                               sspn, float(surface['a27']))
+              for a in body_alpha]
+    vortex = {'ratio': (sspn - sspne) / sspn,
+              'ivbw': [b['ivbw'] for b in bodowg],
+              'go2pav': [b['go2pav'] for b in bodowg]}
+
+    drag = calculate_wbdrag(
+        float(flight['mach']), float(surface['a129']), float(body['x'][-1]),
+        float(surface['cd0']), float(body['cd_friction']),
+        float(body['cd_base']), body['cdl'], surface['cdl'],
+        dict(experimental, body_cd=body['cd'], wing_cd=surface_alone['cd'])
+        if experimental else None)
+    lift = calculate_wblift(
+        alpha, local, body_diameter, incidence, sspn,
+        float(surface['alpha_zero_lift']), surface_alone, body['cl'],
+        float(body['cla'][0]), vortex,
+        {'a160': float(surface['a160']), 'clmax': float(surface['clmax']),
+         'alpha_clmax': float(surface['alpha_clmax'])}, stale)
+    moment = calculate_wbcm(
+        alpha, local, surface, surface_alone,
+        dict(body, length=float(body['x'][-1]), max_area=max_area),
+        dict(synthesis, incidence=incidence,
+             cos_incidence=np.cos(incidence / RAD),
+             body_diameter=body_diameter),
+        lift, vortex, flight, cbarr, float(surface['c6']))
+
+    cd, cl, cm = drag['cd'], lift['cl'], moment['cm']
+    available = len(alpha)
+    for j, value in enumerate(cm):
+        if value == NOT_AVAILABLE:
+            available = j
+            break
+    cla = np.array([tbfunx(alpha, cl, a, 0, 0)[1] for a in alpha])
+    cma = np.array([tbfunx(alpha[:available], cm[:available], a, 0, 0)[1]
+                    if j < available else NOT_AVAILABLE
+                    for j, a in enumerate(alpha)])
+    ca_, sa_ = np.cos(alpha / RAD), np.sin(alpha / RAD)
+    return {
+        'cd': cd, 'cl': cl, 'cm': cm,
+        'cn': cl * ca_ + cd * sa_, 'ca': cd * ca_ - cl * sa_,
+        'cla': cla, 'cma': cma,
+        'drag': drag, 'lift': lift, 'moment': moment, 'vortex': vortex,
+        'method': 'legacy_wbaero',
+    }
