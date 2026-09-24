@@ -78,34 +78,34 @@ def _five_digit_mean(zp: float):
     return d + e + 1.
 
 
-def _surfaces(out, m, x, yc, yt, alpha):
-    out['xu'][m] = x - yt * math.sin(alpha)
-    out['yun'][m] = yc + yt * math.cos(alpha)
-    out['xl'][m] = x + yt * math.sin(alpha)
-    out['yln'][m] = yc - yt * math.cos(alpha)
-    out['cam'][m] = 0.0 if yc < 1.e-05 else yc
-    out['thn'][m] = yt
+def _surfaces(coords, m, x, yc, yt, alpha):
+    coords['xu'][m] = x - yt * math.sin(alpha)
+    coords['yun'][m] = yc + yt * math.cos(alpha)
+    coords['xl'][m] = x + yt * math.sin(alpha)
+    coords['yln'][m] = yc - yt * math.cos(alpha)
+    coords['cam'][m] = 0.0 if yc < 1.e-05 else yc
+    coords['thn'][m] = yt
 
 
 def _start(x, prev):
     n = len(x)
-    out = {k: list(prev[k]) if prev and k in prev else [0.0] * n
-           for k in ('xu', 'xl', 'yun', 'yln', 'thn', 'cam')}
-    return out
+    coords = {k: list(prev[k]) if prev and k in prev else [0.0] * n
+              for k in ('xu', 'xl', 'yun', 'yln', 'thn', 'cam')}
+    return coords
 
 
-def _close(out, n, lower_first=False):
+def _close(coords, n, lower_first=False):
     """The shared closing assignments; COORD1 writes ``XL(1)`` twice where
     the others write ``XU(1)``."""
-    out['thn'][0] = out['thn'][n - 1] = 0.0
-    out['cam'][0] = out['cam'][n - 1] = 0.0
-    out['xu'][n - 1] = out['xl'][n - 1] = 1.
-    out['yun'][n - 1] = out['yln'][n - 1] = 0.0
+    coords['thn'][0] = coords['thn'][n - 1] = 0.0
+    coords['cam'][0] = coords['cam'][n - 1] = 0.0
+    coords['xu'][n - 1] = coords['xl'][n - 1] = 1.
+    coords['yun'][n - 1] = coords['yln'][n - 1] = 0.0
     if lower_first:
-        out['xl'][0] = 0.0
+        coords['xl'][0] = 0.0
     else:
-        out['xu'][0] = 0.0
-    out['yln'][0] = 0.0
+        coords['xu'][0] = 0.0
+    coords['yln'][0] = 0.0
 
 
 def coord4(digits: Mapping[str, int], x: Sequence[float],
@@ -114,7 +114,7 @@ def coord4(digits: Mapping[str, int], x: Sequence[float],
     ai, aj, ak, aii, ajj, akk, _, _ = _digits(digits)
     zm, zp = ai * .01, aj * .1
     t = ak * .1 + aii * .01 + ajj * .001 + akk * .0001
-    out = _start(x, prev)
+    coords = _start(x, prev)
     yc = alpha = 0.0
     for m, xm in enumerate(x):
         yt = _four_digit_thickness(t, xm)
@@ -126,10 +126,10 @@ def coord4(digits: Mapping[str, int], x: Sequence[float],
         if xm > zp:
             yc = (zm / ((1. - zp)**2)) * (1. - 2. * zp + 2. * zp * xm - xm**2)
             alpha = math.atan((2. * zm / ((1. - zp)**2)) * (zp - xm))
-        _surfaces(out, m, xm, yc, yt, alpha)
-    _close(out, len(x))
-    out.update({'rho': 1.1019 * t**2, 't': t, 'zm': zm, 'zp': zp})
-    return out
+        _surfaces(coords, m, xm, yc, yt, alpha)
+    _close(coords, len(x))
+    coords.update({'rho': 1.1019 * t**2, 't': t, 'zm': zm, 'zp': zp})
+    return coords
 
 
 def coord5(digits: Mapping[str, int], x: Sequence[float],
@@ -145,9 +145,9 @@ def coord5(digits: Mapping[str, int], x: Sequence[float],
     zp = aj * .1 / 2.
     zm = _five_digit_mean(zp)
     xk = (6. * ai * .01) / (zp**3 - 3. * zm * zp**2 + zm**2 * (3. - zm) * zp)
-    st = dict(stale or {})
-    yc, alpha = float(st.get('yc', 0.0)), float(st.get('alpha', 0.0))
-    out = _start(x, prev)
+    stale_state = dict(stale or {})
+    yc, alpha = float(stale_state.get('yc', 0.0)), float(stale_state.get('alpha', 0.0))
+    coords = _start(x, prev)
     for m, xm in enumerate(x):
         yt = _four_digit_thickness(t, xm)
         if ak == 0.:
@@ -180,11 +180,11 @@ def coord5(digits: Mapping[str, int], x: Sequence[float],
                 alpha = math.atan((1. / 6.) * xk * (3. * rk * (xm - zm)**2 -
                                                     rk * (1. - zm)**3 -
                                                     zm**3))
-        _surfaces(out, m, xm, yc, yt, alpha)
-    _close(out, len(x))
-    out.update({'rho': 1.1019 * t**2, 't': t, 'zm': zm, 'zp': zp,
-                'stale': {'yc': yc, 'alpha': alpha}})
-    return out
+        _surfaces(coords, m, xm, yc, yt, alpha)
+    _close(coords, len(x))
+    coords.update({'rho': 1.1019 * t**2, 't': t, 'zm': zm, 'zp': zp,
+                   'stale': {'yc': yc, 'alpha': alpha}})
+    return coords
 
 
 def _modified_d1(zt, t, stale_d1):
@@ -203,14 +203,14 @@ def cord4m(digits: Mapping[str, int], x: Sequence[float],
     ``stale['d1']`` is the trailing-edge slope the previous call left,
     used when the maximum-thickness station is not one of 0.2 ... 0.6."""
     ai, aj, ak, aii, _, akk, aiii, _ = _digits(digits)
-    st = dict(stale or {})
+    stale_state = dict(stale or {})
     zm, zp, zt = ai * .01, aj * .1, aiii * .1
     t = ak * .1 + aii * .01
-    d1 = _modified_d1(zt, t, float(st.get('d1', 0.0)))
+    d1 = _modified_d1(zt, t, float(stale_state.get('d1', 0.0)))
     d0 = .01 * t
     a0 = math.sqrt(2. * 1.1019 * ((t * akk / 6.)**2))
     d2, d3, a1, a2, a3 = _modified_thickness(zt, t, d0, d1, a0)
-    out = _start(x, prev)
+    coords = _start(x, prev)
     yc = alpha = yt = 0.0
     for m, xm in enumerate(x):
         if xm == zp:
@@ -222,11 +222,11 @@ def cord4m(digits: Mapping[str, int], x: Sequence[float],
             yc = (zm / ((1. - zp)**2)) * (1. - 2. * zp + 2. * zp * xm - xm**2)
             alpha = math.atan((2. * zm / ((1. - zp)**2)) * (zp - xm))
         yt = _yt_modified(xm, zt, t, d0, d1, d2, d3, a0, a1, a2, a3, yt)
-        _surfaces(out, m, xm, yc, yt, alpha)
-    _close(out, len(x))
-    out.update({'rho': .5 * a0**2, 't': t, 'zm': zm, 'zp': zp,
-                'stale': {'d1': d1}})
-    return out
+        _surfaces(coords, m, xm, yc, yt, alpha)
+    _close(coords, len(x))
+    coords.update({'rho': .5 * a0**2, 't': t, 'zm': zm, 'zp': zp,
+                   'stale': {'d1': d1}})
+    return coords
 
 
 def cord5m(digits: Mapping[str, int], x: Sequence[float],
@@ -237,18 +237,18 @@ def cord5m(digits: Mapping[str, int], x: Sequence[float],
     ``stale`` holds ``d1``, ``yc`` and ``alpha`` as the previous call left
     them (see :func:`cord4m` and :func:`coord5`)."""
     ai, aj, ak, aii, ajj, _, aiii, ajjj = _digits(digits)
-    st = dict(stale or {})
+    stale_state = dict(stale or {})
     t = aii * .1 + ajj * .01
     zp = aj * .1 / 2.
     zt = ajjj * .1
     zm = _five_digit_mean(zp)
     xk = (6. * ai * .01) / (zp**3 - 3. * zm * zp**2 + zm**2 * (3. - zm) * zp)
-    d1 = _modified_d1(zt, t, float(st.get('d1', 0.0)))
+    d1 = _modified_d1(zt, t, float(stale_state.get('d1', 0.0)))
     d0 = .01 * t
     a0 = math.sqrt(2. * 1.1019 * ((t * aiii / 6.)**2))
     d2, d3, a1, a2, a3 = _modified_thickness(zt, t, d0, d1, a0)
-    out = _start(x, prev)
-    yc, alpha = float(st.get('yc', 0.0)), float(st.get('alpha', 0.0))
+    coords = _start(x, prev)
+    yc, alpha = float(stale_state.get('yc', 0.0)), float(stale_state.get('alpha', 0.0))
     yt = 0.0
     for m, xm in enumerate(x):
         if ak == 0.:
@@ -295,11 +295,11 @@ def cord5m(digits: Mapping[str, int], x: Sequence[float],
                 alpha = math.atan((1. / 6.) * xk * (3. * rk * (xm - zm)**2 -
                                                     rk * (1. - zm)**3 -
                                                     zm**3))
-        _surfaces(out, m, xm, yc, yt, alpha)
-    _close(out, len(x))
-    out.update({'rho': .5 * a0**2, 't': t, 'zm': zm, 'zp': zp,
-                'stale': {'d1': d1, 'yc': yc, 'alpha': alpha}})
-    return out
+        _surfaces(coords, m, xm, yc, yt, alpha)
+    _close(coords, len(x))
+    coords.update({'rho': .5 * a0**2, 't': t, 'zm': zm, 'zp': zp,
+                   'stale': {'d1': d1, 'yc': yc, 'alpha': alpha}})
+    return coords
 
 
 def coord1(digits: Mapping[str, int], x: Sequence[float],
@@ -312,14 +312,14 @@ def coord1(digits: Mapping[str, int], x: Sequence[float],
     and ``YUN(1)`` keep what ``prev`` held.  ``stale`` holds ``d1`` and
     ``sm``, left unset for a series digit other than 6, 8 or 9."""
     ai, aj, ak, aii, ajj, akk, aiii, ajjj = _digits(digits)
-    st = dict(stale or {})
+    stale_state = dict(stale or {})
     j = int(aj)
     zt = aj * .1 - .1
     t = ajj * .1 + akk * .01 + aiii * .001 + ajjj * .0001
     if j == 6:
         zt = aj * .1 - .2
     d0 = 0.0
-    d1, sm = float(st.get('d1', 0.0)), float(st.get('sm', 0.0))
+    d1, sm = float(stale_state.get('d1', 0.0)), float(stale_state.get('sm', 0.0))
     if j == 6:
         d1, sm = 2.157 * t, 4.
     if j == 8:
@@ -329,9 +329,9 @@ def coord1(digits: Mapping[str, int], x: Sequence[float],
     a0 = math.sqrt(2. * 1.1019 * ((t * sm / 6.)**2))
     d2, d3, a1, a2, a3 = _modified_thickness(zt, t, d0, d1, a0)
     cl = aii * .1
-    out = _start(x, prev)
+    coords = _start(x, prev)
     n = len(x)
-    yt = float(st.get('yt', 0.0))
+    yt = float(stale_state.get('yt', 0.0))
     for m in range(1, n - 1):
         xm = x[m]
         yc = -(cl / (4. * PI)) * ((1. - xm) * math.log(1. - xm) +
@@ -339,12 +339,12 @@ def coord1(digits: Mapping[str, int], x: Sequence[float],
         alpha = math.atan((-cl / (4. * PI)) * (math.log(xm) -
                                                math.log(1. - xm)))
         yt = _yt_modified(xm, zt, t, d0, d1, d2, d3, a0, a1, a2, a3, yt)
-        _surfaces(out, m, xm, yc, yt, alpha)
-    _close(out, n, lower_first=True)
-    out.update({'rho': .5 * a0**2, 't': t, 'alphai': 0.0,
-                'alphao': -RAD * cl / (2. * PI), 'aii': cl,
-                'stale': {'d1': d1, 'sm': sm, 'yt': yt}})
-    return out
+        _surfaces(coords, m, xm, yc, yt, alpha)
+    _close(coords, n, lower_first=True)
+    coords.update({'rho': .5 * a0**2, 't': t, 'alphai': 0.0,
+                   'alphao': -RAD * cl / (2. * PI), 'aii': cl,
+                   'stale': {'d1': d1, 'sm': sm, 'yt': yt}})
+    return coords
 
 
 def coord6(digits: Mapping[str, int], x: Sequence[float],
@@ -358,20 +358,20 @@ def coord6(digits: Mapping[str, int], x: Sequence[float],
     ``sml``: the trailing-edge line when the first interior station
     already lies past 0.8 chord."""
     ai, aj, ak, aii, ajj, akk, aiii, ajjj = _digits(digits)
-    st = dict(stale or {})
-    ii = int(aii)
-    j = int(aj)
+    stale_state = dict(stale or {})
+    subscript_digit = int(aii)
+    series_digit = int(aj)
     t = akk * .1 + aiii * .01
-    if j == 3:
+    if series_digit == 3:
         zt, sm, r0, sub = .35, -.6116, .46, 1.
-    elif j == 4:
+    elif series_digit == 4:
         zt, sm, r0, sub = .40, -.6888, .523, 1.04
-    elif j == 5:
+    elif series_digit == 5:
         zt, sm, r0, sub = .4, -.8833, .65, 1.17
     else:
         zt, sm, r0, sub = .45, -1.268, .873, None
     d1 = (sm * (t - .06) + r0) * t
-    if sub is not None and ii > 0:
+    if sub is not None and subscript_digit > 0:
         d1 = sub * t
     d0 = 0.0
     rle = .01 * (68.682 * t**2 + .0182 * t + .0014)
@@ -380,73 +380,80 @@ def coord6(digits: Mapping[str, int], x: Sequence[float],
     za = ajjj * .1
     if ajjj < 1.:
         za = 1.
-    c = g = h = None
+    mean_denominator = mean_g = mean_h = None
     if za != 1.:
-        c = 1. - za
-        g = (-1. / c) * ((za**2) * (.5 * math.log(za) - .25) + .25)
-        h = (1. / c) * ((.5 * c**2) * math.log(c) - .25 * c**2) + g
+        mean_denominator = 1. - za
+        mean_g = (-1. / mean_denominator) * (
+            (za**2) * (.5 * math.log(za) - .25) + .25)
+        mean_h = ((1. / mean_denominator) *
+                  ((.5 * mean_denominator**2) * math.log(mean_denominator) -
+                   .25 * mean_denominator**2) + mean_g)
     cl = ajj * .1
-    out = _start(x, prev)
+    coords = _start(x, prev)
     n = len(x)
-    no = int(st.get('no', 1))
-    sxu, sxl = float(st.get('sxu', 0.)), float(st.get('sxl', 0.))
-    syu, syl = float(st.get('syu', 0.)), float(st.get('syl', 0.))
-    smu, sml = float(st.get('smu', 0.)), float(st.get('sml', 0.))
-    yt = float(st.get('yt', 0.0))
+    no = int(stale_state.get('no', 1))
+    sxu, sxl = float(stale_state.get('sxu', 0.)), float(stale_state.get('sxl', 0.))
+    syu, syl = float(stale_state.get('syu', 0.)), float(stale_state.get('syl', 0.))
+    smu, sml = float(stale_state.get('smu', 0.)), float(stale_state.get('sml', 0.))
+    yt = float(stale_state.get('yt', 0.0))
     for m in range(1, n - 1):
         xm = x[m]
         if za != 1.:
-            s = 1. - xm
-            d = za - xm
-            if d == 0.0:
-                d = 1.0e-10
+            complement_x = 1. - xm
+            za_minus_x = za - xm
+            if za_minus_x == 0.0:
+                za_minus_x = 1.0e-10
             yc = (cl / (2. * PI * (za + 1.))) * (
-                (1. / c) * ((.5 * d**2) * math.log(abs(d)) -
-                            (.5 * s**2) * math.log(s) + .25 * s**2 -
-                            .25 * d**2) - xm * math.log(xm) + g - xm * h)
+                (1. / mean_denominator) * (
+                    (.5 * za_minus_x**2) * math.log(abs(za_minus_x)) -
+                    (.5 * complement_x**2) * math.log(complement_x) +
+                    .25 * complement_x**2 - .25 * za_minus_x**2) -
+                xm * math.log(xm) + mean_g - xm * mean_h)
             alpha = math.atan((cl / (2. * PI * (1. + za))) * (
-                (1. / c) * (-d * math.log(abs(d)) + s * math.log(s)) -
-                math.log(xm) - 1. - h))
+                (1. / mean_denominator) * (
+                    -za_minus_x * math.log(abs(za_minus_x)) +
+                    complement_x * math.log(complement_x)) -
+                math.log(xm) - 1. - mean_h))
         else:
             yc = -(cl / (4. * PI)) * ((1. - xm) * math.log(1. - xm) +
                                       xm * math.log(xm))
             alpha = math.atan((-cl / (4. * PI)) * (math.log(xm) -
                                                    math.log(1. - xm)))
         yt = _yt_modified(xm, zt, t, d0, d1, d2, d3, a0, a1, a2, a3, yt)
-        out['xu'][m] = xm - yt * math.sin(alpha)
-        out['yun'][m] = yc + yt * math.cos(alpha)
-        out['xl'][m] = xm + yt * math.sin(alpha)
-        out['yln'][m] = yc - yt * math.cos(alpha)
-        if out['xu'][m] >= .80 and ii > 0:
+        coords['xu'][m] = xm - yt * math.sin(alpha)
+        coords['yun'][m] = yc + yt * math.cos(alpha)
+        coords['xl'][m] = xm + yt * math.sin(alpha)
+        coords['yln'][m] = yc - yt * math.cos(alpha)
+        if coords['xu'][m] >= .80 and subscript_digit > 0:
             if no == 1:
-                sxu, sxl = out['xu'][m], out['xl'][m]
-                syu, syl = out['yun'][m], out['yln'][m]
+                sxu, sxl = coords['xu'][m], coords['xl'][m]
+                syu, syl = coords['yun'][m], coords['yln'][m]
                 smu = -syu / (1. - sxu)
                 sml = -syl / (1. - sxl)
                 no = 2
             else:
-                xu_, xl_ = out['xu'][m] - sxu, out['xl'][m] - sxl
-                out['yun'][m] = smu * xu_ + syu
-                out['yln'][m] = sml * xl_ + syl
-                out['xu'][m] = xu_ + sxu
-                out['xl'][m] = xl_ + sxl
+                xu_, xl_ = coords['xu'][m] - sxu, coords['xl'][m] - sxl
+                coords['yun'][m] = smu * xu_ + syu
+                coords['yln'][m] = sml * xl_ + syl
+                coords['xu'][m] = xu_ + sxu
+                coords['xl'][m] = xl_ + sxl
         else:
             no = 1
-        out['cam'][m] = 0.0 if yc < 1.e-05 else yc
-        out['thn'][m] = yt
-    _close(out, n)
-    out['xl'][0] = 0.0
-    out['yun'][0] = 0.0
+        coords['cam'][m] = 0.0 if yc < 1.e-05 else yc
+        coords['thn'][m] = yt
+    _close(coords, n)
+    coords['xl'][0] = 0.0
+    coords['yun'][0] = 0.0
     alphao = -RAD * cl / (2. * PI)
     alphai = 0.0
     if za != 1.:
-        alphai = alphao * h / (za + 1.)
+        alphai = alphao * mean_h / (za + 1.)
         alphao = alphao + alphai
-    out.update({'rho': rle, 't': t, 'alphai': alphai, 'alphao': alphao,
-                'ajj': cl,
-                'stale': {'no': no, 'sxu': sxu, 'sxl': sxl, 'syu': syu,
-                          'syl': syl, 'smu': smu, 'sml': sml, 'yt': yt}})
-    return out
+    coords.update({'rho': rle, 't': t, 'alphai': alphai, 'alphao': alphao,
+                   'ajj': cl,
+                   'stale': {'no': no, 'sxu': sxu, 'sxl': sxl, 'syu': syu,
+                             'syl': syl, 'smu': smu, 'sml': sml, 'yt': yt}})
+    return coords
 
 
 def xycord(x: Sequence[float], yu: Sequence[float], yl: Sequence[float],
@@ -468,14 +475,15 @@ def xycord(x: Sequence[float], yu: Sequence[float], yl: Sequence[float],
     thn[0] = thn[n - 1] = 0.0
     cam[0] = cam[n - 1] = 0.0
     xu, xl, yun, yln = [0.0] * n, [0.0] * n, [0.0] * n, [0.0] * n
-    for i in range(n):
-        dydx = tbfunx(x, cam, x[i], 0, 0)[1]
-        theta = math.atan(dydx)
-        sa, ca = math.sin(theta), math.cos(theta)
-        xu[i] = x[i] - thn[i] * sa
-        xl[i] = x[i] + thn[i] * sa
-        yun[i] = cam[i] + thn[i] * ca
-        yln[i] = cam[i] - thn[i] * ca
+    for station in range(n):
+        dydx = tbfunx(x, cam, x[station], 0, 0)[1]
+        slope_angle = math.atan(dydx)
+        sin_slope = math.sin(slope_angle)
+        cos_slope = math.cos(slope_angle)
+        xu[station] = x[station] - thn[station] * sin_slope
+        xl[station] = x[station] + thn[station] * sin_slope
+        yun[station] = cam[station] + thn[station] * cos_slope
+        yln[station] = cam[station] - thn[station] * cos_slope
     xu[0] = xl[0] = 0.0
     xu[n - 1] = xl[n - 1] = 1.0
     yun[0] = yun[n - 1] = yln[0] = yln[n - 1] = 0.0
@@ -510,12 +518,15 @@ def cordsp(digits: Mapping[str, int], x: Sequence[float],
         finds them equal, so ``WGIN(63)`` is zeroed when UNUSED even for a
         straight wing.
     """
-    d = {k: float(digits.get(k, 0)) for k in (
+    card_digits = {k: float(digits.get(k, 0)) for k in (
         'i', 'j', 'k', 'ii', 'jj', 'kk', 'iii', 'jjj', 'kkk', 'lll')}
-    xt = (100. * d['j'] + 10. * d['k'] + d['ii']) / 1000.
-    toc = (100. * d['jj'] + 10. * d['kk'] + d['iii']) / 1000.
-    xf = (100. * d['jjj'] + 10. * d['kkk'] + d['lll']) / 1000.
-    kind = int(d['i'])
+    xt = (100. * card_digits['j'] + 10. * card_digits['k'] +
+          card_digits['ii']) / 1000.
+    toc = (100. * card_digits['jj'] + 10. * card_digits['kk'] +
+           card_digits['iii']) / 1000.
+    xf = (100. * card_digits['jjj'] + 10. * card_digits['kkk'] +
+          card_digits['lll']) / 1000.
+    kind = int(card_digits['i'])
     yu = []
     if kind == 1:
         ksharp = (1. / xt) / (1. - xt)
@@ -538,16 +549,16 @@ def cordsp(digits: Mapping[str, int], x: Sequence[float],
         rc = (toc**2 + 1.) / (4. * toc)
         yu = [toc / 2. - rc + math.sqrt(rc**2 - (xi - .5)**2) for xi in x]
     unused = 1.0e-30
-    s = {int(k): float(v) for k, v in surface_in.items()}
+    surface_words = {int(k): float(v) for k, v in surface_in.items()}
     for word, value in ((16, toc), (18, xt), (70, toc), (71, ksharp),
                         (62, 0.)):
-        if s[word] == unused:
-            s[word] = value
-    if s[63] == unused:
-        s[63] = 0.0
+        if surface_words[word] == unused:
+            surface_words[word] = value
+    if surface_words[63] == unused:
+        surface_words[63] = 0.0
     return {'xu': list(x), 'xl': list(x), 'yu': yu, 'yl': [-v for v in yu],
             'toc': toc, 'xt': xt, 'xf': xf, 'ksharp': ksharp, 'rho': 0.,
-            'surface_in': s, 'method': 'legacy_cordsp'}
+            'surface_in': surface_words, 'method': 'legacy_cordsp'}
 
 
 _DIGIT = {'1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8,
@@ -577,119 +588,119 @@ def decode(card: str, stale_na: int = 0) -> Dict[str, object]:
         ``digits`` (``IUM(1..10)``: ``I, J, K, II, JJ, KK, III, JJJ, KKK,
         LLL``), ``x`` (the chord stations) and ``l`` (their count).
     """
-    naca = ' ' + card.ljust(80)[:80]
-    na = _SERIES.get(naca[8], stale_na)
-    ium = [0] * 13
+    padded_card = ' ' + card.ljust(80)[:80]
+    na = _SERIES.get(padded_card[8], stale_na)
+    digit_slots = [0] * 13
     if na == 6:
-        icount = 0
-        ieql = ipoint = False
-        for icol in range(10, 81):
-            ch = naca[icol]
-            icount += 1
-            if icount > 8:
+        slot_index = 0
+        saw_equals = saw_decimal = False
+        for column_index in range(10, 81):
+            column_char = padded_card[column_index]
+            slot_index += 1
+            if slot_index > 8:
                 break
-            if ch in _DIGIT:
-                ium[icount] = _DIGIT[ch]
-            if icount == 3 and ch == 'A':
-                icount += 1
-            if icount == 4 and ch == 'A':
-                ium[icount] = 1
-            if icount > 4 and ch == 'A':
-                icount -= 1
-            if ch == ' ':
-                icount -= 1
-            if ch == ',':
-                icount -= 1
-            if ch == '-' and icount == 3:
-                icount += 1
-            if ch == '=':
-                ieql = True
-            if ieql and not ipoint:
-                icount -= 1
-            if ch == ' ' and ieql and not ipoint:
-                icount += 1
-            if ch == '.':
-                ipoint = True
+            if column_char in _DIGIT:
+                digit_slots[slot_index] = _DIGIT[column_char]
+            if slot_index == 3 and column_char == 'A':
+                slot_index += 1
+            if slot_index == 4 and column_char == 'A':
+                digit_slots[slot_index] = 1
+            if slot_index > 4 and column_char == 'A':
+                slot_index -= 1
+            if column_char == ' ':
+                slot_index -= 1
+            if column_char == ',':
+                slot_index -= 1
+            if column_char == '-' and slot_index == 3:
+                slot_index += 1
+            if column_char == '=':
+                saw_equals = True
+            if saw_equals and not saw_decimal:
+                slot_index -= 1
+            if column_char == ' ' and saw_equals and not saw_decimal:
+                slot_index += 1
+            if column_char == '.':
+                saw_decimal = True
     elif na == 7:
-        icount, ncount = 0, 2
-        for icol in range(10, 81):
-            ch = naca[icol]
-            if icount == 10:
+        slot_index, digits_in_group = 0, 2
+        for column_index in range(10, 81):
+            column_char = padded_card[column_index]
+            if slot_index == 10:
                 continue
             action = None
-            if ch == ' ' and icol == 80:
+            if column_char == ' ' and column_index == 80:
                 action = 1090
-            elif ch == ' ':
+            elif column_char == ' ':
                 continue
             else:
-                if ch in _DIGIT:
-                    ncount += 1
-                    if ncount > 3:
+                if column_char in _DIGIT:
+                    digits_in_group += 1
+                    if digits_in_group > 3:
                         continue
-                    icount += 1
-                    ium[icount] = _DIGIT[ch]
-                    action = 1090 if icol == 80 else None
-                elif ch == '-' and icount > 0:
+                    slot_index += 1
+                    digit_slots[slot_index] = _DIGIT[column_char]
+                    action = 1090 if column_index == 80 else None
+                elif column_char == '-' and slot_index > 0:
                     action = 1090
-                elif ch == '.' and icount > 0:
+                elif column_char == '.' and slot_index > 0:
                     action = 1100
-                elif icol == 80:
+                elif column_index == 80:
                     action = 1090
             if action == 1090:
-                if ncount == 0:
-                    icount += 3
-                if ncount == 1:
-                    ium[icount + 1] = ium[icount]
-                    ium[icount] = 0
-                    icount += 2
-                if ncount == 2:
-                    icount += 1
-                if icount == 1:
-                    ncount = 0
-                if ncount > 0:
-                    ncount = 0
+                if digits_in_group == 0:
+                    slot_index += 3
+                if digits_in_group == 1:
+                    digit_slots[slot_index + 1] = digit_slots[slot_index]
+                    digit_slots[slot_index] = 0
+                    slot_index += 2
+                if digits_in_group == 2:
+                    slot_index += 1
+                if slot_index == 1:
+                    digits_in_group = 0
+                if digits_in_group > 0:
+                    digits_in_group = 0
             elif action == 1100:
-                if ncount == 0:
-                    icount += 2
-                    ncount = 2
-                if ncount == 1:
-                    ium[icount + 1] = ium[icount]
-                    ium[icount] = 0
-                    icount += 1
-                    ncount = 2
+                if digits_in_group == 0:
+                    slot_index += 2
+                    digits_in_group = 2
+                if digits_in_group == 1:
+                    digit_slots[slot_index + 1] = digit_slots[slot_index]
+                    digit_slots[slot_index] = 0
+                    slot_index += 1
+                    digits_in_group = 2
     else:
-        icount = 0
-        for icol in range(10, 81):
-            ch = naca[icol]
-            icount += 1
-            if icount > 10:
+        slot_index = 0
+        for column_index in range(10, 81):
+            column_char = padded_card[column_index]
+            slot_index += 1
+            if slot_index > 10:
                 break
-            if ch in _DIGIT:
-                ium[icount] = _DIGIT[ch]
-            if ch == ' ':
-                icount -= 1
-            if ch == '-' and na != 5:
+            if column_char in _DIGIT:
+                digit_slots[slot_index] = _DIGIT[column_char]
+            if column_char == ' ':
+                slot_index -= 1
+            if column_char == '-' and na != 5:
                 na += 1
-            if ch == '.':
-                icount -= 1
-    x = [0.0]
+            if column_char == '.':
+                slot_index -= 1
+    chord_stations = [0.0]
     delx = 0.00100
-    lll = 1
-    for li in range(2, 61):
-        lll = li
-        x.append(x[-1] + delx)
-        if x[-1] >= .01:
+    station_count = 1
+    for index in range(2, 61):
+        station_count = index
+        chord_stations.append(chord_stations[-1] + delx)
+        if chord_stations[-1] >= .01:
             delx = .01
-        if x[-1] > .29:
+        if chord_stations[-1] > .29:
             delx = .05
-        if x[-1] > .79:
+        if chord_stations[-1] > .79:
             delx = .02
-        if x[-1] >= 1.0:
+        if chord_stations[-1] >= 1.0:
             break
-    x[lll - 1] = 1.0
+    chord_stations[station_count - 1] = 1.0
     names = ('i', 'j', 'k', 'ii', 'jj', 'kk', 'iii', 'jjj', 'kkk', 'lll')
-    return {'na': na, 'digits': dict(zip(names, ium[1:11])), 'x': x,
-            'l': lll, 'method': 'legacy_decode'}
+    return {'na': na, 'digits': dict(zip(names, digit_slots[1:11])),
+            'x': chord_stations, 'l': station_count, 'method': 'legacy_decode'}
 
 
 def airfol(card: str, surface_in: Mapping[int, float],
@@ -700,20 +711,22 @@ def airfol(card: str, surface_in: Mapping[int, float],
     supersonic card, CORDSP then XYCORD (a biconvex card fixing its
     maximum-thickness digits at 0.5).  ``surface_in`` holds the named
     surface's input words CORDSP fills."""
-    d = decode(card, stale_na)
-    x, digits = d['x'], dict(d['digits'])
+    decoded = decode(card, stale_na)
+    x, digits = decoded['x'], dict(decoded['digits'])
     routine = {1: coord4, 2: cord4m, 3: coord5, 4: cord5m, 5: coord1,
-               6: coord6}.get(d['na'])
+               6: coord6}.get(decoded['na'])
     if routine is not None:
-        out = routine(digits, x)
+        section = routine(digits, x)
     else:
         if digits['i'] != 2:
             pass
         else:
             digits.update({'j': 5, 'k': 0, 'ii': 0})
         grid = x + [x[-1]] * (60 - len(x))
-        sp = cordsp(digits, grid, surface_in)
-        out = xycord(x, sp['yu'][:len(x)], sp['yl'][:len(x)])
-        out['cordsp'] = sp
-    out.update({'na': d['na'], 'digits': digits, 'x': x, 'l': d['l']})
-    return out
+        cordsp_result = cordsp(digits, grid, surface_in)
+        section = xycord(x, cordsp_result['yu'][:len(x)],
+                         cordsp_result['yl'][:len(x)])
+        section['cordsp'] = cordsp_result
+    section.update({'na': decoded['na'], 'digits': digits, 'x': x,
+                    'l': decoded['l']})
+    return section

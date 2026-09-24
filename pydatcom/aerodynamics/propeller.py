@@ -456,7 +456,7 @@ def calculate_prpwef(inputs: Mapping[str, object],
     alphap = alphap - depdap * alphap
     sinap = math.sin(DEG * alphap)
     zs = phvloc + xbarp * math.tan(DEG * alphap)
-    s = {'xbarp': xbarp, 'deuda': deuda, 'prprd2': prprd2,
+    powr_words = {'xbarp': xbarp, 'deuda': deuda, 'prprd2': prprd2,
          'srtpco': srtpco, 'cnap80': cnap80, 'cnap': cnap, 'c1': c1,
          'c2': c2, 'depdap': depdap, 'f': f, 'combo1': combo1,
          'combo': combo, 'alphap': alphap, 'sinap': sinap, 'zs': zs,
@@ -470,7 +470,7 @@ def calculate_prpwef(inputs: Mapping[str, object],
         cosaih = math.cos(DEG * alih)
         tn = xh + xbarrh * cosaih - (xw + xbarrw * cosaih)
         zheff = zs - zh + tn * math.tan(DEG * alphap)
-        s.update({'cosaih': cosaih, 'zheff': zheff})
+        powr_words.update({'cosaih': cosaih, 'zheff': zheff})
         if prprd2 < zheff**2:
             sih = siosrh = 0.0
         elif nengsp == 2.0:
@@ -485,14 +485,14 @@ def calculate_prpwef(inputs: Mapping[str, object],
                 ctih = crh - prprad * (crh - cth) / bo2h
                 sih = _sqrt(prprd2 - zheff**2) * (crh + ctih)
                 siosrh = sih / srh
-                s['ctih'] = ctih
-        s.update({'sih': sih, 'siosrh': siosrh,
+                powr_words['ctih'] = ctih
+        powr_words.update({'sih': sih, 'siosrh': siosrh,
                   'ytemp': _tlinex(_X14637, _X24637, _Y4637, siosrh,
                                    srtpco, 0, 0, 0, 1)})
 
     # The wing's immersed area, its sweep and its zero-lift moment.
     bio2 = _sqrt(prprd2 - (zs - (zw - xbarrw * sinap))**2)
-    s['bio2'] = bio2
+    powr_words['bio2'] = bio2
     if nengsp == 2.0:
         sstri = bio2 * crp * 4.0
         astari = _div(4.0 * bio2**2, .50 * sstri)
@@ -519,7 +519,7 @@ def calculate_prpwef(inputs: Mapping[str, object],
             sweepa = argcs[1]
             trpsi = a_block[26] * trs0i
             bstio2 = a_block[23] + bst0i2
-            s.update({'bst0i2': bst0i2, 'sst0i': sst0i, 'scapi': scapi,
+            powr_words.update({'bst0i2': bst0i2, 'sst0i': sst0i, 'scapi': scapi,
                       'trs0i': trs0i, 'cbsr0i': cbsr0i})
         else:
             cti = cr - bio2 * ((cr - cb) / (bo2 - bst0o2))
@@ -530,11 +530,11 @@ def calculate_prpwef(inputs: Mapping[str, object],
             cbarli = cr * _funcb(tri)
             sweepa = a_block[69]
             trpsi = cti / crstr
-            s['tri'] = tri
+            powr_words['tri'] = tri
         astari = 4.0 * (bstio2**2) / sstri
-        s.update({'cti': cti, 'bstio2': bstio2})
+        powr_words.update({'cti': cti, 'bstio2': bstio2})
         dcd0s = (srtpco * 8.0 / (PI * srw)) * (
-            float(wing_in['cf']) * sstri + float(tail_in['cf']) * s['sih'] +
+            float(wing_in['cf']) * sstri + float(tail_in['cf']) * powr_words['sih'] +
             .50 * float(vertical_in['cf']) * float(vertical_in['area']) +
             float(body_in['cf']) * float(body_in['wetted_area']))
     cd0pow = float(wing_in['cd0']) + dcd0s
@@ -558,7 +558,7 @@ def calculate_prpwef(inputs: Mapping[str, object],
     dcmq = (srtpco * si / srw * cbarli / cbarr * cm0i) * 8.0 / PI
     xbrsrr = a_block[16] / 4. + (a_block[1] * a_block[32] * a_block[62] + a_block[2] *
                            (a_block[23] * a_block[62] + (a_block[33] - a_block[23]) * a_block[86])) / a_block[3]
-    s.update({'sstri': sstri, 'astari': astari, 'trpsi': trpsi,
+    powr_words.update({'sstri': sstri, 'astari': astari, 'trpsi': trpsi,
               'sweepa': sweepa, 'cbarli': cbarli, 'si': si, 'dcd0s': dcd0s,
               'cd0pow': cd0pow, 'rpnob': rpnob, 'aak': aak,
               'ebroep': ebroep, 'dcmt': dcmt, 'cossw': cossw,
@@ -601,7 +601,7 @@ def calculate_prpwef(inputs: Mapping[str, object],
             sstri = a_block[1] + sst0i
             bstio2 = a_block[23] + bst0i2
             astari = 4.0 * (bstio2**2) / sstri
-            s.update({'bst0i2': bst0i2, 'cti': cti, 'sst0i': sst0i,
+            powr_words.update({'bst0i2': bst0i2, 'cti': cti, 'sst0i': sst0i,
                       'bstio2': bstio2})
         elif bio2 <= bo2 - bsto2:
             immersed = False
@@ -610,25 +610,25 @@ def calculate_prpwef(inputs: Mapping[str, object],
             bstio2 = bio2 - bo2 + bsto2
             sstri = (crstr + cti) * bstio2
             astari = 4.0 * (bstio2**2) / sstri
-            s.update({'cti': cti, 'bstio2': bstio2})
+            powr_words.update({'cti': cti, 'bstio2': bstio2})
         if immersed:
             bs1 = _tlinex(_X16112, _X26112, _Y46112, astari, ar, 0, 0, 2, 0)
             bs2 = _value(_XB6112, _DM2, srtpco, 0, 2)
             bs3 = _tlinex(_DC1, _DC2, _DC3, bs2, bs1, 0, 0, 0, 0)
             ak1 = _tlinex(_D3, _D4, _AK6112, srtpco, bs3, 0, 0, 0, 0)
-            s.update({'bs1': bs1, 'bs2': bs2, 'bs3': bs3, 'ak1': ak1})
+            powr_words.update({'bs1': bs1, 'bs2': bs2, 'bs3': bs3, 'ak1': ak1})
             immersed = deuda != -1.0
         if immersed:
-            arrays['dclq'][j] = 8.0 * s['ak1'] * srtpco * sstri / (
+            arrays['dclq'][j] = 8.0 * powr_words['ak1'] * srtpco * sstri / (
                 PI * srw) * cl_w[j]
             delalp = -ep / (1.0 + deuda)
-            arrays['dclaw'][j] = cla * delalp * sstri * s['ak1'] / srw * (
+            arrays['dclaw'][j] = cla * delalp * sstri * powr_words['ak1'] / srw * (
                 1.0 + 8.0 * srtpco / PI)
-            s['delalp'] = delalp
+            powr_words['delalp'] = delalp
         arrays['dclt'][j] = combo * sinat
         if htpl:
-            s['dxhmac'] = xh + xbarrh * math.cos(DEG * alih) - phaloc
-            zht = zh - phvloc + s['dxhmac'] * math.tan(DEG * aietlp)
+            powr_words['dxhmac'] = xh + xbarrh * math.cos(DEG * alih) - phaloc
+            zht = zh - phvloc + powr_words['dxhmac'] * math.tan(DEG * aietlp)
             zhtorp = zht / prprad
             eps = float(dwash_in['epsilon'][j])
             if nengsp > 1.0:
@@ -649,13 +649,13 @@ def calculate_prpwef(inputs: Mapping[str, object],
             zheff = zs - zh + tn * math.tan(DEG * (alphap - epowr))
             zhorp = zheff / prprad
             dqhoqi = _tlinex(_XT4637, _Z24637, _YF4637, abs(zhorp),
-                             s['ytemp'], 0, 0, 2, 1)
+                             powr_words['ytemp'], 0, 0, 2, 1)
             arrays['dclhq'][j] = dqhoqi * clh
             arrays['dclhe'][j] = -clalph * depowr * (
                 float(dwash_in['q_ratio'][j]) + dqhoqi)
             dlh = xh + xbarrh * cosaih - xcg
             arrays['dcmhe'][j] = -dlh * arrays['dclhe'][j] / cbarr
-            s.update({'zht': zht, 'zhtorp': zhtorp, 'step1': step1,
+            powr_words.update({'zht': zht, 'zhtorp': zhtorp, 'step1': step1,
                       'epowr': epowr, 'zheff': zheff, 'zhorp': zhorp,
                       'dqhoqi': dqhoqi})
         arrays['dclpon'][j] = (arrays['dclt'][j] + arrays['dclnp'][j] +
@@ -678,16 +678,16 @@ def calculate_prpwef(inputs: Mapping[str, object],
             cdlrat = ((clww / cl_w[j])**2 *
                       (1. + _PISQRD * ar * ebar / (180. * clww)) +
                       aak * (bo2 / prprad * clp / cl_w[j])**2)
-            s['clww'] = clww
+            powr_words['clww'] = clww
         cdlpow = cdlrat * cdl[j]
         arrays['cdpow'][j] = dcd0s + cdlpow - cdl[j]
-        s.update({'alphat': alphat, 'cosat': cosat, 'sinat': sinat,
+        powr_words.update({'alphat': alphat, 'cosat': cosat, 'sinat': sinat,
                   'alphap': alphap, 'cnp': cnp, 'ebar': ebar, 'ep': ep,
                   'sinap': sinap, 'zs': zs, 'bio2': bio2, 'sstri': sstri,
                   'astari': astari, 'xcp': xcp, 'dlh': dlh, 'clp': clp,
                   'cdlrat': cdlrat, 'cdlpow': cdlpow})
     result.update(arrays)
-    result.update({'powr': s, 'kn': kn, 'cosaiw': cosaiw, 'nalpha': nalpha,
+    result.update({'powr': powr_words, 'kn': kn, 'cosaiw': cosaiw, 'nalpha': nalpha,
                    'argcs': argcs, 'method': 'legacy_prpwef'})
     return result
 

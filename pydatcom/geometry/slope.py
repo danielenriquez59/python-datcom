@@ -54,36 +54,37 @@ def _pressure_distribution(alpha_deg: float, weber: Dict, mach: float,
     cp_upper = np.empty(count)
     cp_lower = np.empty(count)
 
-    for i in range(last):
-        cpi = 1.0 - (1.0 + st1[i])**2 / (1.0 + st2[i]**2)
+    for station in range(last):
+        cpi = 1.0 - (1.0 + st1[station])**2 / (1.0 + st2[station]**2)
         bo2 = 1.0 - mach**2 * (1.0 - mach * cpi)
         if bo2 < 0.0:
             raise ValueError(
                 "SLOPE's local Mach term went negative; the analysis is not "
                 "possible for this section at this Mach number")
         bo = np.sqrt(bo2)
-        root = np.sqrt((1.0 - x[i]) / x[i]) if x[i] > 0.0 else 0.0
+        chord = x[station]
+        root = np.sqrt((1.0 - chord) / chord) if chord > 0.0 else 0.0
 
-        upper = ((cos_a * (1.0 + st1[i] / bo + st4[i] / beta) +
-                  sin_a / beta * (1.0 + st3[i] / bo) * root) /
-                 np.sqrt(1.0 + ((st2[i] + st5[i]) / bo)**2))
-        lower = ((cos_a * (1.0 + st1[i] / bo - st4[i] / beta) -
-                  sin_a / beta * (1.0 + st3[i] / bo) * root) /
-                 np.sqrt(1.0 + ((st2[i] - st5[i]) / bo)**2))
+        upper = ((cos_a * (1.0 + st1[station] / bo + st4[station] / beta) +
+                  sin_a / beta * (1.0 + st3[station] / bo) * root) /
+                 np.sqrt(1.0 + ((st2[station] + st5[station]) / bo)**2))
+        lower = ((cos_a * (1.0 + st1[station] / bo - st4[station] / beta) -
+                  sin_a / beta * (1.0 + st3[station] / bo) * root) /
+                 np.sqrt(1.0 + ((st2[station] - st5[station]) / bo)**2))
 
         if mach == 0.0:
-            cp_upper[i] = 1.0 - upper**2
-            cp_lower[i] = 1.0 - lower**2
+            cp_upper[station] = 1.0 - upper**2
+            cp_lower[station] = 1.0 - lower**2
         else:
             for value, target in ((upper, 'upper'), (lower, 'lower')):
                 if 1.0 + 0.2 * mach**2 * (1.0 - value**2) < 0.0:
                     raise ValueError(
                         f"SLOPE's {target}-surface isentropic term went "
                         "negative; the analysis is not possible")
-            cp_upper[i] = tmach * ((1.0 + 0.2 * mach**2 *
-                                    (1.0 - upper**2))**3.5 - 1.0)
-            cp_lower[i] = tmach * ((1.0 + 0.2 * mach**2 *
-                                    (1.0 - lower**2))**3.5 - 1.0)
+            cp_upper[station] = tmach * ((1.0 + 0.2 * mach**2 *
+                                          (1.0 - upper**2))**3.5 - 1.0)
+            cp_lower[station] = tmach * ((1.0 + 0.2 * mach**2 *
+                                          (1.0 - lower**2))**3.5 - 1.0)
 
     # The leading-edge station is handled separately.
     a0 = weber['a0']
