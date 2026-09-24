@@ -28,11 +28,11 @@ def _panel(alpha_deg, arm_x: float, arm_z: float, cyb: float,
            blref: float, ventral: bool, cnr_cyb: float):
     """One panel's CYP, CNP and CNR increments."""
     alpha = np.atleast_1d(np.asarray(alpha_deg, dtype=float))
-    cos_a = np.cos(alpha / RAD)
-    sin_a = np.sin(alpha / RAD)
+    cos_alpha = np.cos(alpha / RAD)
+    sin_alpha = np.sin(alpha / RAD)
 
-    effective = arm_z * cos_a - arm_x * sin_a          # ZEE
-    moment_arm = arm_x * cos_a + arm_z * sin_a         # ABCDE
+    effective = arm_z * cos_alpha - arm_x * sin_alpha          # ZEE
+    moment_arm = arm_x * cos_alpha + arm_z * sin_alpha         # ABCDE
 
     if ventral:
         # The source writes (2.*ZEE-ZPF) here where the vertical tail branch

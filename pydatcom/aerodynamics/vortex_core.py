@@ -74,7 +74,8 @@ def calculate_sddvc(x: Sequence[float], beta_aspect: float,
         taper_ratio: ``TAPR``, the wing taper ratio to interpolate to.
         icase: Selects which mid-taper figure applies.  1 uses Figure
             4.4.1-74C, 2 uses 74B, and 3 uses both and blends them on the
-            trailing-edge sweep.
+            trailing-edge sweep.  SDWASH passes 4 for a swept-back
+            trailing edge, which the source handles as case 1.
         sweep_te: ``SWEPTE``, used only by case 3.
         sweep_reference: ``SWEPR``, the blend denominator for case 3.
 
@@ -90,8 +91,8 @@ def calculate_sddvc(x: Sequence[float], beta_aspect: float,
     x = np.asarray(x, dtype=float)
     if x.shape != (2,):
         raise ValueError("SDDVC expects exactly two streamwise stations")
-    if icase not in (1, 2, 3):
-        raise ValueError("SDDVC ICASE must be 1, 2 or 3")
+    if icase not in (1, 2, 3, 4):
+        raise ValueError("SDDVC ICASE must be 1, 2, 3 or 4")
     if icase == 3 and sweep_reference == 0.0:
         raise ValueError("SDDVC case 3 divides by the reference sweep")
 
