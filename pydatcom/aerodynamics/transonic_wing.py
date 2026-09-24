@@ -366,6 +366,14 @@ def calculate_trsoni(mach: float, alpha_deg: Sequence[float],
         ``MT(1)``, the lift fairing's lower Mach (up to 0.75, extrapolated
         quadratically past the 0.6 grid), not at 0.6.  Kept.
     """
+    return _transonic_surface(mach, alpha_deg, wing, a, sref, roughness, body,
+                              stale_wave_drag, nf, False)
+
+
+def _transonic_surface(mach, alpha_deg, wing, a, sref, roughness, body,
+                       stale_wave_drag, nf, stores_supersonic_points):
+    """TRSONI and TRSONJ; they differ only in whether the wave-drag loop
+    stores its supersonic points."""
     tra: Dict[int, float] = {}
     alpha = np.asarray(alpha_deg, dtype=float)
     result: Dict[str, object] = {'tra': tra, 'method': 'legacy_trsoni'}
@@ -484,10 +492,13 @@ def calculate_trsoni(mach: float, alpha_deg: Sequence[float],
                               lind=8, lx1u=-1, lx2u=2)
                 cdw2[i] = cdw1 * toc**1.666 * arg3 * srstar / sref
             else:
-                # The source computes CDW1 here and never stores it.
-                interx(2, _T429R, [var1, var2], [5, 7], _D429R, lind=7,
-                       lx2u=2)
-                stale_points.append(i)
+                cdw1 = interx(2, _T429R, [var1, var2], [5, 7], _D429R,
+                              lind=7, lx2u=2)
+                if stores_supersonic_points:
+                    cdw2[i] = cdw1 * toc**1.666 * arg3 * srstar / sref
+                else:
+                    # TRSONI computes CDW1 here and never stores it.
+                    stale_points.append(i)
         cdw = tranf(xmtd, cdw2, 0.0, 0.0, mach)
         cd0w = cdw + cdf
         tra.update({39: rlcoff, 40: rnn, 41: rl, 42: cf, 67: cdw, 68: cdf})
@@ -533,3 +544,37 @@ def calculate_trsoni(mach: float, alpha_deg: Sequence[float],
         'cd0_wing_body': float(cd0b + cd0w), 'base_diameter': float(db),
     })
     return result
+
+
+def calculate_trnht(a: Mapping[int, float], deltay: float,
+                    sref: float) -> Dict[str, float]:
+    """Translate TRNHT: TRANWG on the horizontal tail's blocks.
+
+    The two source routines differ only in their COMMON blocks
+    (``/HTDATA/``, ``/HTI/`` for ``/WINGD/``, ``/WINGI/``) and in layout.
+    """
+    return calculate_tranwg(a, deltay, sref)
+
+
+def calculate_trsonj(mach: float, alpha_deg: Sequence[float],
+                     tail: Mapping, a: Mapping[int, float], sref: float,
+                     roughness: float, body: Optional[Mapping] = None,
+                     stale_wave_drag: Optional[Sequence[float]] = None,
+                     nf: int = 0) -> Dict[str, object]:
+    """Translate TRSONJ: TRSONI on the horizontal tail's blocks.
+
+    TRSONI with TRNHT for TRANWG, the tail's ``A``, ``HTIN`` and ``HT``
+    blocks, and its own ``TRA`` (``/SBETA/`` word 244 on).  The body words
+    are the same ``BODY``/``BD`` words TRSONI writes, and the tail-body drag
+    goes to ``BH(1)``.  Arguments and returns are those of
+    :func:`calculate_trsoni` with the tail in place of the wing.
+
+    One statement differs.  TRSONJ's label 1090 is on the store
+    ``CDW2(I)=CDW1(I)*...``, so the supersonic branch's ``GO TO 1090``
+    stores its Figure 4.1.5.1-29 value; TRSONI's 1090 is a ``CONTINUE``
+    after the store, which that branch skips.  The tail's wave drag is
+    therefore faired through all fifteen points, and ``stale_wave_drag``
+    has no effect.
+    """
+    return _transonic_surface(mach, alpha_deg, tail, a, sref, roughness,
+                              body, stale_wave_drag, nf, True)

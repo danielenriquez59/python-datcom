@@ -208,3 +208,48 @@ def test_tail_limit_is_tighter_than_the_wing_limit():
                 and NOT_AVAILABLE in _overlay(p['inputs'])['cm'])
     assert (np.sum(tail['cm'] == NOT_AVAILABLE) >=
             np.sum(wing['cm'] == NOT_AVAILABLE))
+
+
+# --- CMALPO (tools/probes/cmalpo.py)
+
+from pydatcom.aerodynamics.cmalph import calculate_cmalpo  # noqa: E402
+
+_CMALPO = json.loads((_ROOT / 'tests' / 'fixtures' / 'probes' /
+                      'cmalpo.json').read_text())
+
+
+def _cmalpo(c):
+    return calculate_cmalpo(c['planform_type'], c['geometry'], c['section'],
+                            c['mach'], c['first_mach'], c['cbarr'])
+
+
+@pytest.mark.parametrize("case", range(len(_CMALPO)))
+def test_cmalpo_matches_compiled_routine(case):
+    c, o = _CMALPO[case]['inputs'], _CMALPO[case]['outputs']
+    r = _cmalpo(c)
+    dcmdcl, a62 = o['OUT']
+    assert r['dcmdcl'] == pytest.approx(dcmdcl, rel=1e-12, abs=1e-15)
+    assert r['a62'] == a62
+
+
+def test_cmalpo_panel_weights_follow_the_first_mach_number():
+    """The Mach-zero routine weights its panels with lift slopes formed at
+    FLC(3); B(1) only reaches FWDXAC."""
+    c = next(p['inputs'] for p in _CMALPO
+             if p['inputs']['planform_type'] == 3.0 and
+             p['inputs']['geometry']['a62'] > 0)
+    base = _cmalpo(c)
+    moved = _cmalpo(dict(c, first_mach=c['first_mach'] + 0.3))
+    assert moved['c'][171] != base['c'][171]
+    assert moved['dcmdcl'] != base['dcmdcl']
+    assert _cmalpo(dict(c, mach=c['mach'] + 0.3))['dcmdcl'] == \
+        base['dcmdcl']
+
+
+def test_cmalpo_high_aspect_ratio_centre_is_its_own():
+    """Above A(125) CMALPO uses (A(161)-(SSPN-SSPNE)*A(62))/A(10)."""
+    c = _CMALPO[0]['inputs']
+    g, s = c['geometry'], c['section']
+    assert g['a7'] > g['a125']
+    assert _cmalpo(c)['xac'] == pytest.approx(
+        (g['a161'] - (s['sspn'] - s['sspne']) * g['a62']) / g['a10'])

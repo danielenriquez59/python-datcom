@@ -20,10 +20,13 @@ Three parts, in the source's order:
   to a reference angle and fairs linearly to the planform centroid at 90
   degrees.
 
+CMALPO, the Mach-zero ``dCm/dCL`` for the dynamic derivatives, repeats
+the aerodynamic-centre part with ``BETA = 1`` and shares its tables.
+
 The tables were extracted from the source DATA statements by parsing, with
 ``tools/fortran_data.py``, rather than by hand.
 
-Reference: datcom-legacy/datcom_2000/cmalph.f
+Reference: datcom-legacy/datcom_2000/cmalph.f, cmalpo.f
 """
 
 import math
@@ -33,7 +36,7 @@ import logging
 
 from pydatcom.aerodynamics.cdrag import STRAIGHT_TAPERED
 from pydatcom.aerodynamics.fwdxac import calculate_fwdxac
-from pydatcom.utils.constants import PI, RAD, UNUSED
+from pydatcom.utils.constants import DEG, PI, RAD, UNUSED
 
 # The source's "not available" marker, 2*UNUSED.
 NOT_AVAILABLE = 2.0 * UNUSED
@@ -549,6 +552,97 @@ def calculate_cmalph(planform_type: float,
         cm.append(cn[m] * (g['a173'] / g['a10'] - c[44]) * c[48] + c[5])
     result.update({'cm': np.array(cm), 'nonlinear': True})
     return result
+
+
+def _panel_slope(chord_ratio_area: float, tan_half_chord: float,
+                 section_cla: float, mach: float) -> float:
+    """CMALPO's panel lift-curve slope, per degree."""
+    temp1 = 2.0 * PI * chord_ratio_area * DEG
+    temp2 = abs(1.0 - mach**2) * (temp1 / section_cla)**2
+    return temp1 / (2.0 + math.sqrt(temp2 * (1.0 + tan_half_chord**2) + 4.0))
+
+
+def calculate_cmalpo(planform_type: float, geometry: Dict[str, float],
+                     section: Dict[str, float], mach: float,
+                     first_mach: float, cbarr: float) -> Dict[str, object]:
+    """Translate CMALPO: the surface's dCm/dCL at Mach zero, ``DYN(21)``.
+
+    CMALPH's aerodynamic-centre path with ``BETA = 1``, for the dynamic
+    derivatives (overlay 43 runs it for the wing and the tail).  It differs
+    from CMALPH in four places:
+
+    - With ``A(7) > A(125)`` the straight surface's centre is
+      ``(A(161) - (SSPN-SSPNE)*A(62))/A(10)`` rather than CMALPH's MAC
+      quarter chord with the section correction.
+    - A zero ``A(38)`` is not floored; with ``BETA = 1`` only the unused
+      ``C(11)`` divides by it.
+    - The two panels are weighted by lift-curve slopes the routine forms
+      itself, at ``FLC(3)``, the case's *first* Mach number, and with the
+      section slope ``WINGIN(21)``, rather than reading ``A(171)``/``(172)``.
+    - Its zero-lift moment ``C(5)`` is computed and never stored, so it is
+      not translated.
+
+    ``B(1)`` (``mach``) still sets FWDXAC's Mach number.
+
+    Args:
+        planform_type: ``WINGIN(15)``.
+        geometry: ``A`` entries ``a1``, ``a5``, ``a7``, ``a10``, ``a23``,
+            ``a26``, ``a27``, ``a38``, ``a62``, ``a74``, ``a86``, ``a98``,
+            ``a125``, ``a161``, ``a164``, ``a166``, ``a167``, ``a168``,
+            ``a169``, ``a173``; those a path reads.
+        section: ``sspn`` and ``sspne`` (``WINGIN(4)``, ``(3)``) and
+            ``cla`` (``WINGIN(21)``).
+        mach: ``B(1)``.
+        first_mach: ``FLC(3)``.
+        cbarr: ``CBARR``.
+
+    Returns:
+        ``dcmdcl`` (``DYN(21)``), ``xac`` (``C(6)``), the ``C`` words used,
+        and ``a62``, which a zero ``A(62)`` leaves as 1e-15 in COMMON.
+    """
+    kind = float(planform_type)
+    g = {k: float(v) for k, v in geometry.items()}
+    beta = 1.0
+    c: Dict[int, float] = {}
+    a170 = g['a173'] / g['a10']
+    c[9] = g['a7'] * g['a38']
+    if kind == STRAIGHT_TAPERED:
+        c[10] = g['a38'] / beta
+        if g['a7'] > g['a125']:
+            c[6] = (g['a161'] - (float(section['sspn']) -
+                                 float(section['sspne'])) * g['a62']) / g['a10']
+        elif g['a38'] < 0.0:
+            c[6] = calculate_fwdxac(c[9], g['a27'], c[10], mach)['xac']
+        else:
+            c[6] = _fig26(c[9], c[10], g['a27'])
+    else:
+        if g['a62'] == 0.0:
+            g['a62'] = 1.0e-15
+        c[12] = g['a5'] * g['a62']
+        c[13] = g['a62'] / beta
+        c[15] = g['a168'] * g['a86']
+        c[16] = g['a86'] / beta
+        outboard_forward = False
+        if g['a62'] < 0.0:
+            c[18] = calculate_fwdxac(c[12], g['a26'], c[13], mach)['xac']
+            outboard_forward = g['a86'] < 0.0
+        else:
+            c[18] = _fig26(c[12], c[13], g['a26'])
+        if outboard_forward:
+            c[19] = calculate_fwdxac(c[15], g['a169'], c[16], mach)['xac']
+        else:
+            c[19] = _fig26(c[15], c[16], g['a169'])
+        c[20] = (c[19] * g['a166'] / g['a10'] - g['a164'] * g['a86'] / g['a10']
+                 + g['a23'] * g['a62'] / g['a10'])
+        cla = float(section['cla'])
+        a172 = _panel_slope(g['a168'], g['a98'], cla, first_mach)
+        a171 = _panel_slope(g['a5'], g['a74'], cla, first_mach)
+        c[6] = ((a171 * g['a1'] * c[18] + a172 * g['a167'] * c[20]) /
+                (a171 * g['a1'] + a172 * g['a167']))
+        c.update({171: a171, 172: a172})
+    return {'dcmdcl': float((a170 - c[6]) * (g['a10'] / cbarr)),
+            'xac': float(c[6]), 'c': c, 'a62': g.get('a62'),
+            'method': 'legacy_cmalpo'}
 
 
 def calculate_cacalc(alpha_deg: Sequence[float], cd: Sequence[float],
