@@ -29,7 +29,11 @@ import numpy as np
 from typing import Dict, Optional, Sequence
 import logging
 
+from pydatcom.aerodynamics.cdrag import STRAIGHT_TAPERED as STRAIGHT_TAPERED_WB
 from pydatcom.aerodynamics.tablec import calculate_tablec
+from pydatcom.aerodynamics.tbsub import calculate_tbsub
+from pydatcom.aerodynamics.tbsup import calculate_tbsup
+from pydatcom.aerodynamics.tbtrn import calculate_tbtrn
 from pydatcom.interactions.body_vortex import calculate_bodowg, getmax
 from pydatcom.utils.constants import PI, RAD, UNUSED
 from pydatcom.utils.legacy_numeric import tbfunx
@@ -385,10 +389,12 @@ def calculate_wbcm(alpha_deg: Sequence[float],
             and carries on with the square root of a negative number.
 
     Notes:
-        WBCM0 is called with ``TWIST = WINGIN(11)/RAD``, in radians, but
-        range-checks it against ``-9.4``, a degree value, so its twist
-        term is about 57 times smaller than a degree argument would give.
-        The source form is kept.
+        WBCM0 is called with ``TWIST = WINGIN(11)/RAD``, in radians, and its
+        term ``C11*TWIST`` is therefore in radians, as the companion
+        regression WBCDL's ``-B12*TWIST/RAD`` is.  But WBCM0 range-checks
+        that radian value against ``-9.4``, a degree bound (WBCDL checks
+        the degree value), so the check admits washout far beyond the
+        regression's data.  The source form is kept.
     """
     a7, a10 = float(surface['a7']), float(surface['a10'])
     sspn = float(surface['sspn'])
@@ -664,3 +670,170 @@ def calculate_body_vertical(alpha_deg: Sequence[float],
         out['cla'][j] = tbfunx(alpha, out['cl'], alpha[j], 0, 0)[1]
         out['cma'][j] = tbfunx(alpha, out['cm'], alpha[j], 0, 0)[1]
     return out
+
+
+# TABLES: the Mach grid of the WBCDL regression, and the angle past which
+# each speed range has no data.
+_TABLES_MACH = np.array([0.00, 0.60, 0.70, 0.80, 0.90, 0.95, 1.00, 1.10,
+                         1.20, 1.30, 1.40, 1.50, 2.00, 2.50])
+
+
+def _angle_limit(mach: float) -> int:
+    if mach <= 0.9:
+        return 18
+    if mach < 1.0:
+        return 11
+    if mach < 1.1:
+        return 12
+    return 15
+
+
+def calculate_tables(mach: float, alpha_deg: float) -> Optional[np.ndarray]:
+    """Translate TABLES: the sixteen WBCDL coefficients at one condition.
+
+    Bilinear in angle (one-degree rows from TBSUB, TBTRN or TBSUP by Mach
+    index) and Mach.  Returns ``None`` where the source sets ``NDM``: past
+    the speed range's angle limit (18, 11, 12 or 15 degrees) or outside
+    the Mach grid.  The source then leaves its coefficient array as it was;
+    WBCDL overwrites the result it forms from them, so nothing stale
+    reaches the output.
+    """
+    alp = abs(float(alpha_deg))
+    iam = _angle_limit(mach)
+    if alp > iam:
+        return None
+    ia = int(alp)
+    if ia == iam:
+        ia = iam - 1
+    base = float(ia)
+    im2 = None
+    for i in range(2, 15):
+        if _TABLES_MACH[i - 2] <= mach <= _TABLES_MACH[i - 1]:
+            im2 = i
+            break
+    if im2 is None:
+        return None
+    im1 = im2 - 1
+    bt = np.zeros((2, 2, 16))
+    for i, im in enumerate((im1, im2)):
+        for j, index in enumerate((ia + 1, ia + 2)):
+            if im <= 4:
+                block = calculate_tbsub(im, index)
+            elif im <= 10:
+                block = calculate_tbtrn(im, index)
+            else:
+                block = calculate_tbsup(im, index)
+            bt[i, j] = block['coefficients']
+    ba = bt[0, 0] + (bt[0, 1] - bt[0, 0]) * (alp - base)
+    bb = bt[1, 0] + (bt[1, 1] - bt[1, 0]) * (alp - base)
+    return ba + (bb - ba) * ((mach - _TABLES_MACH[im1 - 1]) /
+                             (_TABLES_MACH[im2 - 1] - _TABLES_MACH[im1 - 1]))
+
+
+def calculate_wbcdl(aspect_ratio: float, tan_le: float, tovc: float,
+                    nose_length: float, afterbody_length: float,
+                    taper_ratio: float, leading_edge_radius: float,
+                    twist_deg: float, ycm: float, cld: float,
+                    reynolds: float, tr: float, mach: float,
+                    alpha_deg: Sequence[float]) -> Optional[np.ndarray]:
+    """Translate WBCDL: the regression drag due to lift of a wing-body.
+
+    Returns ``None`` (the source's ``NA``) outside the regression's range,
+    else ``CDL`` at each angle, ``UNUSED`` where TABLES has no data.  The
+    source also sets ``NA`` when the first angle has no data; its caller
+    then discards the whole curve, which ``calculate_wbcd`` reproduces.
+    The Reynolds number is clamped to 8e5 to 8e6.
+    """
+    inside = (1.6 <= aspect_ratio <= 6.0 and 0.0 <= tan_le <= 2.74748 and
+              0.025 <= tovc <= 0.100 and 2.2 <= nose_length <= 8.4 and
+              0.3 <= afterbody_length <= 5.6 and 0.0 <= taper_ratio <= 1.0
+              and 0.0 <= leading_edge_radius <= 0.015 and
+              -9.4 <= twist_deg <= UNUSED and 0.0 <= ycm <= 0.0263 and
+              0.0 <= cld <= 0.45)
+    if not inside:
+        return None
+    reynolds = min(max(reynolds, 8.0e5), 8.0e6)
+    cdl = []
+    for alpha in alpha_deg:
+        b = calculate_tables(mach, alpha)
+        if b is None:
+            cdl.append(UNUSED)
+            continue
+        cdl.append(b[0] + b[1] / aspect_ratio + b[2] * aspect_ratio +
+                   b[3] * np.sqrt(tan_le) + b[4] * tovc + b[5] * nose_length +
+                   b[6] * afterbody_length + b[7] * taper_ratio +
+                   b[8] * taper_ratio**2 + b[9] * taper_ratio**3 +
+                   b[10] * tr + b[11] * leading_edge_radius -
+                   b[12] * twist_deg / RAD + b[13] * ycm + b[14] * cld +
+                   b[15] * reynolds / 1.0e6)
+    return np.array(cdl, dtype=float)
+
+
+def calculate_wbcd(alpha_deg: Sequence[float], surface: Dict[str, float],
+                   combination: Dict[str, Sequence[float]],
+                   body: Dict[str, float], x_surface: float,
+                   flight: Dict[str, float]) -> Optional[Dict[str, object]]:
+    """Translate one half of WBCD: the regression drag of a surface-body.
+
+    The wing and horizontal-tail halves are the same code on their own
+    blocks.  Only a straight tapered surface is treated; otherwise, or when
+    WBCDL is out of range, the source leaves the buildup drag and this
+    returns ``None``.
+
+    Args:
+        alpha_deg: ``FLC(23)`` onward.
+        surface: ``type`` (``WINGIN(15)``), ``sspn``, ``sspne``, ``chrdr``
+            (4, 3, 6), ``tovc`` (16), ``ler`` (62), ``twista`` (11),
+            ``ycm`` (93), ``cld`` (94), and ``a38``, ``a56``, ``a118``,
+            ``a120``, ``a122``.
+        combination: The surface-body ``cd0`` (``WB(17)`` or ``HB(17)``) and
+            ``cl`` (``BW(21)`` or ``BH(21)`` onward).
+        body: ``length`` ``BD(1)``, ``x_max_area`` ``BD(2)`` and
+            ``max_diameter`` ``BD(85)``.
+        x_surface: ``XW`` or ``XH``.
+        flight: ``mach`` (``FLC(I+2)``), ``reynolds_per_length``
+            (``FLC(I+42)``) and ``tr`` (``FLC(96)``).
+
+    Returns:
+        ``{'cd', 'cn', 'ca', 'cdl'}``, or ``None`` when not applicable.
+        Angles without regression data are marked ``-UNUSED`` in ``cd``,
+        ``cn`` and ``ca``, as the source marks them.
+
+    Notes:
+        When the body's maximum-area station lies ahead of the surface's
+        leading or trailing edge, the source renormalises the nose or
+        afterbody station by the maximum diameter ``BD(85)`` instead of
+        ``DB``, and then forms the afterbody length as ``BD(1)/DB - LA``,
+        mixing the two scales in one subtraction.  Kept.
+    """
+    if float(surface['type']) != STRAIGHT_TAPERED_WB:
+        return None
+    db = 2.0 * (float(surface['sspn']) - float(surface['sspne']))
+    ln = (x_surface + 0.5 * db * float(surface['a38'])) / db
+    la = (x_surface + float(surface['chrdr']) +
+          0.5 * db * float(surface['a56'])) / db
+    if float(body['x_max_area']) < ln * db:
+        ln = ln * db / float(body['max_diameter'])
+    if float(body['x_max_area']) > la * db:
+        la = la * db / float(body['max_diameter'])
+    la = float(body['length']) / db - la
+    alpha = np.asarray(alpha_deg, dtype=float)
+    cdl = calculate_wbcdl(
+        float(surface['a120']), float(surface['a38']), float(surface['tovc']),
+        ln, la, float(surface['a118']), float(surface['ler']),
+        float(surface['twista']), float(surface['ycm']),
+        float(surface['cld']),
+        float(flight['reynolds_per_length']) * float(surface['a122']),
+        float(flight['tr']), float(flight['mach']), alpha)
+    if cdl is None or cdl[0] == UNUSED:
+        return None
+    cl = np.asarray(combination['cl'], dtype=float)
+    cd = float(combination['cd0']) + cdl
+    ca_, sa_ = np.cos(alpha / RAD), np.sin(alpha / RAD)
+    cn = cl * ca_ + cd * sa_
+    ca = cd * ca_ - cl * sa_
+    missing = cdl == UNUSED
+    cd, cn, ca = (np.where(missing, -UNUSED, v) for v in (cd, cn, ca))
+    return {'cd': cd, 'cn': cn, 'ca': ca, 'cdl': cdl,
+            'nose_length': float(ln), 'afterbody_length': float(la),
+            'method': 'legacy_wbcd'}

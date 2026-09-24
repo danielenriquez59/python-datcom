@@ -114,3 +114,16 @@ def test_vertical_panel_halving_and_offset():
     assert (out[1], out[3], out[7], out[120]) == (5.0, 10.0, 2.0, 2.5)
     assert out[5] == UNUSED and out[16] == 9.0
     assert (out[130], out[133], out[136]) == (1.5, 2.5, 3.5)
+
+
+def test_setup1_schedules_and_records():
+    from pydatcom.geometry.wtgeom import calculate_setup1
+    out = calculate_setup1([-2.0, 0.0, 4.0], 1.5, -1.0, -0.3, 0.35, 30.0, 20.0)
+    np.testing.assert_allclose(out['wing_local_alpha'], [-0.5, 1.5, 5.5])
+    np.testing.assert_allclose(out['tail_local_alpha'], [-3.0, -1.0, 3.0])
+    np.testing.assert_allclose(out['body_alpha'], [-2.3, -0.3, 3.7])
+    assert out['a'][174] == 0.35
+    assert out['a'][110] == pytest.approx(math.tan(math.radians(30.0)),
+                                          rel=1e-7)
+    assert out['a'][116] == pytest.approx(math.tan(math.radians(20.0)),
+                                          rel=1e-7)
