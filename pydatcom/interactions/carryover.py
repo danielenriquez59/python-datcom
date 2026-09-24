@@ -18,10 +18,13 @@ Reference: datcom-legacy/datcom_2000/hbtran.f (Figure 4.3.1.2-10, labels
 1030-1060), wbclb.f (Figure 4.3.1.2-12A), clwbt.f, wbtran.f
 """
 
+import math
+
 import numpy as np
 from typing import Dict
 import logging
 
+from pydatcom.utils.constants import PI, RAD
 from pydatcom.utils.legacy_numeric import tbfunx
 
 logger = logging.getLogger(__name__)
@@ -120,3 +123,74 @@ def calculate_carryover_factors(state: Dict,
     factors['ratio'] = ratio
     factors['method'] = 'legacy_fig_4312_10_and_12a'
     return factors
+
+
+def intkbw(mach: float, sweep_le_deg: float, root_chord: float,
+           body_diameter: float, afterbody_length: float):
+    """Translate INTKBW: supersonic K_B(W) and its centre by integration.
+
+    The carryover of wing lift onto the body behind a supersonic wing
+    (Section 4.3.1.2), integrated over the body's lifting region with
+    QUADIN on a 50 by 50 grid: the supersonic-leading-edge form (``ACOS``)
+    when ``beta*cot(LE) > 1`` and the subsonic one (``SQRT``) otherwise.
+    The region ends at the afterbody length ``DX``, or the Mach line if
+    that comes first.
+
+    Args:
+        mach: ``MACH``; at or below 1 the source returns without setting
+            its outputs.
+        sweep_le_deg: ``OLE``, the leading-edge sweep in degrees.
+        root_chord: ``CR``.
+        body_diameter: ``D``.
+        afterbody_length: ``DX``.
+
+    Returns:
+        ``(kbw, xac)``, ``xac`` in root chords; ``None`` for Mach 1 or
+        below.
+
+    Reference: datcom-legacy/datcom_2000/intkbw.f
+    """
+    from pydatcom.utils.legacy_numeric import quadin
+    if mach <= 1.0:
+        return None
+    nn = 50
+    xx = float(nn - 1)
+    m = abs(1.0 / math.tan(sweep_le_deg / RAD))
+    dn = body_diameter / xx
+    beta = math.sqrt(mach**2 - 1.0)
+    cr, dx = root_chord, afterbody_length
+    if dx < body_diameter * beta - cr:
+        dn = (cr + dx) / (xx * beta)
+    supersonic_edge = beta * m > 1.0
+    save, savm = [], []
+    for i in range(nn):
+        n = dn * i
+        ll = beta * n
+        ul = min(cr + ll, cr + dx)
+        de = (ul - ll) / xx
+        data, datm = [], []
+        for j in range(nn):
+            e = ll + de * j
+            if supersonic_edge:
+                val = 1. / (beta * m) if n == 0.0 else \
+                    (e / beta + beta * m * n) / (n + m * e)
+                val = min(val, 1.0)
+                value = math.acos(val)
+            else:
+                val = 1. / (beta * m) if n == 0.0 else \
+                    (e / beta - n) / (n + m * e)
+                val = max(val, 0.0)
+                value = math.sqrt(val)
+            data.append(value)
+            datm.append(e * value)
+        save.append(quadin(data, de))
+        savm.append(quadin(datm, de))
+    kbw = quadin(save, dn)
+    xac = quadin(savm, dn) / (kbw * cr)
+    if supersonic_edge:
+        kbw = (8. * beta * m / (PI * (body_diameter * cr / 2.) *
+                                math.sqrt(beta**2 * m**2 - 1.)) * kbw)
+    else:
+        kbw = (16. * (beta * m)**1.5 / (PI * (body_diameter * cr / 2.) *
+                                         (beta * m + 1.)) * kbw)
+    return kbw, xac
