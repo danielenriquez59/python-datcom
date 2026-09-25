@@ -132,7 +132,7 @@ _Y61724 = np.array([
 
 def _sqrt(x: float) -> float:
     """SQRT as the source runs it: NaN, not an error, below zero."""
-    return float(np.sqrt(np.float64(x))) if x >= 0.0 else math.nan
+    return math.sqrt(np.float64(x)) if x >= 0.0 else math.nan
 
 
 def _series(gppa):

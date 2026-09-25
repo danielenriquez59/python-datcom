@@ -32,6 +32,7 @@ inputs and never mutates them, which has the same effect.
 Reference: datcom-legacy/datcom_2000/grdeff.f
 """
 
+import math
 import numpy as np
 from typing import Dict, Optional, Sequence
 import logging
@@ -200,8 +201,8 @@ def ground_effect_geometry(ground_height: float,
 
     dhdadi = wing.get('dhdadi')
     dhdado = wing.get('dhdado')
-    tan_di = 0.0 if _unused(dhdadi) else float(np.tan(float(dhdadi) / RAD))
-    tan_do = 0.0 if _unused(dhdado) else float(np.tan(float(dhdado) / RAD))
+    tan_di = 0.0 if _unused(dhdadi) else math.tan(float(dhdadi) / RAD)
+    tan_do = 0.0 if _unused(dhdado) else math.tan(float(dhdado) / RAD)
 
     straight = float(wing.get('planform_type', STRAIGHT_TAPERED) or
                      STRAIGHT_TAPERED) == STRAIGHT_TAPERED
@@ -222,7 +223,7 @@ def ground_effect_geometry(ground_height: float,
 
     # ---- average elevation of the wing above the ground ----------------
     aliw = float(synthesis['aliw'])
-    tan_incidence = float(np.tan(aliw / RAD))
+    tan_incidence = math.tan(aliw / RAD)
     h75cr = ground_height + float(synthesis['zw']) - 0.75 * chrdr * tan_incidence
     incidence_term = dx * tan_incidence * 0.5
 
@@ -280,7 +281,7 @@ def ground_effect_geometry(ground_height: float,
 
     if tail is not None and tail_theoretical is not None:
         alih = float(synthesis['alih'])
-        tan_incidence_h = float(np.tan(alih / RAD))
+        tan_incidence_h = math.tan(alih / RAD)
         htmacx = (ground_height + float(synthesis['zh']) -
                   float(tail_theoretical['mac_c4']) * tan_incidence_h)
         tail_dhdadi = tail.get('dhdadi')
@@ -289,12 +290,13 @@ def ground_effect_geometry(ground_height: float,
         result['htmac4'] = float(_mac_elevation(
             htmacx, float(tail_theoretical['y_mac']), float(tail['sspn']),
             float(tail.get('sspndd', 0.0) or 0.0), tail_dhdadi, tail_dhdado,
-            0.0 if _unused(tail_dhdadi) else float(np.tan(float(tail_dhdadi) / RAD)),
+            0.0 if _unused(tail_dhdadi)
+            else math.tan(float(tail_dhdadi) / RAD),
             0.0 if _unused(tail_dhdado) else float(np.tan(float(tail_dhdado) / RAD))))
 
     # ---- lift-related height parameters --------------------------------
     result['r'] = float((1.0 + hwob2**2)**0.5 - hwob2)
-    result['sigma'] = float(np.exp(-2.48 * hwob2**0.768))
+    result['sigma'] = math.exp(-2.48 * hwob2**0.768)
     hwocbr = hw / mac
     result['hwocbr'] = float(hwocbr)
     result['t'] = float((RAD / (8.0 * PI)) *

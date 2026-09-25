@@ -7,6 +7,7 @@ Uses slender body theory and DATCOM empirical correlations.
 Reference: datcom.f lines 2326-2563 (BODYRT), 2248-2325 (BODYJM)
 """
 
+import math
 import numpy as np
 from typing import Dict
 import logging
@@ -63,8 +64,8 @@ def calculate_body_alone_subsonic(state: Dict, alpha_deg: float,
         base_area = 0.3 * max_area
     
     # Equivalent diameters
-    d_max = np.sqrt(4.0 * max_area / np.pi)  # Maximum diameter
-    d_base = np.sqrt(4.0 * base_area / np.pi)  # Base diameter
+    d_max = math.sqrt(4.0 * max_area / np.pi)  # Maximum diameter
+    d_base = math.sqrt(4.0 * base_area / np.pi)  # Base diameter
     
     # Fineness ratio
     fineness = length / d_max if d_max > 0 else 0.0
@@ -95,7 +96,7 @@ def calculate_body_alone_subsonic(state: Dict, alpha_deg: float,
     
     # Mach effect on normal force (Figure 4.2.1.2-35B, line 2375-2377)
     # For subsonic: k_mach ≈ 1.2
-    mach_abs_sin = mach * abs(np.sin(np.deg2rad(alpha_deg)))
+    mach_abs_sin = mach * abs(math.sin(np.deg2rad(alpha_deg)))
     if mach_abs_sin <= 1.0:
         # Interpolate from X1217B, Y1217B data
         k_mach_data = np.array([0., 0.2, 0.3, 0.36, 0.4, 0.5, 0.6, 0.7, 0.77, 0.8, 0.86, 0.9, 0.98, 1.0])
@@ -109,7 +110,7 @@ def calculate_body_alone_subsonic(state: Dict, alpha_deg: float,
     
     # Normal force at this alpha (line 2547)
     alpha_rad = np.deg2rad(alpha_deg)
-    sin_alpha = np.sin(alpha_rad)
+    sin_alpha = math.sin(alpha_rad)
     sin_alpha_squared = sin_alpha ** 2
 
     # Cross-flow drag term (line 2547)
@@ -158,7 +159,7 @@ def calculate_body_alone_subsonic(state: Dict, alpha_deg: float,
     # Base drag (line 2518, 2520)
     # BD(60) = 0.029 * (d_base/d_max)³ / sqrt(CD_friction) * Smax/Sref
     if d_max > 0.01 and cd_friction_norm > 0.001:
-        base_drag_factor = 0.029 * ((d_base / d_max)**3) / np.sqrt(cd_friction_norm)
+        base_drag_factor = 0.029 * ((d_base / d_max)**3) / math.sqrt(cd_friction_norm)
         cd_base = base_drag_factor * max_area / sref
     else:
         cd_base = 0.0
@@ -178,8 +179,8 @@ def calculate_body_alone_subsonic(state: Dict, alpha_deg: float,
     
     # BODYRT stores CN first, adds its lift-dependent drag, and then applies
     # the exact orthogonal CN/CD -> CL/CA transform at labels 1100.
-    cl = (cn_total - cd * sin_alpha) / np.cos(alpha_rad)
-    ca = cd * np.cos(alpha_rad) - cl * sin_alpha
+    cl = (cn_total - cd * sin_alpha) / math.cos(alpha_rad)
+    ca = cd * math.cos(alpha_rad) - cl * sin_alpha
     
     # Pitching moment (lines 2484-2488, 2552-2553)
     # Calculate centroid moment arm effect

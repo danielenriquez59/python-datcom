@@ -4,6 +4,7 @@ US Standard Atmosphere 1962 calculations.
 Reference: FORTRAN ATMOS subroutine, datcom.f line 621
 """
 
+import math
 import numpy as np
 from typing import Dict, Tuple
 import logging
@@ -116,7 +117,8 @@ class Atmosphere:
                 pressure = cls.PM[j] * (cls.TM[j] / tms)**(cls.GMRS / elh)
             else:
                 # Zero slope (isothermal)
-                pressure = cls.PM[j] * np.exp(cls.GMRS * (cls.HG[j] - h) / tms)
+                pressure = cls.PM[j] * math.exp(
+                    cls.GMRS * (cls.HG[j] - h) / tms)
         
         else:
             # Temperature linear with Z (high altitude)
@@ -147,14 +149,14 @@ class Atmosphere:
             if elz != 0.0:
                 exp_term = cls.GMRS / elz * (cls.R0 / (cls.R0 + zlz))**2 * (
                     (z - cls.ZM[k]) * (cls.R0 + zlz) / (cls.R0 + z) / (cls.R0 + cls.ZM[k]) -
-                    np.log(tms * (cls.R0 + cls.ZM[k]) / cls.TM[j] / (cls.R0 + z))
+                    math.log(tms * (cls.R0 + cls.ZM[k]) / cls.TM[j] / (cls.R0 + z))
                 )
-                pressure = cls.PM[j] * np.exp(exp_term)
+                pressure = cls.PM[j] * math.exp(exp_term)
             else:
                 pressure = cls.PM[j]
         
         # Calculate speed of sound and derivative
-        cs = 49.022164 * np.sqrt(tms)
+        cs = 49.022164 * math.sqrt(tms)
         dcs_dz = 0.5 * elz / tms
         
         # Calculate density and derivatives

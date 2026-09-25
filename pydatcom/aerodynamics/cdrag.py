@@ -33,6 +33,7 @@ translation takes them as inputs and never mutates the caller's arrays.
 Reference: datcom-legacy/datcom_2000/cdrag.f
 """
 
+import math
 import numpy as np
 from typing import Dict, Optional, Sequence
 import logging
@@ -556,7 +557,7 @@ def _straight_lift_drag(mach, lift, cla, geometry, section, sweep, sref,
     # Vortex Reynolds number uses leading-edge radius times exposed MAC.
     rler = reynolds_per_length * float(section['leri']) * float(geometry['mac'])
     vortex_reynolds = (
-        rler / abs(tan_le) * np.sqrt(1.0 - mach**2 * cos_le**2)
+        rler / abs(tan_le) * math.sqrt(1.0 - mach**2 * cos_le**2)
     )
     suction_argument = aspect_ratio * taper / cos_le
     suction = _suction_parameter(float(vortex_reynolds), float(suction_argument))
@@ -569,7 +570,7 @@ def _straight_lift_drag(mach, lift, cla, geometry, section, sweep, sref,
     )
 
     drag_factor = aspect_ratio * beta
-    angle = float(np.arctan(float(sweep['tan_c4']) / beta) * RAD)
+    angle = float(math.atan(float(sweep['tan_c4']) / beta) * RAD)
     v42 = float(tlin3x(
         _F42_ANGLE, _F42_DRAG_FACTOR, _F42_TAPER, _F42,
         angle, drag_factor, taper, 0, 2, 0, 2, 2, 0,
@@ -622,14 +623,14 @@ def _cranked_lift_drag(mach, lift, cla, geometry, section, sweep, sref,
 
     reynolds_in = (
         rler_inboard / abs(tan_le_inboard)
-        * np.sqrt(1.0 - (mach * cos_in) ** 2)
+        * math.sqrt(1.0 - (mach * cos_in) ** 2)
     )
     # The source sets TEMPI to a literal 0.0 here.  See calculate_cdrag.
     suction_in = _suction_parameter(float(reynolds_in), 0.0)
 
     reynolds_out = (
         rler_outboard / abs(tan_le_outboard)
-        * np.sqrt(1.0 - (mach * cos_out) ** 2)
+        * math.sqrt(1.0 - (mach * cos_out) ** 2)
     )
     argument_out = (
         float(geometry['aspect_ratio_outboard'])

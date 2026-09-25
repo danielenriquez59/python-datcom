@@ -15,6 +15,7 @@ sideslip derivative and the panel's moment arms.
 Reference: datcom-legacy/datcom_2000/clrder.f
 """
 
+import math
 import numpy as np
 from typing import Dict, Optional, Sequence
 import logging
@@ -104,9 +105,9 @@ def calculate_clr_wing(cl: Sequence[float], aspect_ratio: float,
 
     sweep_deg = float(sweep_c4_deg)
     sweep_rad = np.deg2rad(sweep_deg)
-    cos_sweep = np.cos(sweep_rad)
-    tan_sweep = np.tan(sweep_rad)
-    beta = np.sqrt(1.0 - (mach * cos_sweep)**2)
+    cos_sweep = math.cos(sweep_rad)
+    tan_sweep = math.tan(sweep_rad)
+    beta = math.sqrt(1.0 - (mach * cos_sweep)**2)
     if beta <= 0.0:
         raise ValueError("CLRDER compressibility factor vanished")
     beta_ar = aspect_ratio * beta
@@ -128,7 +129,7 @@ def calculate_clr_wing(cl: Sequence[float], aspect_ratio: float,
     correction = numerator / denominator
 
     dihedral_factor = (
-        PI * aspect_ratio * np.sin(sweep_rad)
+        PI * aspect_ratio * math.sin(sweep_rad)
         / (12.0 * (aspect_ratio + 4.0 * cos_sweep))
     )
 
@@ -285,13 +286,13 @@ def calculate_clrder(data: Dict[str, object]) -> Dict[str, object]:
         lp, zp, lpf, zpf = stb[11], stb[12], stbh[11], stbh[12]
         dcybv, dcybf = vt[141], vf[141]
         if data['wgpl']:
-            bee = np.sqrt(1. - (mach * np.cos(swec4)) ** 2)
+            bee = math.sqrt(1. - (mach * math.cos(swec4)) ** 2)
             ab = ar * bee
-            cs, ts = np.cos(swec4), np.tan(swec4)
+            cs, ts = math.cos(swec4), math.tan(swec4)
             con = ((1. + (ar * (1. - bee ** 2) / (2. * bee * (ab + 2. * cs)))
                     + (ab + 2. * cs) / (ab + 4. * cs) * ts ** 2 / 8.) /
                    (1. + (ar + 2. * cs) / (ar + 4. * cs) * ts ** 2 / 8.))
-            dclrg = PI * ar * np.sin(swec4) / (12. * (ar + 4. * cs))
+            dclrg = PI * ar * math.sin(swec4) / (12. * (ar + 4. * cs))
             unit = interx(2, _FIG_71320_10_AR + _FIG_71320_10_TAPER +
                           [0.0] * 6, [ar, tapre], [10, 4], _FIG_71320_10_DEP,
                           lind=10, lx1l=1, lx2l=1, lx1u=1, lx2u=1)
@@ -318,8 +319,8 @@ def calculate_clrder(data: Dict[str, object]) -> Dict[str, object]:
         if data['vtpl'] or data['vfpl']:
             b2 = blref ** 2
             for angle_slot in range(1, nalpha + 1):
-                sa, ca = (np.sin(alpha[angle_slot] * deg),
-                          np.cos(alpha[angle_slot] * deg))
+                sa, ca = (math.sin(alpha[angle_slot] * deg),
+                          math.cos(alpha[angle_slot] * deg))
                 if swec4 < 0.:
                     continue
                 clrwbt = wing[angle_slot + 360]

@@ -9,6 +9,7 @@ Implements transonic flow methods (0.9 < Mach < 1.2):
 Reference: datcom.f transonic calculation sections
 """
 
+import math
 import numpy as np
 from typing import Dict
 import logging
@@ -56,7 +57,7 @@ def calculate_transonic_coefficients(state: Dict, alpha_deg: float,
     cm = (subsonic_anchor['cm'] +
           mach_fraction * (supersonic_anchor['cm'] - subsonic_anchor['cm']))
 
-    cd_divergence = 0.01 * np.sin(np.pi * mach_fraction) ** 2
+    cd_divergence = 0.01 * math.sin(np.pi * mach_fraction) ** 2
     cd += cd_divergence
 
     return {

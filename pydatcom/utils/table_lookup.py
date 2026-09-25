@@ -7,6 +7,7 @@ These are critical for drag, lift, and moment calculations.
 Reference: datcom.f lines 9425 (FIG26), 9467 (FIG53A), 9503 (FIG60B), 9571 (FIG68)
 """
 
+import math
 import numpy as np
 from typing import Tuple
 import logging
@@ -65,7 +66,7 @@ def fig26(reynolds: float, mach: float) -> float:
             break
     
     # Log10 of Reynolds number
-    x = np.log10(reynolds)
+    x = math.log10(reynolds)
     
     # Polynomial evaluation
     def eval_poly(idx):
@@ -131,7 +132,7 @@ def fig53a(rv: float, z: float) -> float:
             break
     
     # Log10 of RV
-    x = np.log10(rv)
+    x = math.log10(rv)
     
     # Polynomial evaluation
     def eval_poly(idx):
@@ -229,7 +230,7 @@ def fig68(mach: float, delta: float) -> Tuple[float, int]:
     dr = RAD
     if mach < 1.0:
         return 0.0, 3
-    tmin = dr * np.arcsin(1.0 / mach)
+    tmin = dr * math.asin(1.0 / mach)
     if mach == 1.0 and delta > 0.0:
         return 0.0, 2
     if delta < 0.0:
@@ -238,9 +239,9 @@ def fig68(mach: float, delta: float) -> Tuple[float, int]:
         return float(tmin), 0
 
     xm2 = mach * mach
-    sin2_tmax = (3.0*xm2 - 5.0 + np.sqrt(9.0*xm2*xm2 + 12.0*xm2 + 60.0)) / (7.0*xm2)
-    tmax = np.arcsin(np.sqrt(sin2_tmax))
-    dmax = dr * np.arctan(1.0 / (np.tan(tmax) * (1.2*xm2 / (xm2*sin2_tmax - 1.0) - 1.0)))
+    sin2_tmax = (3.0*xm2 - 5.0 + math.sqrt(9.0*xm2*xm2 + 12.0*xm2 + 60.0)) / (7.0*xm2)
+    tmax = math.asin(math.sqrt(sin2_tmax))
+    dmax = dr * math.atan(1.0 / (math.tan(tmax) * (1.2*xm2 / (xm2*sin2_tmax - 1.0) - 1.0)))
     if delta > dmax:
         # Legacy label 1030 returns wedge angle DMAX, not shock angle TMAX.
         return float(dmax), 2
@@ -248,17 +249,17 @@ def fig68(mach: float, delta: float) -> Tuple[float, int]:
         return float(tmax * dr), 0
 
     # X = sin(shock angle)**2; depress the cubic with X = Y - P/3.
-    s2d = np.sin(delta / dr)**2
+    s2d = math.sin(delta / dr)**2
     p = -(xm2 + 2.0)/xm2 - 1.4*s2d
     q = (2.0*xm2 + 1.0)/(xm2*xm2) + (1.44 + 0.4/xm2)*s2d
     r = -(1.0 - s2d)/(xm2*xm2)
     a = q - p*p/3.0
     b = (2.0*p*p*p - 9.0*p*q + 27.0*r)/27.0
-    cosp = -b / (2.0*np.sqrt(-a*a*a/27.0))
+    cosp = -b / (2.0*math.sqrt(-a*a*a/27.0))
     # Clip roundoff at a repeated root (zero deflection or detachment).
-    phi3 = np.arccos(np.clip(cosp, -1.0, 1.0))/3.0
-    s2t = 2.0*np.sqrt(-a/3.0)*np.cos(phi3 + 240.0/dr) - p/3.0
-    return float(np.arcsin(np.sqrt(np.clip(s2t, 0.0, 1.0))) * dr), 0
+    phi3 = math.acos(np.clip(cosp, -1.0, 1.0))/3.0
+    s2t = 2.0*math.sqrt(-a/3.0)*math.cos(phi3 + 240.0/dr) - p/3.0
+    return float(math.asin(math.sqrt(np.clip(s2t, 0.0, 1.0))) * dr), 0
 
 
 class DatcomTableManager:

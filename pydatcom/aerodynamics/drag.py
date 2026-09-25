@@ -10,6 +10,7 @@ Implements drag buildup method:
 Reference: datcom.f lines 3239 (CDRAG), 3696 (CDWBT)
 """
 
+import math
 import numpy as np
 from typing import Dict
 import logging
@@ -131,7 +132,7 @@ def calculate_wave_drag_supersonic(mach: float, thickness_ratio: float,
     if mach <= 1.0:
         return 0.0
 
-    beta = np.sqrt(mach ** 2 - 1.0)
+    beta = math.sqrt(mach ** 2 - 1.0)
     cd_wave = 4.0 * thickness_ratio ** 2 / beta
 
     if aspect_ratio > 0:

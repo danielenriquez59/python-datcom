@@ -25,6 +25,7 @@ Reference: datcom-legacy/datcom_2000/wbaero.f, wbdrag.f, wblift.f, wbcm.f,
 wbcm0.f
 """
 
+import math
 import numpy as np
 from typing import Dict, Optional, Sequence
 import logging
@@ -435,7 +436,7 @@ def calculate_wbcm(alpha_deg: Sequence[float],
         discriminant = linear_coeff ** 2 - 4.0 * constant_term
         if not discriminant > 0.0:
             raise ValueError("WBCM: ellipse curve fit in error")
-        root = np.sqrt(discriminant)
+        root = math.sqrt(discriminant)
         wb14 = ((-linear_coeff - root) / 2.0 if temp4 < wb15 else
                 (-linear_coeff + root) / 2.0)
     wb13 = wb14 * a10 / cbarr
@@ -453,7 +454,7 @@ def calculate_wbcm(alpha_deg: Sequence[float],
              (alpha_zero - alpha_zero_surface + incidence))
 
     xw = float(synthesis['xw'])
-    diameter = 2.0 * np.sqrt(float(body['max_area']) / PI)
+    diameter = 2.0 * math.sqrt(float(body['max_area']) / PI)
     regression = calculate_wbcm0(
         float(surface['a120']), float(surface['a38']), float(surface['tovc']),
         (xw + 0.5 * db * float(surface['a38'])) / db,
@@ -574,7 +575,7 @@ def calculate_wbaero(alpha_deg: Sequence[float],
 
     # BODOWG, on the body's own angles BD(255) onward.
     _, max_area, _ = getmax(body['x'], body['s'])
-    radius = np.sqrt(max_area / PI)
+    radius = math.sqrt(max_area / PI)
     body_alpha = alpha + float(body['alpha_zero_lift'])
     bodowg = [
         calculate_bodowg(angle_deg, float(surface['x_quarter_chord']),
@@ -601,7 +602,7 @@ def calculate_wbaero(alpha_deg: Sequence[float],
         alpha, local, surface, surface_alone,
         dict(body, length=float(body['x'][-1]), max_area=max_area),
         dict(synthesis, incidence=incidence,
-             cos_incidence=np.cos(incidence / RAD),
+             cos_incidence=math.cos(incidence / RAD),
              body_diameter=body_diameter),
         lift, vortex, flight, cbarr, float(surface['c6']))
 
@@ -806,7 +807,8 @@ def calculate_wbcdl(aspect_ratio: float, tan_le: float, tovc: float,
             cdl.append(UNUSED)
             continue
         cdl.append(b[0] + b[1] / aspect_ratio + b[2] * aspect_ratio +
-                   b[3] * np.sqrt(tan_le) + b[4] * tovc + b[5] * nose_length +
+                   b[3] * math.sqrt(tan_le) + b[4] * tovc +
+                   b[5] * nose_length +
                    b[6] * afterbody_length + b[7] * taper_ratio +
                    b[8] * taper_ratio**2 + b[9] * taper_ratio**3 +
                    b[10] * tr + b[11] * leading_edge_radius -

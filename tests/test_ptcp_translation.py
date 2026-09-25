@@ -18,6 +18,7 @@ from pydatcom.aerodynamics.ptcp import (
     _area_five_to_ten_regular, _area_eleven_to_nineteen,
     _moment_ten_point_a, _moment_ten_point_b, _moment_eleven_to_nineteen,
 )
+from pydatcom.utils.constants import PI
 from pydatcom.utils.legacy_numeric import arccos
 
 
@@ -28,7 +29,14 @@ from pydatcom.utils.legacy_numeric import arccos
 @pytest.mark.parametrize('value', [-0.999, -0.75, -0.5, -0.25, 0.0, 0.25,
                                    0.5, 0.75, 1.0])
 def test_arccos_matches_the_real_inverse_cosine_inside_the_unit_range(value):
-    assert arccos(value) == pytest.approx(float(np.arccos(value)), abs=1e-12)
+    # To the source's ten-digit PI, which zero and the negative half use.
+    assert arccos(value) == pytest.approx(float(np.arccos(value)), abs=1e-9)
+
+
+def test_arccos_uses_the_source_pi():
+    assert arccos(0.0) == PI / 2.0
+    assert arccos(-0.5) == pytest.approx(PI - np.pi / 3.0, abs=1e-15)
+    assert arccos(0.5) == pytest.approx(np.pi / 3.0, abs=1e-15)
 
 
 def test_arccos_returns_zero_at_minus_one_where_pi_is_correct():

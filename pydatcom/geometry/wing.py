@@ -11,6 +11,7 @@ Handles wing planform geometry including:
 Reference: datcom.f WINGI common block and related calculations
 """
 
+import math
 import numpy as np
 from typing import Dict, Tuple, Optional
 import logging
@@ -61,7 +62,7 @@ def calculate_straight_exposed_geometry(state: Dict,
 
     sweep_reference = float(state.get(f'{component}_savsi', 0.0) or 0.0)
     chord_station = float(state.get(f'{component}_chstat', 0.25) or 0.0)
-    tan_le = (np.tan(np.deg2rad(sweep_reference)) +
+    tan_le = (math.tan(np.deg2rad(sweep_reference)) +
               chord_station * (root - tip) / theoretical_semispan)
     tan_c4 = tan_le + 0.25 * (tip - exposed_root) / exposed_semispan
     buried_semispan = theoretical_semispan - exposed_semispan
@@ -71,7 +72,7 @@ def calculate_straight_exposed_geometry(state: Dict,
         component, 'synths_xw')
     incidence = np.deg2rad(float(state.get(incidence_key, 0.0) or 0.0))
     exposed_root_x = (float(state.get(origin_key, 0.0) or 0.0) +
-                      buried_semispan * tan_le * np.cos(incidence))
+                      buried_semispan * tan_le * math.cos(incidence))
     mac_le = y_mac * tan_le
 
     # Theoretical planform: WTGEOM's LOGSWT branch sets CHRDBP=CHRDTP and
@@ -290,7 +291,7 @@ class WingGeometry:
             tangent = (geometry['tan_le'] + x_c *
                        (geometry['tip_chord'] - geometry['root_chord']) /
                        geometry['semispan'])
-            return float(np.rad2deg(np.arctan(tangent)))
+            return float(np.rad2deg(math.atan(tangent)))
 
         # Multi-panel sweep conversion is translated with its panel geometry.
         return sweep_ref

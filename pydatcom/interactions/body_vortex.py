@@ -16,6 +16,7 @@ positive downstream distance, so the term vanishes for cruise angles.
 Reference: datcom-legacy/datcom_2000/bodowg.f, ali.f, getmax.f, wbclb.f
 """
 
+import math
 import numpy as np
 from typing import Dict, Sequence, Tuple
 import logging
@@ -117,12 +118,12 @@ def ali(q: float, r: float, xst: float, xrt: float, xslt: float) -> float:
             # infinity.  BODOWG never produces it: Figure 4.3.1.3-13B keeps
             # z/r at or above 0.86 and Figure 4.3.1.3-14 keeps y/r below 1.
             raise ValueError("ALI is singular for a vortex on the body surface")
-        ab = np.log((h**2 + (f - xst)**2) / denominator)
+        ab = math.log((h**2 + (f - xst)**2) / denominator)
         if h == 0.0:
             bb = xst - xrt
         else:
-            bb = (h * np.arctan((f - xst) / h) -
-                  h * np.arctan((f - xrt) / h) + (xst - xrt))
+            bb = (h * math.atan((f - xst) / h) -
+                  h * math.atan((f - xrt) / h) + (xst - xrt))
         term = ((xst - xrt * xslt) - f * (1.0 - xslt)) / (2.0 * (xst - xrt))
         al[mk] = term * ab - ((1.0 - xslt) / (xst - xrt)) * bb
         f = -f

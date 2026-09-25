@@ -7,6 +7,7 @@ including area calculations, volume, and centroid computations.
 Reference: datcom.f lines 1336 (BDAREA), 1805 (BODOPT), 2248 (BODYJM), 2326 (BODYRT)
 """
 
+import math
 import numpy as np
 from typing import Dict, Tuple, Optional, List
 import logging
@@ -86,7 +87,8 @@ class BodyGeometry:
         self.max_area_location = self.x[max_idx]
         
         # Calculate equivalent radius at max area
-        req_max = np.sqrt(self.max_area / np.pi) if self.max_area > 0 else 0.0
+        req_max = (math.sqrt(self.max_area / np.pi) if self.max_area > 0
+                   else 0.0)
         
         # Fineness ratio (length / max diameter)
         if req_max > 0:
@@ -193,7 +195,7 @@ class BodyGeometry:
         
         # Calculate equivalent radius
         if props['area'] > 0:
-            props['equivalent_radius'] = np.sqrt(props['area'] / np.pi)
+            props['equivalent_radius'] = math.sqrt(props['area'] / np.pi)
         else:
             props['equivalent_radius'] = 0.0
         
@@ -231,7 +233,7 @@ class BodyGeometry:
                 break
         
         base_area = self.s[base_idx] if base_idx < self.nx else 0.0
-        base_radius = np.sqrt(base_area / np.pi) if base_area > 0 else 0.0
+        base_radius = math.sqrt(base_area / np.pi) if base_area > 0 else 0.0
         
         # Nose fineness ratio
         nose_fineness = self.bln / (2.0 * base_radius) if base_radius > 0 else 0.0
