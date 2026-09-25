@@ -34,7 +34,7 @@ import numpy as np
 
 from pydatcom.utils.constants import PI, RAD, UNUSED
 from pydatcom.utils.legacy_numeric import tbfunx
-from pydatcom.utils.legacy_tables import tlinex
+from pydatcom.utils.legacy_tables import tlinex_flat
 from pydatcom.utils.table_lookup import fig26
 
 # Figure 4.1.5.1-27 intercept (the cutoff Reynolds number).
@@ -254,12 +254,6 @@ _Y5536 = np.array([
 ])
 
 
-def _tlinex(x1, x2, flat, q1, q2, l1, l2, u1, u2) -> float:
-    """TLINEX on a source ``Y(NX2,NX1)`` table given flat."""
-    y = np.asarray(flat, dtype=float).reshape(len(x1), len(x2)).T
-    return float(tlinex(x1, x2, y, q1, q2, l1, l2, u1, u2))
-
-
 def _value(x, y, query, lower=0, upper=0) -> float:
     return float(tbfunx(x, y, query, lower, upper)[0])
 
@@ -365,7 +359,7 @@ def calculate_loarwb(alpha_deg: Sequence[float], lbin: Mapping[int, object],
     cx0p = -cf * swet / sref + cpb0
     sfosr = sfront / sref
     geopar = 2.0 * r3leob * ar / sfosr
-    dcxcxc = _tlinex(_X110, _X210, _Y10, geopar, sfosr, 0, 0, 2, 2)
+    dcxcxc = tlinex_flat(_X110, _X210, _Y10, geopar, sfosr, 0, 0, 2, 2)
     acx = dcxcxc * 0.349 * ((ar + 2) / (ar + 4))
     shapeb = bb**2 / (hb * sbase**.50)
     cp20o0 = _value(_B2OHS, _AP2OCP if blf else _CP2OCP, shapeb, 2, 2)
@@ -377,7 +371,7 @@ def calculate_loarwb(alpha_deg: Sequence[float], lbin: Mapping[int, object],
     xocrb = float(stale_xocrb)
     if roundn:
         bluntp = 1.0 - (4.0 * math.tan(thetad / RAD)) / ar
-        xocrb = _tlinex(_X17A, _X27A, _Y7A, thetad, bluntp, 0, 0, 1, 2)
+        xocrb = tlinex_flat(_X17A, _X27A, _Y7A, thetad, bluntp, 0, 0, 1, 2)
         lb[117] = bluntp
     xocrd = _value(_THETA, _XCPOCR, thetad, 0, 2)
     xocrt = 0.1020 * sfosr
@@ -405,14 +399,15 @@ def calculate_loarwb(alpha_deg: Sequence[float], lbin: Mapping[int, object],
     dklcno = _value(_X5528, _Y5528, thetad, 2, 2)
     dklcnb = 0.0
     if roundn:
-        dklcnb = _tlinex(_X1558B, _X2558B, _Y558B, thetad,
-                         1. - (4. * math.tan(thetad / RAD) / ar), 2, 0, 2, 2)
+        dklcnb = tlinex_flat(_X1558B, _X2558B, _Y558B, thetad,
+                             1. - (4. * math.tan(thetad / RAD) / ar),
+                             2, 0, 2, 2)
     klbcno = 1. / RAD * (dklcno + dklcnb)
     if r3leob == UNUSED:
-        kycn20 = _tlinex(_X1559, _X2559, _Y559, deltep, arg6, 0, 0, 1, 1)
+        kycn20 = tlinex_flat(_X1559, _X2559, _Y559, deltep, arg6, 0, 0, 1, 1)
         kckcc2 = _value(_X5522B, _Y5522B, deltep, 0, 2)
     else:
-        kycn20 = _tlinex(_X1558, _X2558, _Y558, r3leob, arg6, 0, 0, 0, 2)
+        kycn20 = tlinex_flat(_X1558, _X2558, _Y558, r3leob, arg6, 0, 0, 0, 2)
         kckcc2 = _value(_X5522A, _Y5522A, r3leob, 0, 2)
     dkckcc = _value(_X55213, _Y55213, arg6, 0, 0)
     kcca20 = 1. / (1. + .152 / math.tan(thetad / RAD)) * dklcno

@@ -19,13 +19,11 @@ Reference: datcom-legacy/datcom_2000/flapcm.f, m37o45.f
 import math
 from typing import Dict, List, Mapping
 
-import numpy as np
-
 from pydatcom.aerodynamics.flap_loading import calculate_gdelta
 from pydatcom.utils.constants import RAD, UNUSED
 from pydatcom.utils.legacy_interp import interx
 from pydatcom.utils.legacy_numeric import trapz
-from pydatcom.utils.legacy_tables import tlinex
+from pydatcom.utils.legacy_tables import tlinex_flat
 
 _ETAG = [0.924, .707, .383, 0.0]
 ET_DATA = [0.0, .1423, .2817, .4153, .5407, .6549, .7557, .8412, .9097,
@@ -48,11 +46,6 @@ _Y1215B = [0., -.05, -.105, -.14, -.163, -.175, -.180,
 _X12136 = [0., .05, .1, .2, .3, .35, .4, .45, .5]
 _Y12136 = [0., -.00025, -.00065, -.00165, -.0026, -.0031, -.00345,
            -.0036, -.00375]
-
-
-def _tl(x1, x2, flat, q1, q2):
-    grid = np.asarray(flat, dtype=float).reshape(len(x1), len(x2)).T
-    return float(tlinex(x1, x2, grid, q1, q2, 0, 0, 0, 0))
 
 
 def calculate_flapcm(data: Mapping[str, object]) -> Dict[str, object]:
@@ -234,7 +227,7 @@ def calculate_flapcm(data: Mapping[str, object]) -> Dict[str, object]:
                     kount = 2
                     arg = cfoc[koutbd]
                 if iftype in (1, 5):
-                    xcpbi = _tl(_X1126B, _X2126B, _Y5126B, argz, arg)
+                    xcpbi = tlinex_flat(_X1126B, _X2126B, _Y5126B, argz, arg)
                 else:
                     xcpbi = 0.54
                 arg3 = 4.0 * (xcpbi - 0.25) * arg2 / arstar
@@ -266,8 +259,9 @@ def calculate_flapcm(data: Mapping[str, object]) -> Dict[str, object]:
                                     (delcmf[strip_index] * cossb2 /
                                      cl[strip_index]))
                 elif iftype <= 1:
-                    delcmf[strip_index] = _tl(_X1215B, _X2215B, _Y1215B,
-                                                cfoc[ll], deltp[strip_index])
+                    delcmf[strip_index] = tlinex_flat(_X1215B, _X2215B,
+                                                      _Y1215B, cfoc[ll],
+                                                      deltp[strip_index])
                     xc = 0.25 + abs((kk[strip_index] * delcmf[strip_index] /
                                      cl[reference_strip] * cossb2)
                                     if kp == 2 else

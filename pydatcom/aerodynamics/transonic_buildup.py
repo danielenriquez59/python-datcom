@@ -37,7 +37,7 @@ from pydatcom.interactions.carryover import (_FIG_431212A_KKBW,
 from pydatcom.utils.constants import PI, RAD, UNUSED
 from pydatcom.utils.legacy_interp import interx
 from pydatcom.utils.legacy_numeric import tbfunx
-from pydatcom.utils.legacy_tables import tlin4x, tlinex
+from pydatcom.utils.legacy_tables import tlin4x, tlinex_flat
 from pydatcom.utils.tranac import tranac
 
 # TRANCM: the Mach numbers of the Figure 4.1.4.2-26 lookups and their differences.
@@ -469,12 +469,6 @@ _Y4157B = np.array([
 _Y425AD = _D425AD.reshape(7, 9, 4, 3, order='F')
 
 
-def _tlinex(x1, x2, flat, q1, q2, l1, l2, u1, u2) -> float:
-    """TLINEX on a source ``Y(NX2,NX1)`` table given flat."""
-    y = np.asarray(flat, dtype=float).reshape(len(x1), len(x2)).T
-    return float(tlinex(x1, x2, y, q1, q2, l1, l2, u1, u2))
-
-
 def _stra(value) -> bool:
     return float(value) == STRAIGHT_TAPERED
 
@@ -892,15 +886,15 @@ def calculate_trawbt(wing: Dict[str, float], a: Mapping[int, float],
                       (a_block[127] - a_block[126]))
     tip_to_ob = a_block[24] / sspn
     sweep_c4, taper_ratio = a_block[40], a_block[118]
-    fig155a = _tlinex(_X155A1, _X155A2, _Y4155A, sweep_c4, dihedral_blend,
-                      0, 1, 2, 0)
-    aeefoa = _tlinex(_X155B1, _X155B2, _Y4155B, taper_ratio, fig155a,
-                     0, 0, 0, 0)
-    beffob = _tlinex(_X155C1, _X155C2, _Y4155C, taper_ratio, aeefoa,
-                     0, 1, 0, 0)
+    fig155a = tlinex_flat(_X155A1, _X155A2, _Y4155A, sweep_c4, dihedral_blend,
+                          0, 1, 2, 0)
+    aeefoa = tlinex_flat(_X155B1, _X155B2, _Y4155B, taper_ratio, fig155a, 0, 0,
+                         0, 0)
+    beffob = tlinex_flat(_X155C1, _X155C2, _Y4155C, taper_ratio, aeefoa, 0, 1,
+                         0, 0)
     aeff = a_block[120] * aeefoa
-    an1 = _tlinex(_X156A1, _X156A2, _Y156A, aeff, tip_to_ob, 2, 1, 2, 2)
-    an2 = _tlinex(_X156B1, _X156B2, _Y4156B, sweep_c4, aeff, 0, 2, 2, 2)
+    an1 = tlinex_flat(_X156A1, _X156A2, _Y156A, aeff, tip_to_ob, 2, 1, 2, 2)
+    an2 = tlinex_flat(_X156B1, _X156B2, _Y4156B, sweep_c4, aeff, 0, 2, 2, 2)
     downwash_y = .8 - (-an1 * an2 + an1) / 5.0
     fans = .8 - downwash_y + an2
     beff = 2.0 * sspn * beffob
@@ -911,8 +905,9 @@ def calculate_trawbt(wing: Dict[str, float], a: Mapping[int, float],
                            (beff / 2.0 - span_outboard) *
                            math.tan(float(wing['dihedral_out']) / RAD))
     vortex_axis = a_block[12] - dihedral_height / 2.0
-    debode = _tlinex(_X157B1, _X157B2, _Y4157B, abs(2.0 * vortex_axis / beff),
-                     2.0 * float(tail['sspn']) / beff, 0, 2, 0, 2)
+    debode = tlinex_flat(_X157B1, _X157B2, _Y4157B,
+                         abs(2.0 * vortex_axis / beff),
+                         2.0 * float(tail['sspn']) / beff, 0, 2, 0, 2)
     deda = (debode * fans * cla_wing / b48 if downwash_gradient is None
             else float(downwash_gradient))
     span_ratio = a_block[24] / a_block[16]

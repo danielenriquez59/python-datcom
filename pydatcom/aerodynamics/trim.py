@@ -29,7 +29,7 @@ import numpy as np
 
 from pydatcom.utils.constants import PI, RAD, UNUSED
 from pydatcom.utils.legacy_numeric import tbfunx
-from pydatcom.utils.legacy_tables import tlinex
+from pydatcom.utils.legacy_tables import tlinex, tlinex_flat
 
 # DRAGFP: the Section 6.1.7 induced-drag series coefficients.
 _TEC = np.array([
@@ -128,12 +128,6 @@ _Y61724 = np.array([
     0.3, 0.15, 0.07, 0.0, 4.9, 3.8, 2.8, 1.7,
     1.06, 0.65, 0.37, 0.18, 0.06, 0.0,
 ])
-
-
-def _tlinex(x1, x2, flat, q1, q2, l1, l2, u1, u2) -> float:
-    """TLINEX on a source ``Y(NX2,NX1)`` table given flat."""
-    y = np.asarray(flat, dtype=float).reshape(len(x1), len(x2)).T
-    return float(tlinex(x1, x2, y, q1, q2, l1, l2, u1, u2))
 
 
 def _sqrt(x: float) -> float:
@@ -249,18 +243,18 @@ def calculate_dragfp(alpha_deg: Sequence[float], flap: Dict[str, object],
     if ftype > 5.0:
         return result
     eta = flap['eta']
-    kprm = _tlinex(_X11724, _X21724, _Y61724, aspect,
-                   float(eta[4]) - float(eta[0]), 2, 0, 0, 0)
+    kprm = tlinex_flat(_X11724, _X21724, _Y61724, aspect,
+                       float(eta[4]) - float(eta[0]), 2, 0, 0, 0)
     kb = sum(float(r) for r in flap['rkb'][:4])
     arg1 = kprm / (aspect * PI)
     delcdf, delcdm = [], []
     for deflection_index, deflection_deg in enumerate(delta):
         if ftype in (1.0, 5.0):
-            value = _tlinex(_X11722, _X21722, _Y11722, abs(deflection_deg),
-                            float(flap['cfoca']), 2, 0, 0, 0)
+            value = tlinex_flat(_X11722, _X21722, _Y11722, abs(deflection_deg),
+                                float(flap['cfoca']), 2, 0, 0, 0)
         else:
-            value = _tlinex(_X11723, _X21723, _Y11723, abs(deflection_deg),
-                            float(flap['cfoca']), 2, 0, 0, 0)
+            value = tlinex_flat(_X11723, _X21723, _Y11723, abs(deflection_deg),
+                                float(flap['cfoca']), 2, 0, 0, 0)
         delcdf.append(value)
         delcdm.append(
             value * kb * scale +

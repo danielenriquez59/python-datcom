@@ -73,11 +73,26 @@ def quad(x, y, query: float, derivative: bool = False) -> float:
     y = np.asarray(y, dtype=float)
     if x.shape != (3,) or y.shape != (3,) or len(np.unique(x)) != 3:
         raise ValueError("QUAD requires three points with distinct X coordinates")
-    first = (y[1] - y[0]) / (x[1] - x[0])
-    second = ((y[2] - y[1]) / (x[2] - x[1]) - first) / (x[2] - x[0])
     if derivative:
+        first = (y[1] - y[0]) / (x[1] - x[0])
+        second = ((y[2] - y[1]) / (x[2] - x[1]) - first) / (x[2] - x[0])
         return float(first + second * ((query - x[0]) + (query - x[1])))
-    return float(y[0] + (query - x[0]) * (first + (query - x[1]) * second))
+    return float(_parabola(x.tolist(), y.tolist(), query))
+
+
+def _parabola(x, y, query: float) -> float:
+    """QUAD's value on three plain-float points, for the table kernels.
+
+    Raises:
+        ValueError: For repeated X, as :func:`quad` does.
+    """
+    x0, x1, x2 = x
+    y0, y1, y2 = y
+    if x0 == x1 or x1 == x2 or x0 == x2:
+        raise ValueError("QUAD requires three points with distinct X coordinates")
+    first = (y1 - y0) / (x1 - x0)
+    second = ((y2 - y1) / (x2 - x1) - first) / (x2 - x0)
+    return y0 + (query - x0) * (first + (query - x1) * second)
 
 
 def trapz(f, y, ntest: int = 1) -> np.ndarray:

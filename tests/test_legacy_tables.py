@@ -3,7 +3,8 @@
 import numpy as np
 import pytest
 
-from pydatcom.utils.legacy_tables import glook, switch, tlin1x, tlinex
+from pydatcom.utils.legacy_tables import (glook, switch, tlin1x, tlinex,
+                                          tlinex_flat)
 
 
 @pytest.mark.parametrize("x", [[1., 2., 4.], [4., 2., 1.]])
@@ -117,3 +118,16 @@ def test_tlinex_mixed_modes_and_singletons():
 def test_invalid_grids_are_explicit_errors(x):
     with pytest.raises(ValueError):
         glook(x, 0.)
+
+
+def test_tlinex_flat_reads_the_source_data_statement_order():
+    # Each run of len(x2) values is one X1 column: Y(j,i) = flat[i*NX2+j].
+    x1, x2 = [1., 2., 4.], [-2., 0.]
+    flat = [10., 11., 20., 21., 40., 41.]
+    y = np.array(flat).reshape(3, 2).T
+    for q1, q2 in [(1., -2.), (3., -1.), (4., 0.), (6., 1.)]:
+        assert (tlinex_flat(x1, x2, flat, q1, q2, 1, 1, 1, 1) ==
+                tlinex(x1, x2, y, q1, q2, 1, 1, 1, 1))
+    assert tlinex_flat(x1, x2, flat, 2., 0.) == 21.
+    with pytest.raises(ValueError, match="needs 6 values"):
+        tlinex_flat(x1, x2, flat[:5], 2., 0.)
