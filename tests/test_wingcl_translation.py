@@ -172,3 +172,49 @@ def test_cdl_rejects_nonpositive_thickness():
     table = [0.5] * _CDL_REQUIRED
     with pytest.raises(ValueError, match="thickness"):
         calculate_wingcl_cdl(0.95, 0.0, 4.0, 0.5, 0.5, table, table)
+
+
+# --- The incomplete-table warning ------------------------------------------
+
+import warnings as _warnings  # noqa: E402
+
+from pydatcom.aerodynamics.wingcl import WingclTableWarning  # noqa: E402
+
+
+def test_every_wingcl_entry_point_warns_on_every_call():
+    calls = (
+        lambda: calculate_wingcl([0.0, 4.0], -2.0, 10.0, 14.0, 0.08, 1.25),
+        lambda: calculate_wingcl_clb([0.1, 0.4], 0.95, 0.08, -0.001,
+                                     -0.002, 0.07, 0.06),
+        lambda: calculate_wingcl_cdl(0.95, 0.1, 4.0, 0.3, 0.3,
+                                     [0.5] * 164, [0.5] * 164),
+    )
+    for call in calls:
+        for _ in range(2):
+            with _warnings.catch_warnings(record=True) as caught:
+                try:
+                    call()
+                except ValueError:
+                    pass            # the 164-element CDL table is refused
+            assert [w.category for w in caught] == [WingclTableWarning]
+            assert '164 of the 168' in str(caught[0].message)
+
+
+def test_tables_match_the_source_except_the_chart_correction():
+    import pathlib
+    import sys
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent /
+                           'tools'))
+    from fortran_data import parse
+    from pydatcom.aerodynamics.wingcl import (DEP55A, DEP55B,
+                                              DEP55B_CORRECTIONS)
+    source = parse('wingcl')
+    assert DEP55A == source['DEP55A']
+    fixed = list(source['DEP55B'])
+    assert [fixed[i] for i in sorted(DEP55B_CORRECTIONS)] == [0.92, 0.93]
+    for index, value in DEP55B_CORRECTIONS.items():
+        fixed[index] = value
+    assert DEP55B == fixed
+    # Taper 1.0, A(t/c)**(1/3) = 0.5: now rising through +1 and +2.
+    row = DEP55B[123:130]
+    assert row == sorted(row)

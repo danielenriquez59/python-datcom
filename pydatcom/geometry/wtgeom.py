@@ -116,8 +116,9 @@ def calculate_wtgeom(ain: Mapping[int, float],
         outboard record is copied from the input even when the outboard
         station ``XOVCO`` differs.
     """
-    a_block: Dict[int, float] = {int(k): float(v) for k, v in a_in.items()}
-    surface_in = {int(k): float(v) for k, v in ain.items()}
+    a_block: Dict[int, float] = {int(word): float(value)
+                                 for word, value in a_in.items()}
+    surface_in = {int(word): float(value) for word, value in ain.items()}
     for a_word in range(1, 196):
         a_block.setdefault(a_word, 0.0)
 
