@@ -17,12 +17,10 @@ Reference: datcom-legacy/datcom_2000/spryaw.f
 import math
 from typing import Dict, Mapping
 
-import numpy as np
-
 from pydatcom.aerodynamics.supersonic_control import calculate_dflcon
 from pydatcom.utils.constants import RAD
 from pydatcom.utils.legacy_numeric import tbfunx
-from pydatcom.utils.legacy_tables import tlinex
+from pydatcom.utils.legacy_tables import tlinex_flat
 
 _X113A1 = [0., 5., 10., 15.]
 _X113A2 = [0., .01]
@@ -52,12 +50,6 @@ _X12A1 = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 _Y12A1 = [1.0, 0.97, 0.95, 0.94, 0.94, 0.94, 0.94, 0.95, 0.96, 0.98, 0.99]
 _X12A2 = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 _Y12A2 = [0.0, 0.11, 0.21, 0.31, 0.41, 0.51, 0.6, 0.7, 0.8, 0.9, 1.0]
-
-
-def _tl(x1, x2, y, q1, q2, l1, l2, u1, u2):
-    """TLINEX on a source ``Y(NX2,NX1)`` table given flat."""
-    grid = np.asarray(y, dtype=float).reshape(len(x1), len(x2)).T
-    return float(tlinex(x1, x2, grid, q1, q2, l1, l2, u1, u2))
 
 
 def calculate_spryaw(data: Mapping[str, object]) -> Dict[str, object]:
@@ -172,21 +164,22 @@ def calculate_spryaw(data: Mapping[str, object]) -> Dict[str, object]:
         clrl = abs(spr[8])
         cnywal = {}
         for angle_index, al in enumerate(alpha):
-            dfg = _tl(_X113C1, _X113C2, _Y2113C, abs(al), cldg, 0, 0, 2, 1)
+            dfg = tlinex_flat(_X113C1, _X113C2, _Y2113C, abs(al), cldg, 0, 0,
+                              2, 1)
             for deflection_index in range(ndelta):
                 tempo = [0.0, 0.0]
                 for side in range(2):
                     delflp = abs(deltal[deflection_index] if side == 0 else
                                  deltar[deflection_index])
-                    cld1 = _tl(_X113A1, _X113A2, _Y2113A, delflp, clrl,
-                               0, 0, 2, 1)
-                    abc = _tl(_X113B1, _X113B2, _Y2113B, delflp, clrl,
-                              0, 1, 2, 1)
+                    cld1 = tlinex_flat(_X113A1, _X113A2, _Y2113A, delflp, clrl,
+                                       0, 0, 2, 1)
+                    abc = tlinex_flat(_X113B1, _X113B2, _Y2113B, delflp, clrl,
+                                      0, 1, 2, 1)
                     cld2 = (10. - abc + cld1 * 500.) / 500.
                     subax1 = dfg + cld2 * (2.5 + dfg * 1.5) / (-.005)
                     subax2 = geom * subax1 * .1 * .5
-                    tempo[side] = _tl(_X113E1, _X113E2, _Y2113E, a[70],
-                                      subax2, 0, 0, 2, 1)
+                    tempo[side] = tlinex_flat(_X113E1, _X113E2, _Y2113E, a[70],
+                                              subax2, 0, 0, 2, 1)
                 cnywal[10 * angle_index + deflection_index] = (
                     (tempo[1] - tempo[0]) * scale)
         out.update({'spr': spr[1:], 'clrlal': clrlal, 'cnywal': cnywal})
@@ -196,16 +189,18 @@ def calculate_spryaw(data: Mapping[str, object]) -> Dict[str, object]:
     clrlsp, cnywsp = [], []
     for deflection_index in range(ndelta):
         delsoc = f[39 + deflection_index]
-        vert = _tl(_X114A1, _X114A2, _Y2114A, trtoe, geom, 0, 1, 0, 1)
+        vert = tlinex_flat(_X114A1, _X114A2, _Y2114A, trtoe, geom, 0, 1, 0, 1)
         nugeom = geom * delsoc * spnspo * 10.
         trnsgf = vert * nugeom * .5
-        arbit = _tl(_X114F1, _X114F2, _Y2114F, amgcln, mach_lookup,
-                    0, 1, 0, 2)
+        arbit = tlinex_flat(_X114F1, _X114F2, _Y2114F, amgcln, mach_lookup, 0,
+                            1, 0, 2)
         finaly = trnsgf * (.2 + arbit * .2)
-        taktim = _tl(_X11301, _X11302, _Y21130, sae025, finaly, 0, 0, 1, 1)
+        taktim = tlinex_flat(_X11301, _X11302, _Y21130, sae025, finaly, 0, 0,
+                             1, 1)
         clrlsp.append(taktim * sw * 2. * sspne / (blref * sr))
-    vert = _tl(_X114A1, _X114A2, _Y2114A, trtoe, geom, 0, 1, 0, 1)
-    arbit = _tl(_X114E1, _X114E2, _Y2114E, amgcln, mach_lookup, 0, 1, 0, 1)
+    vert = tlinex_flat(_X114A1, _X114A2, _Y2114A, trtoe, geom, 0, 1, 0, 1)
+    arbit = tlinex_flat(_X114E1, _X114E2, _Y2114E, amgcln, mach_lookup, 0, 1,
+                        0, 1)
     for deflection_index in range(ndelta):
         vert2 = (f[39 + deflection_index] * spnspo) / 1.2
         nugeom = vert2 * (geom + .1) * 12. - .1

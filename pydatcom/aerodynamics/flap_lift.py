@@ -27,7 +27,7 @@ import numpy as np
 
 from pydatcom.utils.constants import RAD, UNUSED
 from pydatcom.utils.legacy_interp import interx
-from pydatcom.utils.legacy_tables import tlinex
+from pydatcom.utils.legacy_tables import tlinex_flat
 
 _X2128A = np.array([
     0.0, 0.02, 0.04, 0.06, 0.08, 0.1, 0.12, 0.14, 0.16, 0.18,
@@ -276,11 +276,6 @@ class _View:
         self.block[self.offset + k] = value
 
 
-def _tl(x1, x2, flat, q1, q2, l1=0, l2=0, u1=0, u2=0):
-    grid = np.asarray(flat, dtype=float).reshape(len(x1), len(x2)).T
-    return float(tlinex(x1, x2, grid, q1, q2, l1, l2, u1, u2))
-
-
 def _ix1(x, y, q, l1=0, u1=0):
     return float(interx(1, x, [q], [len(x)], y, lind=len(x), lx1l=l1,
                         lx1u=u1))
@@ -381,7 +376,7 @@ def calculate_liftfp(data: Mapping[str, object]) -> Dict[str, object]:
         arg2 = (s['tanteo'] - s['tanleo']) * s['bo2']
         arg3 = (bof - bif) * s['cb'] / 4.0
         arg4, arg5, tc = s['cb'], s['tapro'], s['tovco']
-    rkb[1] = _tl(_X11419, _X21419, _Y61419, arg5, eta[1])
+    rkb[1] = tlinex_flat(_X11419, _X21419, _Y61419, arg5, eta[1])
     chrd[1] = arg4 + eta[1] * arg2
     cfoc[1] = cf[1] / chrd[1]
     alphad[1] = _ix1(_X1418A, _Y1418A, cfoc[1])
@@ -389,8 +384,8 @@ def calculate_liftfp(data: Mapping[str, object]) -> Dict[str, object]:
         inboard = strip_index - 1
         eta[strip_index] = eta[inboard] + deln4
         cf[strip_index] = cfi - arg1 * (eta[strip_index] - eta[1])
-        rkb[strip_index] = _tl(_X11419, _X21419, _Y61419, arg5,
-                               eta[strip_index])
+        rkb[strip_index] = tlinex_flat(_X11419, _X21419, _Y61419, arg5,
+                                       eta[strip_index])
         dkb[inboard] = rkb[strip_index] - rkb[inboard]
         chrd[strip_index] = arg4 + eta[strip_index] * arg2
         cfoc[strip_index] = cf[strip_index] / chrd[strip_index]
@@ -403,7 +398,8 @@ def calculate_liftfp(data: Mapping[str, object]) -> Dict[str, object]:
     nn = 0
     arg1 = math.log10(rf * s['cbarex'])
     if iftype == 1:
-        flp[33] = _tl(_X1128A, _X2128A, _Y1128A, arg1, tanphe, 1, 0, 0, 1)
+        flp[33] = tlinex_flat(_X1128A, _X2128A, _Y1128A, arg1, tanphe,
+                              1, 0, 0, 1)
     adcad = {}
     for deflection_index in range(1, ndelta + 1):
         arg8 = delta[deflection_index] * clasec
@@ -423,22 +419,23 @@ def calculate_liftfp(data: Mapping[str, object]) -> Dict[str, object]:
                     kind = iftype if 1 <= iftype <= 8 else 1
                     if kind == 1:
                         if deflection_index <= 1:
-                            cldoct[strip_index] = _tl(_X1125B, _X2125B,
-                                                        _Y1125B, flp[33],
-                                                        cfoc[strip_index])
-                            cldthy[strip_index] = _tl(_X1125A, _X2125A,
-                                                        _Y1125A, tc,
-                                                        cfoc[strip_index])
-                        kfprm = _tl(_X11126, _X21126, _Y11126,
-                                     cfoc[strip_index], argz)
+                            cldoct[strip_index] = tlinex_flat(
+                                 _X1125B, _X2125B, _Y1125B, flp[33],
+                                cfoc[strip_index])
+                            cldthy[strip_index] = tlinex_flat(
+                                 _X1125A, _X2125A, _Y1125A, tc,
+                                cfoc[strip_index])
+                        kfprm = tlinex_flat(_X11126, _X21126, _Y11126,
+                                            cfoc[strip_index], argz)
                         delcl[strip_index] = (delta[deflection_index] *
                                               cldoct[strip_index] *
                                               cldthy[strip_index] * kfprm /
                                               RAD)
                         label = 1140
                     elif kind in (2, 3):
-                        alphad[strip_index] = _tl(_X11127, _X21127, _Y11127,
-                                                  cfoc[strip_index], argz)
+                        alphad[strip_index] = tlinex_flat(
+                            _X11127, _X21127, _Y11127, cfoc[strip_index],
+                            argz)
                         delcl[strip_index] = (-clasec * alphad[strip_index] *
                                               delta[deflection_index])
                         label = 1140
@@ -519,8 +516,8 @@ def calculate_liftfp(data: Mapping[str, object]) -> Dict[str, object]:
                                          chrd[strip_index]))
                         label = 1140
                     elif label == 1160:
-                        adcads[n] = _tl(_X11418, _X21418, _Y61418,
-                                        aldavg[n], aw, 0, 0, 0, 1)
+                        adcads[n] = tlinex_flat(_X11418, _X21418, _Y61418,
+                                                aldavg[n], aw, 0, 0, 0, 1)
                         dclk[n] = delcla[nn] * adcads[n] * dkb[n] * claw / \
                             clasec
                         label = None
@@ -534,10 +531,10 @@ def calculate_liftfp(data: Mapping[str, object]) -> Dict[str, object]:
                                                 claw)
             if not expdcl:
                 continue
-        adcad[deflection_index] = _tl(_X11418, _X21418, _Y61418,
-                                     sdcl[deflection_index] /
-                                     (clasec * delta[deflection_index]), aw,
-                                     0, 0, 0, 1)
+        adcad[deflection_index] = tlinex_flat(
+             _X11418, _X21418, _Y61418,
+            sdcl[deflection_index] / (clasec * delta[deflection_index]), aw, 0,
+            0, 0, 1)
         wing[200 + deflection_index] = (sdcl[deflection_index] *
                                         adcad[deflection_index] *
                                         (rkb[5] - rkb[1]) * claw / clasec)

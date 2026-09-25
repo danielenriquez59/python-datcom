@@ -25,7 +25,7 @@ import numpy as np
 from pydatcom.utils.constants import PI, RAD, UNUSED
 from pydatcom.utils.legacy_interp import interx
 from pydatcom.utils.legacy_numeric import tbfunx, trapz
-from pydatcom.utils.legacy_tables import tlinex
+from pydatcom.utils.legacy_tables import tlinex_flat
 
 # Figure 5.2.3.1-8A/B/C: the body yawing-moment factor K_N.
 _X158A = np.array([
@@ -129,11 +129,6 @@ _Y12225 = np.array([
     -0.0832, -0.0823, -0.0815, -0.085, -0.0889, -0.091, -0.094, -0.0956, -0.096, -0.096, -0.093, -0.0905, -0.086, -0.083, -0.075, -0.0682, -0.0625,
     -0.076, -0.0743, -0.0725, -0.0751, -0.0787, -0.081, -0.084, -0.087, -0.088, -0.089, -0.0895, -0.09, -0.0867, -0.084, -0.0767, -0.0705, -0.065,
 ])
-
-
-def _tl(x1, x2, flat, q1, q2, l1, l2, u1, u2):
-    grid = np.asarray(flat, dtype=float).reshape(len(x1), len(x2)).T
-    return float(tlinex(x1, x2, grid, q1, q2, l1, l2, u1, u2))
 
 
 def calculate_suplat(data: Mapping[str, object], tail: bool = False
@@ -271,10 +266,11 @@ def calculate_suplat(data: Mapping[str, object], tail: bool = False
     rh1 = 2. * tbfunx(bx, br, rlb * .25, 0, 0)[0]
     rh2 = 2. * tbfunx(bx, br, rlb * .75, 0, 0)[0]
     sbs = 2. * float(trapz(br, bx)[0])
-    ydumy = _tl(_X158A, _X258A, _Y58A, rlb**2 / sbs, xcg / rlb, 2, 1, 2, 1)
-    ydumy2 = _tl(_X158B, _X258B, _Y58B, math.sqrt(rh1 / rh2), ydumy,
-                 2, 0, 2, 1)
-    rkn = _tl(_X158C, _X258C, _Y58C, 1.0, ydumy2, 2, 0, 2, 1)
+    ydumy = tlinex_flat(_X158A, _X258A, _Y58A, rlb**2 / sbs, xcg / rlb, 2, 1,
+                        2, 1)
+    ydumy2 = tlinex_flat(_X158B, _X258B, _Y58B, math.sqrt(rh1 / rh2), ydumy, 2,
+                         0, 2, 1)
+    rkn = tlinex_flat(_X158C, _X258C, _Y58C, 1.0, ydumy2, 2, 0, 2, 1)
     bwi[161] = -rkn * rkrl * sbs * rlb / (sr * blref)
     sla.update({10: zw, 11: rki, 12: rnn, 13: rkrl, 14: rh1, 15: rh2,
                 16: sbs, 17: rkn})

@@ -24,7 +24,7 @@ import numpy as np
 
 from pydatcom.utils.constants import DEG, PI, RAD, UNUSED
 from pydatcom.utils.legacy_numeric import angles, tbfunx, zerang
-from pydatcom.utils.legacy_tables import tlin3x, tlinex
+from pydatcom.utils.legacy_tables import tlin3x, tlinex_flat
 
 # Figure 4.6.1-25B: the propeller inflow factor F.
 _X6111A = np.array([
@@ -310,12 +310,6 @@ _ASSIGNED = set(
     'cm0i xbrsrr cossw'.split())
 
 
-def _tlinex(x1, x2, flat, q1, q2, l1, l2, u1, u2) -> float:
-    """TLINEX on a source ``Y(NX2,NX1)`` table given flat."""
-    y = np.asarray(flat, dtype=float).reshape(len(x1), len(x2)).T
-    return float(tlinex(x1, x2, y, q1, q2, l1, l2, u1, u2))
-
-
 def _value(x, y, query, lower=0, upper=0) -> float:
     return float(tbfunx(x, y, query, lower, upper)[0])
 
@@ -433,7 +427,7 @@ def calculate_prpwef(inputs: Mapping[str, object],
         xbarp = (xw + a_block[62] * yp + crp / 4.0 - phaloc) * math.cos(DEG * aliw)
     deuda = -1.0
     if xbarp / crp >= 0.25:
-        deuda = _tlinex(_X14161, _X24161, _Y44161, ar, xbarp, 2, 2, 2, 2)
+        deuda = tlinex_flat(_X14161, _X24161, _Y44161, ar, xbarp, 2, 2, 2, 2)
     cosaiw = math.cos(DEG * aliw)
     prprd2 = prprad**2
     srtpco = sref * thstcp / (8.0 * prprd2)
@@ -445,8 +439,9 @@ def calculate_prpwef(inputs: Mapping[str, object],
     if bool(power_in['crot']) and float(power_in['nopbpe']) >= 6:
         cnap80 = _value(_X6111B, _Y6111B, float(power_in['bapr75']), 2, 2)
     else:
-        cnap80 = _tlinex(_X1S11B, _X2S11B, _YSR11B, float(power_in['nopbpe']),
-                         float(power_in['bapr75']), 0, 2, 2, 2)
+        cnap80 = tlinex_flat(_X1S11B, _X2S11B, _YSR11B,
+                             float(power_in['nopbpe']),
+                             float(power_in['bapr75']), 0, 2, 2, 2)
     cnap = cnap80 * (1. + .8 * (kn / 80.7 - 1.))
     c1 = _value(_X46113[:18], _C16113, srtpco, 0, 1)
     c2 = _value(_X46113, _C26113, srtpco, 0, 1)
@@ -489,8 +484,8 @@ def calculate_prpwef(inputs: Mapping[str, object],
                 siosrh = sih / srh
                 powr_words['ctih'] = ctih
         powr_words.update({'sih': sih, 'siosrh': siosrh,
-                  'ytemp': _tlinex(_X14637, _X24637, _Y4637, siosrh,
-                                   srtpco, 0, 0, 0, 1)})
+                  'ytemp': tlinex_flat(_X14637, _X24637, _Y4637, siosrh,
+                                       srtpco, 0, 0, 0, 1)})
 
     # The wing's immersed area, its sweep and its zero-lift moment.
     bio2 = _sqrt(prprd2 - (zs - (zw - xbarrw * sinap))**2)
@@ -542,7 +537,7 @@ def calculate_prpwef(inputs: Mapping[str, object],
     cd0pow = float(wing_in['cd0']) + dcd0s
     rpnob = .5 * nengsp * prprad / bo2
     aak = _value(_X4648A, _Y4648A, srtpco, 0, 2)
-    ebroep = _tlinex(_X1648B, _X2648B, _Y4648B, rpnob, srtpco, 2, 0, 2, 2)
+    ebroep = tlinex_flat(_X1648B, _X2648B, _Y4648B, rpnob, srtpco, 2, 0, 2, 2)
     dcmt = thstcp * (position_in['zcg'] - phvloc) * nengsp / cbarr
     cossw = math.cos(DEG * sweepa)
     cm0in, cm02 = float(wing_in['cmo']), float(wing_in['cmot'])
@@ -614,10 +609,11 @@ def calculate_prpwef(inputs: Mapping[str, object],
             astari = 4.0 * (bstio2**2) / sstri
             powr_words.update({'cti': cti, 'bstio2': bstio2})
         if immersed:
-            bs1 = _tlinex(_X16112, _X26112, _Y46112, astari, ar, 0, 0, 2, 0)
+            bs1 = tlinex_flat(_X16112, _X26112, _Y46112, astari, ar,
+                              0, 0, 2, 0)
             bs2 = _value(_XB6112, _DM2, srtpco, 0, 2)
-            bs3 = _tlinex(_DC1, _DC2, _DC3, bs2, bs1, 0, 0, 0, 0)
-            ak1 = _tlinex(_D3, _D4, _AK6112, srtpco, bs3, 0, 0, 0, 0)
+            bs3 = tlinex_flat(_DC1, _DC2, _DC3, bs2, bs1, 0, 0, 0, 0)
+            ak1 = tlinex_flat(_D3, _D4, _AK6112, srtpco, bs3, 0, 0, 0, 0)
             powr_words.update({'bs1': bs1, 'bs2': bs2, 'bs3': bs3, 'ak1': ak1})
             immersed = deuda != -1.0
         if immersed:
@@ -634,24 +630,24 @@ def calculate_prpwef(inputs: Mapping[str, object],
             zhtorp = zht / prprad
             eps = float(dwash_in['epsilon'][angle_index])
             if nengsp > 1.0:
-                step1 = _tlinex(_X1639A, _X2639A, _Y4639A, eps, srtpco,
-                                2, 2, 2, 2)
+                step1 = tlinex_flat(_X1639A, _X2639A, _Y4639A, eps, srtpco, 2,
+                                    2, 2, 2)
                 flpsup = _value(_X4639B, _Y4639B, step1, 0, 1)
-                depowr = _tlinex(_X1639C, _X2639C, _Y4639C, zhtorp, flpsup,
-                                 0, 0, 2, 1)
+                depowr = tlinex_flat(_X1639C, _X2639C, _Y4639C, zhtorp, flpsup,
+                                     0, 0, 2, 1)
             else:
-                step1 = _tlinex(_X1638A, _X2638A, _Y4638A, eps, srtpco,
-                                0, 0, 2, 2)
-                depowr = _tlinex(_X1638B, _X2638B, _Y4638B, zhtorp, step1,
-                                 0, 1, 2, 1)
+                step1 = tlinex_flat(_X1638A, _X2638A, _Y4638A, eps, srtpco, 0,
+                                    0, 2, 2)
+                depowr = tlinex_flat(_X1638B, _X2638B, _Y4638B, zhtorp, step1,
+                                     0, 1, 2, 1)
             clh, clalph = tbfunx(alpha_schedule, tail_in['cl'], alpha_schedule[angle_index], 1, 1)
             cosaih = math.cos(DEG * alih)
             tn = xh + xbarrh * cosaih - (xw + xbarrw * cosaih)
             epowr = eps + depowr
             zheff = zs - zh + tn * math.tan(DEG * (alphap - epowr))
             zhorp = zheff / prprad
-            dqhoqi = _tlinex(_XT4637, _Z24637, _YF4637, abs(zhorp),
-                             powr_words['ytemp'], 0, 0, 2, 1)
+            dqhoqi = tlinex_flat(_XT4637, _Z24637, _YF4637, abs(zhorp),
+                                 powr_words['ytemp'], 0, 0, 2, 1)
             arrays['dclhq'][angle_index] = dqhoqi * clh
             arrays['dclhe'][angle_index] = -clalph * depowr * (
                 float(dwash_in['q_ratio'][angle_index]) + dqhoqi)

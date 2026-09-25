@@ -22,7 +22,7 @@ import numpy as np
 
 from pydatcom.utils.constants import RAD
 from pydatcom.utils.legacy_numeric import inter3, simul2, trapz
-from pydatcom.utils.legacy_tables import tlinex
+from pydatcom.utils.legacy_tables import tlinex_flat
 
 # Figures 6.3.2-30 to -33: the local flow ahead of the jet (pressure,
 # dynamic pressure, Mach number, Reynolds number) against Mach number and
@@ -182,11 +182,6 @@ def _grid(flat, n1, n2):
     return np.asarray(flat, dtype=float).reshape(n1, n2).T
 
 
-def _tl(x1, x2, flat, q1, q2, l1=0, l2=0, u1=0, u2=0):
-    return float(tlinex(x1, x2, _grid(flat, len(x1), len(x2)), q1, q2,
-                        l1, l2, u1, u2))
-
-
 _K0_LAMINAR = [(_X1235A, _X2235A, _grid(_Y3235A, 3, 13)),
                (_X1235B, _X2235A, _grid(_Y3235B, 5, 13)),
                (_X1235C, _X2235C, _grid(_Y3235C, 6, 13)),
@@ -238,10 +233,12 @@ def calculate_tranjt(data: Mapping[str, object]) -> Dict[str, object]:
     c = {k: [0.0] * nt for k in names}
     veoa = 0.0
     for time_index in range(nt):
-        p1pi = _tl(_X13230, _X23230, _Y63230, mach, alpha[time_index], 0, 0, 0, 1)
-        q1qi = _tl(_X13231, _X23231, _Y63231, mach, alpha[time_index])
-        c['m1'][time_index] = _tl(_X13232, _X23232, _Y63232, mach, alpha[time_index])
-        r1ri = _tl(_X13233, _X23233, _Y63233, mach, alpha[time_index])
+        p1pi = tlinex_flat(_X13230, _X23230, _Y63230, mach, alpha[time_index],
+                           0, 0, 0, 1)
+        q1qi = tlinex_flat(_X13231, _X23231, _Y63231, mach, alpha[time_index])
+        c['m1'][time_index] = tlinex_flat(_X13232, _X23232, _Y63232, mach,
+                                          alpha[time_index])
+        r1ri = tlinex_flat(_X13233, _X23233, _Y63233, mach, alpha[time_index])
         c['p1'][time_index] = p1pi * pinf
         c['q1'][time_index] = q1qi * qinf
         c['rl'][time_index] = r1ri * rln * ell
@@ -251,15 +248,17 @@ def calculate_tranjt(data: Mapping[str, object]) -> Dict[str, object]:
             c['k0'][time_index] = inter3(c['m1'][time_index], c['cfcr'][time_index], c['rl'][time_index],
                                 _K0_LAMINAR)
         else:
-            c['k0'][time_index] = _tl(_X13240, _X23240, _Y63240, c['m1'][time_index],
-                             c['cfcr'][time_index])
+            c['k0'][time_index] = tlinex_flat(_X13240, _X23240, _Y63240,
+                                              c['m1'][time_index],
+                                              c['cfcr'][time_index])
         veoa = math.sqrt((arg * me**2) / (2. + (gp - 1.) * me**2))
         ph = phe / RAD
         arg1 = 1. + gp * veoa * math.sin(ph) / arg
         arg2 = (veoa + 1. / veoa) * math.cos(ph) / 2.
         c['k'][time_index] = (c['k0'][time_index] - 1.) * arg1 + arg2
         c['fj0'][time_index] = fc[time_index] / c['k'][time_index]
-        c['pj0p1m'][time_index] = _tl(_X13243, _X23243, _Y63243, veoa, c['m1'][time_index])
+        c['pj0p1m'][time_index] = tlinex_flat(_X13243, _X23243, _Y63243, veoa,
+                                              c['m1'][time_index])
         c['p0j'][time_index] = c['pj0p1m'][time_index] * c['p1'][time_index]
     fjmax, pjmax = c['fj0'][0], c['p0j'][0]
     for time_index in range(nt):

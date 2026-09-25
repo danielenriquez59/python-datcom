@@ -32,7 +32,7 @@ import numpy as np
 
 from pydatcom.utils.constants import PI, RAD, UNUSED
 from pydatcom.utils.legacy_interp import interx
-from pydatcom.utils.legacy_tables import tlin3x, tlin4x, tlinex
+from pydatcom.utils.legacy_tables import tlin3x, tlin4x, tlinex_flat
 
 _X2128A = np.array([
     0.0, 0.02, 0.04, 0.06, 0.08, 0.1, 0.12, 0.14, 0.16, 0.18,
@@ -352,11 +352,6 @@ _Y62122 = np.array([
 _Y21123 = np.concatenate([_Y1, _Y2, _Y3, _Y4, _Y5, _Y6, _Y7, _Y8, _Y9])
 
 
-def _tl(x1, x2, flat, q1, q2, l1=0, l2=0, u1=0, u2=0):
-    grid = np.asarray(flat, dtype=float).reshape(len(x1), len(x2)).T
-    return float(tlinex(x1, x2, grid, q1, q2, l1, l2, u1, u2))
-
-
 def _ix1(x, y, q, l1=0, u1=0):
     return float(interx(1, x, [q], [len(x)], y, lind=len(x), lx1l=l1,
                         lx1u=u1))
@@ -497,19 +492,21 @@ def _plain_flap(s, f, fla, ht, cn, clw, alpha, nalpha, ndelta, deltal,
         fla[3] = fla[2] - fla[2]
         fla[5] = fla[4] * kc / beta
         arg1 = math.log10(rf * float(s['cbarex']))
-        cloclt = _tl(_X1128A, _X2128A, _Y1128A, arg1, f[11])
+        cloclt = tlinex_flat(_X1128A, _X2128A, _Y1128A, arg1, f[11])
         for deflection_index in range(1, ndelta + 1):
             arg = abs(deltal(deflection_index))
             arg1 = abs(deltar(deflection_index))
             for strip_index in range(1, 6):
-                cldthy[strip_index] = _tl(_X1125A, _X2125A, _Y1125A, tovc,
-                                          cfoc[strip_index])
-                cldoct[strip_index] = _tl(_X1125B, _X2125B, _Y1125B, cloclt,
-                                          cfoc[strip_index])
-                kprml = _tl(_X11126, _X21126, _Y11126, cfoc[strip_index], arg)
+                cldthy[strip_index] = tlinex_flat(_X1125A, _X2125A, _Y1125A,
+                                                  tovc, cfoc[strip_index])
+                cldoct[strip_index] = tlinex_flat(_X1125B, _X2125B, _Y1125B,
+                                                  cloclt, cfoc[strip_index])
+                kprml = tlinex_flat(_X11126, _X21126, _Y11126,
+                                    cfoc[strip_index], arg)
                 arg2 = cldoct[strip_index] * cldthy[strip_index]
                 dcll[strip_index] = arg2 * kprml
-                kprmr = _tl(_X11126, _X21126, _Y11126, cfoc[strip_index], arg1)
+                kprmr = tlinex_flat(_X11126, _X21126, _Y11126,
+                                    cfoc[strip_index], arg1)
                 dclr[strip_index] = arg2 * kprmr
                 if strip_index == 1:
                     continue
@@ -619,8 +616,8 @@ def _spoiler(s, f, fla, ht, ndelta, stype, xsprme, beta, kc, deln4, eta,
     fla[5] = kc * (fla[43] - fla[42]) / beta
     arg1 = fla[5] / 2.0
     for deflection_index in range(1, ndelta + 1):
-        deltas = _tl(_X1132B, _X2132B, _Y1132B, xsoc(deflection_index),
-                     hsoc(deflection_index))
+        deltas = tlinex_flat(_X1132B, _X2132B, _Y1132B, xsoc(deflection_index),
+                             hsoc(deflection_index))
         ht[210 + deflection_index] = arg1 * deltas * scale
     if stype == 3.:
         for deflection_index in range(1, ndelta + 1):
@@ -632,27 +629,27 @@ def _spoiler(s, f, fla, ht, ndelta, stype, xsprme, beta, kc, deln4, eta,
                                           ht[210 + deflection_index])
     if abs(sweple - swepte) <= 4.0:
         # ARG1 still holds CLDPRM/2 here; the span 4*DELN4 is formed after.
-        dumya = _tl(_X1110A, _X2110A, _Y2110A, eta[5], arg1)
-        dumyb = _tl(_X1110B, _X2110B, _Y2110B, aw, dumya)
-        dumyc = _tl(_X1110C, _X2110C, _Y2110C, taprw, dumyb)
+        dumya = tlinex_flat(_X1110A, _X2110A, _Y2110A, eta[5], arg1)
+        dumyb = tlinex_flat(_X1110B, _X2110B, _Y2110B, aw, dumya)
+        dumyc = tlinex_flat(_X1110C, _X2110C, _Y2110C, taprw, dumyb)
         for deflection_index in range(1, ndelta + 1):
-            cnods = _tl(_X1110D, _X2110D, _Y2110D, xsoc(deflection_index),
-                        dumyc, u2=1)
+            cnods = tlinex_flat(_X1110D, _X2110D, _Y2110D,
+                                xsoc(deflection_index), dumyc, upper2=1)
             ht[220 + deflection_index] = (cnods * dsoc(deflection_index) *
                                           scale)
     else:
         bs = 4. * deln4
         if bs <= 0.4:
-            dumya = _tl(_X111A0, _X211A0, _Y111A0, bs, eta[5])
+            dumya = tlinex_flat(_X111A0, _X211A0, _Y111A0, bs, eta[5])
         if 0.4 < bs <= 0.6:
-            dumya = _tl(_X111A1, _X211A1, _Y111A1, bs, eta[5])
+            dumya = tlinex_flat(_X111A1, _X211A1, _Y111A1, bs, eta[5])
         if 0.6 < bs <= 0.8:
-            dumya = _tl(_X111A2, _X211A2, _Y111A2, bs, eta[5])
+            dumya = tlinex_flat(_X111A2, _X211A2, _Y111A2, bs, eta[5])
         if bs > 0.8:
             dumya = _ix1(_X111A3, _Y111A3, bs)
-        dumyb = _tl(_X1111B, _X2111B, _Y2111B, aw, dumya)
-        dumyc = _tl(_X1111C, _X2111C, _Y2111C, taprw, dumyb)
-        dumyd = _tl(_X1111D, _X2111D, _Y2111D, sweple, dumyc)
+        dumyb = tlinex_flat(_X1111B, _X2111B, _Y2111B, aw, dumya)
+        dumyc = tlinex_flat(_X1111C, _X2111C, _Y2111C, taprw, dumyb)
+        dumyd = tlinex_flat(_X1111D, _X2111D, _Y2111D, sweple, dumyc)
         cnodsb = (_ix1(_X2111E, _Y2111E, dumyd, u1=1) if stype == 1.
                   else dumyd)
         for deflection_index in range(1, ndelta + 1):
