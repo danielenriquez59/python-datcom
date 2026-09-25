@@ -58,9 +58,10 @@ def fig26(reynolds: float, mach: float) -> float:
     
     # Find Mach number range
     m_idx = 8  # Default to last range
-    for m in range(8):
-        if mach >= mach_points[m] and mach < mach_points[m + 1]:
-            m_idx = m
+    for mach_bracket in range(8):
+        if (mach >= mach_points[mach_bracket]
+                and mach < mach_points[mach_bracket + 1]):
+            m_idx = mach_bracket
             break
     
     # Log10 of Reynolds number
@@ -124,9 +125,9 @@ def fig53a(rv: float, z: float) -> float:
     
     # Find Z range
     z_idx = 4  # Default to last
-    for i in range(4):
-        if z >= z_points[i] and z < z_points[i + 1]:
-            z_idx = i
+    for z_bracket in range(4):
+        if z >= z_points[z_bracket] and z < z_points[z_bracket + 1]:
+            z_idx = z_bracket
             break
     
     # Log10 of RV
@@ -180,9 +181,10 @@ def fig60b(beta: float, btana: float) -> float:
         [0., .306, .629, .925, 1.232, 1.667, 2.262, 3.004, 4.065, 5.814, 9.259, 20.83, 1000.],
     ]).T
     curve = np.zeros(13)
-    for i in range(1, 13):
-        curve[i] = tlinex(beta_grid, cnaa_grid, table, beta, cnaa_grid[i],
-                         lower1=1, lower2=1, upper1=0, upper2=0)
+    for cnaa_slot in range(1, 13):
+        curve[cnaa_slot] = tlinex(
+            beta_grid, cnaa_grid, table, beta, cnaa_grid[cnaa_slot],
+            lower1=1, lower2=1, upper1=0, upper2=0)
 
     query = min(btana, curve[-1])
     # TBFUNX labels 1020-1040 give upper endpoint precedence.
@@ -193,7 +195,8 @@ def fig60b(beta: float, btana: float) -> float:
     # Value-only translation of TBFUNX labels 1000-1010. Do not use
     # searchsorted: lower-BETA extrapolation can produce a nonmonotonic
     # curve, and the legacy routine scans the entire interior table.
-    left = max(i for i in range(12) if query >= curve[i])
+    left = max(bracket_index for bracket_index in range(12)
+               if query >= curve[bracket_index])
     left = max(left, 1)
     if query < curve[1]:
         left = 0

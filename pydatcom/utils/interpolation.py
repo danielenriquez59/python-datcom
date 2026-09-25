@@ -57,47 +57,49 @@ def asmint(x_data: np.ndarray, y_data: np.ndarray, x_vals: np.ndarray) -> np.nda
     
     y_vals = np.zeros_like(x_vals, dtype=float)
     
-    for i, xval in enumerate(x_vals):
+    for query_index, xval in enumerate(x_vals):
         # FORTRAN branches directly to 1080 at a data point. Do not
         # overwrite a knot value by falling through to another interval.
         knot = np.searchsorted(x_data, xval)
         if knot < npt and xval == x_data[knot]:
-            y_vals[i] = y_data[knot]
+            y_vals[query_index] = y_data[knot]
             continue
         # Determine location
         if xval < x_data[1]:
             # Left end parabola (extrapolation or first interval)
             # Labels 1020/1040 use the slope at X(2), not X(1).
-            j = 1
-            k = 2
+            left_knot = 1
+            right_knot = 2
             locate = 1
         elif xval > x_data[-2]:
             # Right end parabola (extrapolation or last interval)
-            j = npt - 2
-            k = npt - 1
+            left_knot = npt - 2
+            right_knot = npt - 1
             locate = 3
         else:
             # Interior cubic
             # Find interval
             for idx in range(1, npt - 2):
                 if xval < x_data[idx + 1]:
-                    j = idx
-                    k = idx + 1
+                    left_knot = idx
+                    right_knot = idx + 1
                     locate = 2
                     break
             else:
                 # If we didn't break, use last interval
-                j = npt - 2
-                k = npt - 1
+                left_knot = npt - 2
+                right_knot = npt - 1
                 locate = 2
         
         # Calculate slopes at end points
         yp = np.zeros(2)
         
-        for n in range(2):
-            lp = j + n - 1 if j + n - 1 >= 0 else 0
-            mp = j + n
-            rp = k + n if k + n < npt else npt - 1
+        for slope_end in range(2):
+            lp = (left_knot + slope_end - 1 if left_knot + slope_end - 1 >= 0
+                  else 0)
+            mp = left_knot + slope_end
+            rp = (right_knot + slope_end if right_knot + slope_end < npt
+                  else npt - 1)
             
             # Left and right slopes
             if x_data[mp] != x_data[lp]:
@@ -114,7 +116,7 @@ def asmint(x_data: np.ndarray, y_data: np.ndarray, x_vals: np.ndarray) -> np.nda
             angl = np.arctan(sl)
             angr = np.arctan(sr)
             angav = (angl + angr) / 2.0
-            yp[n] = np.tan(angav)
+            yp[slope_end] = np.tan(angav)
             
             # For end points, only calculate one slope
             if locate != 2:
@@ -126,12 +128,12 @@ def asmint(x_data: np.ndarray, y_data: np.ndarray, x_vals: np.ndarray) -> np.nda
             # Hermite form is algebraically identical to labels 1050-1060,
             # but avoids cancellation in powers of absolute X coordinates.
             # In particular, do not zero the cubic for small airfoil intervals.
-            width = x_data[k] - x_data[j]
-            t = (xval - x_data[j]) / width
-            y_vals[i] = (
-                (2*t**3 - 3*t**2 + 1) * y_data[j]
+            width = x_data[right_knot] - x_data[left_knot]
+            t = (xval - x_data[left_knot]) / width
+            y_vals[query_index] = (
+                (2*t**3 - 3*t**2 + 1) * y_data[left_knot]
                 + (t**3 - 2*t**2 + t) * width * yp[0]
-                + (-2*t**3 + 3*t**2) * y_data[k]
+                + (-2*t**3 + 3*t**2) * y_data[right_knot]
                 + (t**3 - t**2) * width * yp[1]
             )
             continue
@@ -146,8 +148,8 @@ def asmint(x_data: np.ndarray, y_data: np.ndarray, x_vals: np.ndarray) -> np.nda
             if locate == 3:
                 curvature = -curvature
             offset = xval - x_data[j_idx]
-            y_vals[i] = (y_data[j_idx] + secant * offset
-                         + curvature * offset * (offset - width))
+            y_vals[query_index] = (y_data[j_idx] + secant * offset
+                                   + curvature * offset * (offset - width))
 
     return y_vals
 
@@ -198,10 +200,11 @@ def glook(x_grid: np.ndarray, x_alpha: np.ndarray,
     nval = len(x_alpha)
     result = np.zeros(nval)
     
-    for i in range(nval):
+    for alpha_index in range(nval):
         # Simple 1D interpolation
         # Full implementation would handle 2D grid
-        result[i] = np.interp(x_alpha[i], x_grid, table_grid[:nxg])
+        result[alpha_index] = np.interp(x_alpha[alpha_index], x_grid,
+                                        table_grid[:nxg])
     
     return result
 

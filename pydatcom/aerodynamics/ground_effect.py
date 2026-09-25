@@ -440,23 +440,24 @@ def ground_effect_incidence(geometry: Dict[str, object],
         clocos = np.zeros_like(alpha)
         lolom1 = np.zeros_like(alpha)
         flap_dcl = float(wing_alone.get('flap_dcl', 0.0) or 0.0)
-        for index in range(alpha.size):
-            body_wing_cl = cl_body_wing[index]
+        for angle_slot in range(alpha.size):
+            body_wing_cl = cl_body_wing[angle_slot]
             if not has_horizontal_tail:
                 body_wing_cl = body_wing_cl + flap_dcl
-            clocos[index] = (RAD * cl_wing[index] /
-                             (2.0 * PI * cosl4**2))
-            lolom1[index] = figure_4711_15(float(clocos[index]),
-                                           float(geometry['hwcocr']))
-            dalpha[index] = (
+            clocos[angle_slot] = (RAD * cl_wing[angle_slot] /
+                                  (2.0 * PI * cosl4**2))
+            lolom1[angle_slot] = figure_4711_15(
+                float(clocos[angle_slot]), float(geometry['hwcocr']))
+            dalpha[angle_slot] = (
                 -(9.12 / aspect_ratio + 7.16 * chrdr / (2.0 * sspn)) *
                 body_wing_cl * factor_x
                 - (aspect_ratio * chrdr /
                    (4.0 * cla_body_wing[0] * sspn)) *
-                lolom1[index] * body_wing_cl * r)
-            alphwg[index] = (alpha[index] + dalpha[index] -
-                             ddclf * deflection**2 /
-                             (2500.0 * cla_body_wing[index]))
+                lolom1[angle_slot] * body_wing_cl * r)
+            alphwg[angle_slot] = (
+                alpha[angle_slot] + dalpha[angle_slot] -
+                ddclf * deflection**2 /
+                (2500.0 * cla_body_wing[angle_slot]))
         return {
             'path': 'high_aspect_ratio',
             'dalpha': dalpha,
@@ -479,13 +480,15 @@ def ground_effect_incidence(geometry: Dict[str, object],
     # WINGIN(16) is TOVC by the /WINGI/ declaration in inputc.f.
     tovc = float(wing.get('tovc', 0.0) or 0.0)
     bw = np.zeros_like(alpha)
-    for index in range(alpha.size):
-        bw[index] = figure_4711_21(float(cl_wing[index]), hwocbr)
-        dalpha[index] = (-18.24 * cl_body_wing[index] * sigma / aspect_ratio +
-                         r * t * cl_body_wing[index]**2 /
-                         (RAD * cla_body_wing[0]) -
-                         r * bw[index] + k * tovc)
-        alphwg[index] = alpha[index] + dalpha[index]
+    for angle_slot in range(alpha.size):
+        bw[angle_slot] = figure_4711_21(
+            float(cl_wing[angle_slot]), hwocbr)
+        dalpha[angle_slot] = (
+            -18.24 * cl_body_wing[angle_slot] * sigma / aspect_ratio +
+            r * t * cl_body_wing[angle_slot]**2 /
+            (RAD * cla_body_wing[0]) -
+            r * bw[angle_slot] + k * tovc)
+        alphwg[angle_slot] = alpha[angle_slot] + dalpha[angle_slot]
     return {
         'path': 'low_aspect_ratio',
         'dalpha': dalpha,
@@ -681,16 +684,18 @@ def calculate_grdeff(ground_height: float,
 
     # ---- loop 1300: re-read the lift curves at the shifted angles ------
     free_air_cl = bwi['cl'].copy()
-    clwbg = np.array([tbfunx(alphwg, free_air_cl, angle, 1, 2)[0]
-                      for angle in alpha])
+    clwbg = np.array([tbfunx(alphwg, free_air_cl, angle_deg, 1, 2)[0]
+                      for angle_deg in alpha])
     dclwbg = clwbg - free_air_cl
     if has_vertical_panel:
         bwv['cl'] = clwbg.copy()
     stale_vertical = False
     clhtg = None
     if has_tail:
-        clhtg = np.array([tbfunx(tail_result['alphat'], tail_result['clht'],
-                                 angle, 1, 2)[0] for angle in alpha])
+        clhtg = np.array([
+            tbfunx(tail_result['alphat'], tail_result['clht'],
+                   angle_deg, 1, 2)[0]
+            for angle_deg in alpha])
         # CLG is EQUIVALENCEd onto BWH(21); the sum is built on BWV.
         stale_vertical = not has_vertical_panel
         bwh['cl'] = bwv['cl'] + clhtg
@@ -741,10 +746,12 @@ def calculate_grdeff(ground_height: float,
     for block in (bwi, bwv, bwh, bwhv):
         block['cn'] = block['cl'] * cos_a + block['cd'] * sin_a
         block['ca'] = block['cd'] * cos_a - block['cl'] * sin_a
-        block['cla'] = np.array([tbfunx(alpha, block['cl'], angle, 0, 0)[1]
-                                 for angle in alpha])
-        block['cma'] = np.array([tbfunx(alpha, block['cm'], angle, 0, 0)[1]
-                                 for angle in alpha])
+        block['cla'] = np.array([
+            tbfunx(alpha, block['cl'], angle_deg, 0, 0)[1]
+            for angle_deg in alpha])
+        block['cma'] = np.array([
+            tbfunx(alpha, block['cm'], angle_deg, 0, 0)[1]
+            for angle_deg in alpha])
 
     result = {
         'buildup': blocks,

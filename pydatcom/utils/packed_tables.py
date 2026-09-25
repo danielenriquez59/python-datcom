@@ -166,3 +166,119 @@ def tlip1x(x, packed: Sequence[int], query: float,
         raise ValueError("TLIP1X needs at least two abscissas")
     y = unpack_table(packed, x.size, shape)
     return float(tlin1x(x, y, query, lower, upper))
+
+
+def tlip2x(x1, x2, packed: Sequence[int], query1: float, query2: float,
+           lower1: int = 0, lower2: int = 0, upper1: int = 0,
+           upper2: int = 0, shape: Optional[Sequence[int]] = None,
+           nx2: Optional[int] = None) -> float:
+    """Translate TLIP2X: TLINEX over a packed table ``Y(NX2, NX1)``.
+
+    Each X1 column is interpolated in X2 by :func:`tlip1x`, its ordinates
+    offset by YUP's shape array with the column index in word 5; the
+    columns are then interpolated in X1 with TLIN1X's rules.
+
+    Args:
+        x1, x2: Abscissas.  packed: The packed ordinate words.
+        query1, query2: The point.  lower1..upper2: The end modes
+            ``LX1L``, ``LX2L``, ``LX1U``, ``LX2U``.
+        shape: The caller's ``NXX``: with a first word of zero or more,
+            that word is ``NX1``; with a negative first word (a slice of a
+            larger table) ``NX1`` is its second word and its offsets are
+            kept.  Omitted, ``NX1`` is the length of ``x1``.
+        nx2: ``NX2``, the ordinates per column; omitted, the length of
+            ``x2``.
+
+    Returns:
+        The interpolated value.  The source's MESSGE diagnostics on
+        extrapolation are not reproduced, as for TLINEX.
+    """
+    x1 = np.asarray(x1, dtype=float)
+    nx2 = len(x2) if nx2 is None else int(nx2)
+    if shape is not None and shape[0] < 0:
+        nx1 = int(shape[1])
+        base = [int(v) for v in shape[:7]]
+    else:
+        nx1 = x1.size if shape is None else int(shape[0])
+        base = [-nx2, nx1, 0, 0, 0, 0, 0]
+    columns = []
+    for column in range(1, nx1 + 1):
+        np1 = list(base)
+        np1[4] = column
+        columns.append(tlip1x(x2[:nx2], packed, query2, lower2, upper2,
+                              np1))
+    return float(tlin1x(x1[:nx1], columns, query1, lower1, upper1))
+
+
+def tlip3x(x1, x2, x3, packed: Sequence[int], query1: float,
+           query2: float, query3: float, lower1: int = 0, lower2: int = 0,
+           lower3: int = 0, upper1: int = 0, upper2: int = 0,
+           upper3: int = 0) -> float:
+    """Translate TLIP3X: TLIN3X over a packed table ``Y(NX2, NX1, NX3)``.
+
+    Each X3 slice is interpolated by :func:`tlip2x`, reached through YUP's
+    shape array ``(-NX2, NX1, NX3, 0, 0, k, 0)``, and the slices are then
+    interpolated in X3 with TLIN1X's rules.  The MESSGE diagnostics are not
+    reproduced.
+    """
+    nx1, nx2, nx3 = len(x1), len(x2), len(x3)
+    slices = [tlip2x(x1, x2, packed, query1, query2, lower1, lower2,
+                     upper1, upper2,
+                     shape=[-nx2, nx1, nx3, 0, 0, x3_slot, 0])
+              for x3_slot in range(1, nx3 + 1)]
+    return float(tlin1x(np.asarray(x3, dtype=float), slices, query3,
+                        lower3, upper3))
+
+
+def intep3(arg1: float, arg2: float, lamda: float, charts: dict,
+           state: Optional[dict] = None) -> float:
+    """Translate INTEP3: interpolate between packed charts drawn at
+    ``LAMDA`` = 0, 0.25, 0.5, 0.75 and 1.
+
+    Args:
+        arg1, arg2: The point on each chart.  lamda: The chart parameter.
+        charts: ``'a'`` to ``'e'`` (for 0 to 1), each a dict with ``x1``,
+            ``x2``, ``packed``, ``nxx`` (the source's ``N1``, ``NXX``
+            words) and ``nx2``, or ``None`` for a caller's dummy chart
+            (``0,0,0,1,1,0``), which evaluates to 0.
+        state: The saved local ``it``, the chart pair last used; a
+            ``LAMDA`` outside [0, 1] reuses it.
+
+    Returns:
+        ``ANS``, linear in ``LAMDA`` between the two charts bracketing it.
+        When chart D has a single X2 point, a ``LAMDA`` above 0.5 pairs C
+        with E instead.
+    """
+    st = state if state is not None else {}
+    it = st.get('it', 1)
+    if lamda == 0.:
+        it = 1
+    if 0.0 < lamda <= 0.25:
+        it = 2
+    if 0.25 < lamda <= 0.50:
+        it = 3
+    if 0.50 < lamda <= 0.75:
+        it = 4
+    if 0.75 < lamda <= 1.00:
+        it = 5
+    if it in (4, 5) and charts['d']['nx2'] == 1:
+        it = 6
+    st['it'] = it
+
+    def look(key):
+        c = charts[key]
+        if c is None:
+            # A dummy chart (``0,0,0,1,1,0`` in the call): one point, packed
+            # word 0, which TLIP2X evaluates to 0.
+            return 0.0
+        return tlip2x(c['x1'], c['x2'], c['packed'], arg1, arg2,
+                      shape=c['nxx'], nx2=c['nx2'])
+
+    # (first chart, its LAMDA), (second chart, its LAMDA) per IT.
+    pairs = {1: (('a', 0.0), ('a', 1.0)), 2: (('a', 0.0), ('b', 0.25)),
+             3: (('b', 0.25), ('c', 0.50)), 4: (('c', 0.50), ('d', 0.75)),
+             5: (('d', 0.75), ('e', 1.00)), 6: (('c', 0.50), ('e', 1.00))}
+    (k1, x1), (k2, x2) = pairs[it]
+    aa1, aa2 = look(k1), look(k2)
+    arg = (lamda - x1) / (x2 - x1)
+    return aa1 + (aa2 - aa1) * arg

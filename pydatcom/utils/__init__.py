@@ -17,7 +17,8 @@ from pydatcom.utils.legacy_tables import (
 )
 from pydatcom.utils.legacy_interp import interx, eqspc1, eqspce
 from pydatcom.utils.tranac import tranac
-from pydatcom.utils.packed_tables import yup, unpack_table, tlip1x
+from pydatcom.utils.packed_tables import (yup, unpack_table, tlip1x, tlip2x,
+                                         tlip3x, intep3)
 
 __all__ = [
     'PI', 'DEG', 'RAD', 'UNUSED', 'get_constants_dict',
@@ -28,6 +29,6 @@ __all__ = [
     'quad', 'trapz', 'tbfunx', 'tranf', 'glook', 'switch',
     'tlin1x', 'tlinex', 'tlin3x', 'tlin4x',
     'interx', 'eqspc1', 'eqspce', 'tranac',
-    'yup', 'unpack_table', 'tlip1x',
+    'yup', 'unpack_table', 'tlip1x', 'tlip2x', 'tlip3x', 'intep3',
 ]
 

@@ -141,7 +141,8 @@ def tbfunx(x, y, query: float, lower: int = 0, upper: int = 0,
         if ordered:
             left = max(1, int(np.searchsorted(x, query, side='right')) - 1)
         else:
-            left = max(1, max(i for i in range(n - 1) if query >= x[i]))
+            left = max(1, max(bracket_index for bracket_index in range(n - 1)
+                              if query >= x[bracket_index]))
         window = slice(left - 1, left + 2)
         # Labels 1000-1010: below XA(2) the source interpolates on the
         # window's first pair, XA(L-1) and XA(L).  For an ordered table that
@@ -358,16 +359,20 @@ def sleq(a, b):
     work[:, n] = b
     rotations = 0
     while True:
-        for k in range(n):
-            if work[k, k] == 0.0:
+        for pivot_row in range(n):
+            if work[pivot_row, pivot_row] == 0.0:
                 break
-            work[k, k + 1:] = work[k, k + 1:] / work[k, k]
-            work[k, k] = 1.0
-            for i in range(n):
-                if i == k:
+            work[pivot_row, pivot_row + 1:] = (
+                work[pivot_row, pivot_row + 1:] / work[pivot_row, pivot_row])
+            work[pivot_row, pivot_row] = 1.0
+            for row_index in range(n):
+                if row_index == pivot_row:
                     continue
-                work[i, k + 1:] = work[i, k + 1:] - work[i, k] * work[k, k + 1:]
-                work[i, k] = 0.0
+                work[row_index, pivot_row + 1:] = (
+                    work[row_index, pivot_row + 1:]
+                    - work[row_index, pivot_row]
+                    * work[pivot_row, pivot_row + 1:])
+                work[row_index, pivot_row] = 0.0
         else:
             return work[:, n].copy(), True
         rotations += 1
@@ -392,10 +397,10 @@ def quadin(y, h: float) -> float:
     ans = 0.0
     k = n
     if n >= 4:
-        for i in range(1, n + 1, 4):
-            k = n - i + 1
+        for panel_start in range(1, n + 1, 4):
+            k = n - panel_start + 1
             if k >= 5:
-                w = y[i - 1:i + 4]
+                w = y[panel_start - 1:panel_start + 4]
                 ans += 7.*w[0] + 32.*w[1] + 12.*w[2] + 32.*w[3] + 7.*w[4]
         ans = ans * h / 22.5
     if k == 2:
@@ -454,18 +459,18 @@ def simul2(x, c1, c2):
     c1 = [float(v) for v in c1]
     c2 = [float(v) for v in c2]
     signp = None
-    for i in range(len(x)):
-        cross = c2[i] - c1[i]
+    for point_index in range(len(x)):
+        cross = c2[point_index] - c1[point_index]
         if cross == 0.0:
-            return x[i], c1[i]
+            return x[point_index], c1[point_index]
         sign = math.copysign(1.0, cross)
-        if i > 0 and sign != signp:
+        if point_index > 0 and sign != signp:
             break
         signp = sign
     else:
         return -1000.0, -1000.0
-    xd2 = x[i] - x[i - 1]
-    xsrt = x[i - 1]
+    xd2 = x[point_index] - x[point_index - 1]
+    xsrt = x[point_index - 1]
     kount = 0
     while True:
         xd2 = xd2 / 2.
@@ -519,10 +524,10 @@ def tlinvs(x1, x2, y, xa2: float, za: float) -> float:
             else:
                 dgss = max(dgss - din, x1[0])
 
-    def row(i):                      # labels 1050-1070 at an exact row
-        if not za < y[i, 0]:
+    def row(row_index):              # labels 1050-1070 at an exact row
+        if not za < y[row_index, 0]:
             return float(x1[0])
-        if not za > y[i, -1]:
+        if not za > y[row_index, -1]:
             return float(x1[-1])
         return search()
 
@@ -536,14 +541,17 @@ def tlinvs(x1, x2, y, xa2: float, za: float) -> float:
             return float(x1[0])
         if not za > y[-1, -1]:
             return float(x1[-1])
-    for i in range(1, nx2):
-        if x2[i] == xa2:
-            return row(i)
-        if x2[i] > xa2:
-            rat = (xa2 - x2[i - 1]) / (x2[i] - x2[i - 1])
-            if za >= y[i - 1, 0] + (y[i, 0] - y[i - 1, 0]) * rat:
+    for row_index in range(1, nx2):
+        if x2[row_index] == xa2:
+            return row(row_index)
+        if x2[row_index] > xa2:
+            rat = ((xa2 - x2[row_index - 1])
+                   / (x2[row_index] - x2[row_index - 1]))
+            if za >= (y[row_index - 1, 0]
+                      + (y[row_index, 0] - y[row_index - 1, 0]) * rat):
                 return float(x1[0])
-            if za <= y[i - 1, -1] + (y[i, -1] - y[i - 1, -1]) * rat:
+            if za <= (y[row_index - 1, -1]
+                      + (y[row_index, -1] - y[row_index - 1, -1]) * rat):
                 return float(x1[-1])
             return search()
     raise ValueError("TLINVS would read past its table beyond the last X2")
@@ -562,8 +570,8 @@ def inter3(arg1: float, arg2: float, rl: float, tables) -> float:
     """
     from .legacy_tables import tlinex
 
-    def read(k):
-        x1, x2, y = tables[k]
+    def read(table_index):
+        x1, x2, y = tables[table_index]
         return float(tlinex(x1, x2, np.asarray(y, dtype=float), arg1, arg2,
                             0, 0, 0, 0))
 
@@ -572,7 +580,8 @@ def inter3(arg1: float, arg2: float, rl: float, tables) -> float:
         return read(4)
     if rl <= 1e5:
         return read(0)
-    it = next(k for k in range(1, 5) if rl <= decades[k])
+    it = next(decade_index for decade_index in range(1, 5)
+              if rl <= decades[decade_index])
     low, high = read(it - 1), read(it)
     x1, x2 = decades[it - 1], decades[it]
     return low + (high - low) * (rl - x1) / (x2 - x1)
@@ -593,9 +602,9 @@ def simul4(coff, eq):
     coff = np.asarray(coff, dtype=float).reshape(-1)
     d = det4(coff)
     unk = []
-    for m in range(4):
+    for unknown_index in range(4):
         de = coff.copy()
-        de[m::4] = np.asarray(eq, dtype=float)
+        de[unknown_index::4] = np.asarray(eq, dtype=float)
         g = det4(de)
         unk.append(g / d if d != 0.0 else
                    (math.nan if g == 0.0 else math.copysign(math.inf, g)))

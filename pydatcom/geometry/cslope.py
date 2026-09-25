@@ -90,12 +90,12 @@ def calculate_cslope(x_upper: Sequence[float], y_upper: Sequence[float],
             f"CSLOPE needs matching {surface}-surface coordinates with at "
             "least two points")
 
-    for index, station in enumerate(_STATIONS):
-        if supplied[index] is not None:
+    for station_slot, station in enumerate(_STATIONS):
+        if supplied[station_slot] is not None:
             continue
         slope = sign * tbfunx(x, y, station, lower=0, upper=0)[1]
-        stations[index] = slope
-        angles[index] = np.arctan(slope) * RAD
+        stations[station_slot] = slope
+        angles[station_slot] = np.arctan(slope) * RAD
 
     return {
         'slopes': stations,

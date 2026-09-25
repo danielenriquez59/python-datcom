@@ -43,3 +43,39 @@ def test_clean_cards_have_no_faults():
 def test_integer_values_count_as_faults():
     """RVALUE wants a decimal point or an exponent on every value."""
     assert rvalue('1,2$', 1, 0, 0)[2] == 2
+
+
+# --- TESTOR, over a card sequence (its END and counts are saved) ----------
+
+from pydatcom.io.namelist_check import testor as run_testor  # noqa: E402
+
+_TESTOR = json.loads((pathlib.Path(__file__).resolve().parent / 'fixtures' /
+                      'probes' / 'testor.json').read_text())
+
+
+def _testor_replay():
+    names = [n for n, _ in _TESTOR['names']]
+    ldm = [d for _, d in _TESTOR['names']]
+    state, out = {}, []
+    for text, col, nam, k, ier in _TESTOR['cards']:
+        out.append(run_testor(text.ljust(80)[:80] + '####', col, nam, k, ier,
+                          names, ldm, state))
+    return out
+
+
+_TESTOR_RESULTS = _testor_replay()
+
+
+@pytest.mark.parametrize("case", range(len(_TESTOR['cards'])))
+def test_testor_matches_compiled_routine(case):
+    r, rec = _TESTOR_RESULTS[case], _TESTOR['records'][case]
+    assert r['unit6'] == rec['unit6']
+    assert [ln.rstrip() for ln in r['unit11'] if ln.strip()] == rec['unit11']
+    assert r['l'] == rec['l']
+
+
+def test_testor_adds_a_missing_termination():
+    k = next(i for i, c in enumerate(_TESTOR['cards'])
+             if c[0].startswith(' $FLTCON NMACH=1.0'))
+    assert 'MISSING NAMELIST TERMINATION' in _TESTOR_RESULTS[k]['unit6'][0]
+    assert _TESTOR_RESULTS[k]['unit11'][0].startswith(' $END')

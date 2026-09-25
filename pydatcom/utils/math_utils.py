@@ -140,12 +140,12 @@ def area2(x: np.ndarray, y: np.ndarray, inum: int) -> Tuple[float, float, float]
 
     area = ax = ay = 0.0
     triangles = ((0, 1, 2),) if inum == 3 else ((0, 1, 2), (0, 2, 3))
-    for i, j, k in triangles:
-        da = abs((x[j] - x[i]) * (y[k] - y[i])
-                 - (x[k] - x[i]) * (y[j] - y[i])) / 2.0
+    for v0, v1, v2 in triangles:
+        da = abs((x[v1] - x[v0]) * (y[v2] - y[v0])
+                 - (x[v2] - x[v0]) * (y[v1] - y[v0])) / 2.0
         area += da
-        ax += da * (x[i] + x[j] + x[k]) / 3.0
-        ay += da * (y[i] + y[j] + y[k]) / 3.0
+        ax += da * (x[v0] + x[v1] + x[v2]) / 3.0
+        ay += da * (y[v0] + y[v1] + y[v2]) / 3.0
     return float(area), float(ax), float(ay)
 
 
@@ -162,14 +162,15 @@ def det4(a: np.ndarray) -> float:
     """
     flat = np.asarray(a, dtype=float).reshape(-1, order='F')         if np.ndim(a) == 2 else np.asarray(a, dtype=float)
     p = 0.0
-    for m in range(1, 5):
-        a3 = [flat[i - 1] for i in range(5, 17) if (i - m) % 4 != 0]
+    for cofactor_row in range(1, 5):
+        a3 = [flat[word - 1] for word in range(5, 17)
+              if (word - cofactor_row) % 4 != 0]
         pp = (a3[0] * (a3[4] * a3[8] - a3[5] * a3[7]) -
               a3[1] * (a3[3] * a3[8] - a3[5] * a3[6]) +
               a3[2] * (a3[3] * a3[7] - a3[4] * a3[6]))
-        if m in (2, 4):
+        if cofactor_row in (2, 4):
             pp = -pp
-        p += flat[m - 1] * pp
+        p += flat[cofactor_row - 1] * pp
     return float(p)
 
 

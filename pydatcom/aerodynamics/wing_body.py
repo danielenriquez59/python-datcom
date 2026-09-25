@@ -294,15 +294,15 @@ def calculate_wblift(alpha_deg: Sequence[float],
     lookup_angles = alpha + incidence - alpha_zero_lift
     incidence_shift = _div(kwb_inc + kbw_inc, kwb + kbw) * incidence
     cl = []
-    for index, angle_deg in enumerate(alpha):
+    for angle_slot, angle_deg in enumerate(alpha):
         wing_cl, _ = tbfunx(
             lookup_angles, surface_alone['cl'],
             angle_deg - alpha_zero_lift + incidence_shift, 1, 1,
         )
         cl.append(
-            body_cl[index] + (kwb + kbw) * wing_cl +
-            vortex['ivbw'][index] * vortex['go2pav'][index] *
-            local_alpha_deg[index] * vortex['ratio'] * wing_cla
+            body_cl[angle_slot] + (kwb + kbw) * wing_cl +
+            vortex['ivbw'][angle_slot] * vortex['go2pav'][angle_slot] *
+            local_alpha_deg[angle_slot] * vortex['ratio'] * wing_cla
         )
     result['cl'] = np.array(cl)
 
@@ -616,8 +616,8 @@ def calculate_wbaero(alpha_deg: Sequence[float],
     ])
     cma = np.array([
         tbfunx(alpha[:available], cm[:available], angle_deg, 0, 0)[1]
-        if index < available else NOT_AVAILABLE
-        for index, angle_deg in enumerate(alpha)
+        if angle_index < available else NOT_AVAILABLE
+        for angle_index, angle_deg in enumerate(alpha)
     ])
     cos_alpha = np.cos(alpha / RAD)
     sin_alpha = np.sin(alpha / RAD)
@@ -748,9 +748,10 @@ def calculate_tables(mach: float, alpha_deg: float) -> Optional[np.ndarray]:
         ia = iam - 1
     base = float(ia)
     mach_index_high = None
-    for index in range(2, 15):
-        if _TABLES_MACH[index - 2] <= mach <= _TABLES_MACH[index - 1]:
-            mach_index_high = index
+    for mach_bracket in range(2, 15):
+        if (_TABLES_MACH[mach_bracket - 2] <= mach <=
+                _TABLES_MACH[mach_bracket - 1]):
+            mach_index_high = mach_bracket
             break
     if mach_index_high is None:
         return None

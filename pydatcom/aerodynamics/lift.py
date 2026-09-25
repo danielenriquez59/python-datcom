@@ -111,14 +111,15 @@ def _mach_indexed_value(
     if np.isscalar(value):
         return float(value)
 
-    usable = [(index, item) for index, item in enumerate(value)
+    usable = [(mach_slot, item) for mach_slot, item in enumerate(value)
               if item is not None and abs(float(item)) != UNUSED]
     if not usable:
         return None
 
     mach_schedule = state.get('flight_mach') or []
-    candidates = [(index, item) for index, item in usable
-                  if index < len(mach_schedule) and mach_schedule[index] is not None]
+    candidates = [(mach_slot, item) for mach_slot, item in usable
+                  if (mach_slot < len(mach_schedule) and
+                      mach_schedule[mach_slot] is not None)]
     if candidates:
         _, item = min(candidates,
                       key=lambda pair: abs(float(mach_schedule[pair[0]]) - mach))

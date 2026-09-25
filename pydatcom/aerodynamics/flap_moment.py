@@ -197,7 +197,7 @@ def calculate_flapcm(data: Mapping[str, object]) -> Dict[str, object]:
         deltgd[strip_slot] = gdoutb[strip_slot] - gdinbd[strip_slot]
     arg2 = (1. - tapexp) / (1. + tapexp)
     kount = 1
-    index = kinbd
+    reference_strip = kinbd
     nn = 0
     kk = [0.0] + fcm[101:115]
     cloald = [0.0] + fcm[21:35]
@@ -246,11 +246,12 @@ def calculate_flapcm(data: Mapping[str, object]) -> Dict[str, object]:
                     kp = 1
                 else:
                     if kount == 2:
-                        index = koutbd
+                        reference_strip = koutbd
                     if kk[strip_index] == UNUSED:
                         kk[strip_index] = interx(
                             1, _X5126A,
-                            [abs(etak[strip_index] - etak[index])],
+                            [abs(etak[strip_index]
+                                 - etak[reference_strip])],
                             [13], _Y5126A, lind=13)
                     swepb[strip_index], deltp[strip_index] = swepbi, deltpi
                     if kount == 2:
@@ -260,7 +261,7 @@ def calculate_flapcm(data: Mapping[str, object]) -> Dict[str, object]:
                 if f[29] != UNUSED:
                     delcmf[strip_index] = f[28 + deflection_index]
                     xc = 0.25 + abs((kk[strip_index] * delcmf[strip_index] /
-                                     cl[index] * cossb2)
+                                     cl[reference_strip] * cossb2)
                                     if kp == 2 else
                                     (delcmf[strip_index] * cossb2 /
                                      cl[strip_index]))
@@ -268,7 +269,7 @@ def calculate_flapcm(data: Mapping[str, object]) -> Dict[str, object]:
                     delcmf[strip_index] = _tl(_X1215B, _X2215B, _Y1215B,
                                                 cfoc[ll], deltp[strip_index])
                     xc = 0.25 + abs((kk[strip_index] * delcmf[strip_index] /
-                                     cl[index] * cossb2)
+                                     cl[reference_strip] * cossb2)
                                     if kp == 2 else
                                     (delcmf[strip_index] * cossb2 /
                                      cl[strip_index]))
@@ -298,7 +299,7 @@ def calculate_flapcm(data: Mapping[str, object]) -> Dict[str, object]:
                                                (cpoc - 1.) +
                                                (cpoc**2 - 1.) * cmo)
                     xc = 0.25 - ((kk[strip_index] * delcmf[strip_index] /
-                                  cl[index] * cossb2)
+                                  cl[reference_strip] * cossb2)
                                  if kp == 2 else
                                  (delcmf[strip_index] * cossb2 /
                                   cl[strip_index]))

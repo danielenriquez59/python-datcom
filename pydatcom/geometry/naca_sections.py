@@ -698,8 +698,8 @@ def decode(card: str, stale_na: int = 0) -> Dict[str, object]:
     chord_stations = [0.0]
     delx = 0.00100
     station_count = 1
-    for index in range(2, 61):
-        station_count = index
+    for station_index in range(2, 61):
+        station_count = station_index
         chord_stations.append(chord_stations[-1] + delx)
         if chord_stations[-1] >= .01:
             delx = .01

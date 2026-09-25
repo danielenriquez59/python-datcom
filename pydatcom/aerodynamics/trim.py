@@ -149,14 +149,14 @@ def _series(gppa):
         g = gppa[span_station]
         if span_station % 2 == 0:
             q[1] += _TEC[k] * g
-            for m, table in ((3, _SC1), (5, _SC3), (7, _SC5), (9, _SC7),
-                             (11, _SC9)):
-                q[m] += table[k] * g
+            for q_index, table in ((3, _SC1), (5, _SC3), (7, _SC5), (9, _SC7),
+                                   (11, _SC9)):
+                q[q_index] += table[k] * g
             k += 1
         else:
-            for m, table in ((4, _SC2), (6, _SC4), (8, _SC6), (10, _SC8),
-                             (12, _SC10)):
-                q[m] += table[l_] * g
+            for q_index, table in ((4, _SC2), (6, _SC4), (8, _SC6), (10, _SC8),
+                                   (12, _SC10)):
+                q[q_index] += table[l_] * g
             l_ += 1
     en1 = gppa[1] * (5.5 * gppa[1] - q[1])
     clsm = totsm = 0.0

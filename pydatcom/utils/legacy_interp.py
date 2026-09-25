@@ -141,8 +141,8 @@ def _columns(table, n_independent: int, length: Sequence[int],
         # rectangular.  Each entry is taken as one variable's grid.
         array = None
     if array is None or array.dtype == object:
-        return [np.asarray(table[index], dtype=float)[:int(length[index])]
-                for index in range(n_independent)]
+        return [np.asarray(table[var_index], dtype=float)[:int(length[var_index])]
+                for var_index in range(n_independent)]
     flat = array.ndim == 1
 
     if flat and n_independent > 1 and lind is None:
@@ -151,24 +151,25 @@ def _columns(table, n_independent: int, length: Sequence[int],
             "LIND, the declared column stride")
 
     grids = []
-    for index in range(n_independent):
-        size = int(length[index])
+    for var_index in range(n_independent):
+        size = int(length[var_index])
         if size < 1:
-            raise ValueError(f"variable {index + 1} has a nonpositive length")
+            raise ValueError(
+                f"variable {var_index + 1} has a nonpositive length")
         if flat:
-            start = index * int(lind) if lind else 0
+            start = var_index * int(lind) if lind else 0
             column = array[start:start + size]
         elif array.ndim == 2:
             # Source layout TABLE(LIND,4): one column per variable.
-            if array.shape[1] <= index:
+            if array.shape[1] <= var_index:
                 raise ValueError(
-                    f"TABLE has no column for variable {index + 1}")
-            column = array[:, index]
+                    f"TABLE has no column for variable {var_index + 1}")
+            column = array[:, var_index]
         else:
-            column = np.asarray(table[index], dtype=float)
+            column = np.asarray(table[var_index], dtype=float)
         if column.size < size:
             raise ValueError(
-                f"variable {index + 1} table is shorter than LENGTH "
+                f"variable {var_index + 1} table is shorter than LENGTH "
                 f"({column.size} < {size})")
         grids.append(np.asarray(column[:size], dtype=float))
     return grids
@@ -189,8 +190,8 @@ def _equal_spaced_stations(x, n_equal: int):
     stations = np.empty(count)
     step = (x[-1] - x[0]) / float(count - 1)
     stations[0] = x[0]
-    for index in range(1, count - 1):
-        stations[index] = stations[index - 1] + step
+    for station_slot in range(1, count - 1):
+        stations[station_slot] = stations[station_slot - 1] + step
     stations[count - 1] = x[-1]
     return stations
 
@@ -203,8 +204,9 @@ def _resample(x, values, stations):
     out = np.empty(count)
     out[0] = values[0]
     out[count - 1] = values[-1]
-    for index in range(1, count - 1):
-        out[index] = interx(1, x, [stations[index]], [len(x)], values)
+    for station_slot in range(1, count - 1):
+        out[station_slot] = interx(1, x, [stations[station_slot]],
+                                   [len(x)], values)
     return out
 
 
