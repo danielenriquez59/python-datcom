@@ -431,10 +431,13 @@ def calculate_loarwb(alpha_deg: Sequence[float], lbin: Mapping[int, object],
                94: acpb0, 115: cm0, 116: xcpoc, 118: xocrd, 119: xocrb,
                120: xocrt})
     del lb[78]
-    for j in range(len(alpha)):
-        lb[2 + j], lb[35 + j], lb[55 + j] = alphap[j], alpapr[j], cnp[j]
-        lb[95 + j], lb[121 + j] = cxp[j], cm_alphap[j]
-        lb[141 + j], lb[161 + j], lb[181 + j] = kyb[j], knb[j], klb[j]
+    for angle_slot in range(len(alpha)):
+        lb[2 + angle_slot], lb[35 + angle_slot], lb[55 + angle_slot] = (
+            alphap[angle_slot], alpapr[angle_slot], cnp[angle_slot])
+        lb[95 + angle_slot], lb[121 + angle_slot] = (
+            cxp[angle_slot], cm_alphap[angle_slot])
+        lb[141 + angle_slot], lb[161 + angle_slot], lb[181 + angle_slot] = (
+            kyb[angle_slot], knb[angle_slot], klb[angle_slot])
     return {
         'cl': cl, 'cd': cd, 'cn': cn, 'ca': ca, 'cm': cm, 'xcp': xcp,
         'kyb': _at_flight_angles(alpha, alphap, kyb, alpha0),

@@ -216,11 +216,12 @@ def calculate_wbtail(alpha_deg: Sequence[float],
     bw_cla, bw_cma = float(wing_body['cla']), float(wing_body['cma'])
 
     clh, cdh, bd94 = [], [], []
-    for j in range(n):
-        alpat = local[j] if canard else local[j] - eps[j] - alpha_zero
+    for angle_slot in range(n):
+        alpat = (local[angle_slot] if canard else
+                 local[angle_slot] - eps[angle_slot] - alpha_zero)
         clh.append(tbfunx(ang, ht_cl, alpat, 1, 1)[0])
         cdh.append(tbfunx(ang, ht_cd, alpat, 1, 1)[0])
-        bd94.append(tbfunx(alpha, bw_cd, alpha[j], 0, 0)[1])
+        bd94.append(tbfunx(alpha, bw_cd, alpha[angle_slot], 0, 0)[1])
 
     ratio = (sspn - sspne) / sspn
     akhbi, _ = tbfunx(_X12A1, _Y12A1, ratio, 0, 0)
@@ -246,90 +247,102 @@ def calculate_wbtail(alpha_deg: Sequence[float],
                                     'vortex_lift', 'wbt87')}
     fact101, fact121, wbt25s = np.zeros(n), np.zeros(n), np.zeros(n)
     with np.errstate(divide='ignore', invalid='ignore'):
-        for j in range(n):
-            qj = _f(q[j])
-            alpat = local[j] if canard else local[j] - eps[j]
-            cla = bw_cla + (wbt3 + wbt4) * (1.0 - deda[j]) * qj
+        for angle_slot in range(n):
+            qj = _f(q[angle_slot])
+            alpat = (local[angle_slot] if canard else
+                     local[angle_slot] - eps[angle_slot])
+            cla = bw_cla + (wbt3 + wbt4) * (1.0 - deda[angle_slot]) * qj
             wbt25 = 0.0
             if canard:
                 anum = (float(wing['cla']) * ht_cla * qj *
-                        float(wing_body['kwb']) * downwash['ali'][j] * sspne)
+                        float(wing_body['kwb']) *
+                        downwash['ali'][angle_slot] * sspne)
                 aden = 2.0 * PI * float(tail['a7']) * (
-                    downwash['vortex_span'][j] / 2.0 - float(wing['sspn']) +
-                    float(wing['sspne']))
+                    downwash['vortex_span'][angle_slot] / 2.0 -
+                    float(wing['sspn']) + float(wing['sspne']))
                 wbt25 = anum / aden * RAD * sref / float(tail['a3'])
                 cla = bw_cla + (wbt3 + wbt4) * qj + wbt25
-                fact121[j] = -wbt25 / ((wbt3 + wbt4) * qj)
-                wbt25s[j] = wbt25
-            out['cla'][j] = cla
+                fact121[angle_slot] = -wbt25 / ((wbt3 + wbt4) * qj)
+                wbt25s[angle_slot] = wbt25
+            out['cla'][angle_slot] = cla
 
-            alpef = alpha[j] - alpha_zero + incidence_shift
-            alpaht = local[j] - alpha_zero
+            alpef = alpha[angle_slot] - alpha_zero + incidence_shift
+            alpaht = local[angle_slot] - alpha_zero
             if not canard:
-                alpef -= eps[j]
-                alpaht -= eps[j]
-            vortex_lift = (vortex[j]['ivbw'] * vortex[j]['go2pav'] * radius *
+                alpef -= eps[angle_slot]
+                alpaht -= eps[angle_slot]
+            vortex_lift = (vortex[angle_slot]['ivbw'] *
+                           vortex[angle_slot]['go2pav'] * radius *
                            qj * ht_cla * alpaht / sspn)
-            alpa = alpha[j] - eps[j]
+            alpa = alpha[angle_slot] - eps[angle_slot]
             tail_lift = (tbfunx(ang, ht_cl, alpef, 1, 1)[0] * qj *
                          (wbt1 + wbt2))
             if canard:
-                cl = bw_cl[j] + tail_lift + vortex_lift + wbt25 * alpha[j]
+                cl = (bw_cl[angle_slot] + tail_lift + vortex_lift +
+                      wbt25 * alpha[angle_slot])
                 if alpaht != 0.0:
-                    fact101[j] = ((-wbt25 * (float(wing['local_alpha'][j]) -
-                                             float(wing['alpha_zero_lift']))) /
-                                  (ht_cla * (wbt1 + wbt2) * qj))
-                alpa = alpha[j]
+                    fact101[angle_slot] = (
+                        (-wbt25 * (float(wing['local_alpha'][angle_slot]) -
+                                   float(wing['alpha_zero_lift']))) /
+                        (ht_cla * (wbt1 + wbt2) * qj))
+                alpa = alpha[angle_slot]
             else:
-                cl = bw_cl[j] + tail_lift + vortex_lift
-            out['cl'][j], out['tail_lift'][j] = cl, tail_lift
-            out['vortex_lift'][j] = vortex_lift
+                cl = bw_cl[angle_slot] + tail_lift + vortex_lift
+            out['cl'][angle_slot], out['tail_lift'][angle_slot] = cl, tail_lift
+            out['vortex_lift'][angle_slot] = vortex_lift
 
             sin_alpa = math.sin(alpa / RAD)
             cos_alpa = math.cos(alpa / RAD)
-            sin_alpha = math.sin(alpha[j] / RAD)
-            cos_alpha = math.cos(alpha[j] / RAD)
+            sin_alpha = math.sin(alpha[angle_slot] / RAD)
+            cos_alpha = math.cos(alpha[angle_slot] / RAD)
             dxacwb = bw_cma / bw_cla
-            apart = dxacwb * ((-bw_cl[j] / RAD + bd94[j]) * sin_alpha +
-                              (bw_cla + bw_cd[j] / RAD) * cos_alpha)
-            bpart = (bd70 / cbarr) * ((bw_cla + bw_cd[j] / RAD) * sin_alpha +
-                                      (bw_cl[j] / RAD - bd94[j]) * cos_alpha)
+            apart = dxacwb * (
+                (-bw_cl[angle_slot] / RAD + bd94[angle_slot]) * sin_alpha +
+                (bw_cla + bw_cd[angle_slot] / RAD) * cos_alpha)
+            bpart = (bd70 / cbarr) * (
+                (bw_cla + bw_cd[angle_slot] / RAD) * sin_alpha +
+                (bw_cl[angle_slot] / RAD - bd94[angle_slot]) * cos_alpha)
             cdht, dcdda = tbfunx(local, ht_cd, alpat, 0, 0)
-            clht = (cl - bw_cl[j]) / qj
+            clht = (cl - bw_cl[angle_slot]) / qj
             dclda = wbt3 + wbt4
             if canard:
                 dclda = dclda + wbt25 / qj
             cpart = (-clht / RAD + dcdda) * sin_alpa
             dpart = (clht / RAD - dcdda) * cos_alpa
-            epart = qj * (1.0 - deda[j])
+            epart = qj * (1.0 - deda[angle_slot])
             fpart = (dclda + cdht / RAD) * sin_alpa
             gpart = (dclda + cdht / RAD) * cos_alpa
             wbt87 = ((bd63 / cbarr) * (cpart + gpart) * epart -
                      (bd64 / cbarr) * (fpart + dpart) * epart)
             if canard:
-                wbt87 = wbt87 / (1.0 - deda[j])
-            out['wbt87'][j] = wbt87
-            out['cma'][j] = (NOT_AVAILABLE if bw_cm[j] == NOT_AVAILABLE
-                             else apart - bpart + wbt87)
+                wbt87 = wbt87 / (1.0 - deda[angle_slot])
+            out['wbt87'][angle_slot] = wbt87
+            out['cma'][angle_slot] = (
+                NOT_AVAILABLE if bw_cm[angle_slot] == NOT_AVAILABLE
+                else apart - bpart + wbt87)
 
             if canard:
-                dclht = cl - bw_cl[j]
+                dclht = cl - bw_cl[angle_slot]
             else:
-                dclht = (((cl - bw_cl[j]) / qj +
-                          cdh[j] * math.sin(eps[j] / RAD)) /
-                         math.cos(eps[j] / RAD)) * qj
-            cdhq = cdh[j] * qj
-            cm = (bw_cm[j] + (bd63 / cbarr) * (dclht * cos_alpa + cdhq * sin_alpa) +
+                dclht = (((cl - bw_cl[angle_slot]) / qj +
+                          cdh[angle_slot] * math.sin(eps[angle_slot] / RAD)) /
+                         math.cos(eps[angle_slot] / RAD)) * qj
+            cdhq = cdh[angle_slot] * qj
+            cm = (bw_cm[angle_slot] +
+                  (bd63 / cbarr) * (dclht * cos_alpa + cdhq * sin_alpa) +
                   (bd64 / cbarr) * (cdhq * cos_alpa - dclht * sin_alpa) +
                   float(tail['cm0']) * qj)
-            out['cm'][j] = NOT_AVAILABLE if bw_cm[j] == NOT_AVAILABLE else cm
+            out['cm'][angle_slot] = (
+                NOT_AVAILABLE if bw_cm[angle_slot] == NOT_AVAILABLE else cm)
 
-            downwash_angle = 0.0 if canard else eps[j]
-            with_vertical = (bw_cd[j] + vertical_cd0 +
-                             (cdh[j] * math.cos(downwash_angle / RAD) +
-                              clh[j] * math.sin(downwash_angle / RAD)) * qj)
-            out['cd_with_vertical'][j] = with_vertical
-            out['cd'][j] = with_vertical - vertical_cd0
+            downwash_angle = 0.0 if canard else eps[angle_slot]
+            with_vertical = (bw_cd[angle_slot] + vertical_cd0 +
+                             (cdh[angle_slot] *
+                              math.cos(downwash_angle / RAD) +
+                              clh[angle_slot] *
+                              math.sin(downwash_angle / RAD)) * qj)
+            out['cd_with_vertical'][angle_slot] = with_vertical
+            out['cd'][angle_slot] = with_vertical - vertical_cd0
 
     out.update({
         'canard': canard,
@@ -402,11 +415,13 @@ def calculate_m10o12(alpha_deg: Sequence[float],
                for k in ('cd', 'cl', 'cm', 'cla', 'cma')}
         bwh['cn'] = bwh['cl'] * cos_alpha + bwh['cd'] * sin_alpha
         bwh['ca'] = bwh['cd'] * cos_alpha - bwh['cl'] * sin_alpha
-        for j in range(1, len(alpha)):
-            bwh['cla'][j] = tbfunx(alpha, bwh['cl'], alpha[j], 0, 0)[1]
-            bwh['cma'][j] = (
-                tbfunx(alpha[:available], bwh['cm'][:available], alpha[j],
-                       0, 0)[1] if j < available else NOT_AVAILABLE)
+        for angle_index in range(1, len(alpha)):
+            bwh['cla'][angle_index] = tbfunx(
+                alpha, bwh['cl'], alpha[angle_index], 0, 0)[1]
+            bwh['cma'][angle_index] = (
+                tbfunx(alpha[:available], bwh['cm'][:available],
+                       alpha[angle_index], 0, 0)[1]
+                if angle_index < available else NOT_AVAILABLE)
         bwhv = {'cd': np.array(tail['cd_with_vertical'], dtype=float),
                 'cl': bwh['cl'].copy(), 'cm': bwh['cm'].copy(),
                 'cla': bwh['cla'].copy(), 'cma': bwh['cma'].copy()}

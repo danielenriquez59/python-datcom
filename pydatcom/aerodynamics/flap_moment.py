@@ -188,12 +188,13 @@ def calculate_flapcm(data: Mapping[str, object]) -> Dict[str, object]:
     cfoc = [0.0] * 15
     xle = [0.0] * 15
     deltgd = [0.0] * 15
-    for k in range(1, 15):
-        ck[k] = cr + etak[k] * arg1
-        if kinbd <= k <= koutbd:
-            cfoc[k] = (f[12] - arg * (etak[k] - eta1)) / ck[k]
-        xle[k] = xw + (bo2 - bsto2) * tanle + etak[k] * arg7
-        deltgd[k] = gdoutb[k] - gdinbd[k]
+    for strip_slot in range(1, 15):
+        ck[strip_slot] = cr + etak[strip_slot] * arg1
+        if kinbd <= strip_slot <= koutbd:
+            cfoc[strip_slot] = (
+                f[12] - arg * (etak[strip_slot] - eta1)) / ck[strip_slot]
+        xle[strip_slot] = xw + (bo2 - bsto2) * tanle + etak[strip_slot] * arg7
+        deltgd[strip_slot] = gdoutb[strip_slot] - gdinbd[strip_slot]
     arg2 = (1. - tapexp) / (1. + tapexp)
     kount = 1
     index = kinbd

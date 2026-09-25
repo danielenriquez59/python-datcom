@@ -61,7 +61,10 @@ def _body_reference_station(x, s):
     """
     x = np.asarray(x, dtype=float)
     s = np.asarray(s, dtype=float)
-    contracts = any(s[k] < s[k - 1] for k in range(1, len(s)))
+    contracts = any(
+        s[station] < s[station - 1]
+        for station in range(1, len(s))
+    )
     if not contracts:
         return float(x[-1]), False
     # BD(K+174) = -dS/dx at every station, with TBFUNX end modes 2 and 1.
@@ -159,9 +162,9 @@ def calculate_bodyrt(x: Sequence[float], s: Sequence[float],
     x_work[index], s_work[index] = tmp5, tmp1
     # IL is the last station up to that point where the area still changes.
     last_changing = 1
-    for k in range(1, index + 1):
-        if s_work[k] - s_work[k - 1] != 0.0:
-            last_changing = k
+    for station in range(1, index + 1):
+        if s_work[station] - s_work[station - 1] != 0.0:
+            last_changing = station
     count = max(last_changing + 1, 2)
     area = eqspc1(x_work[:count], s_work[:count], _STATIONS)
 
@@ -458,11 +461,11 @@ def body_slope_pass(alpha_deg: Sequence[float], cd: Sequence[float],
     cm0 = None
     if experimental:
         cm0 = tbfunx(cl, cm, 0.0, 1, 1, ordered=False)[0]
-    for j in range(len(alpha)):
-        if j == 0 and not experimental:
+    for angle_index in range(len(alpha)):
+        if angle_index == 0 and not experimental:
             continue
-        cla[j] = tbfunx(alpha, cl, alpha[j], 0, 0)[1]
-        cma[j] = tbfunx(alpha, cm, alpha[j], 0, 0)[1]
+        cla[angle_index] = tbfunx(alpha, cl, alpha[angle_index], 0, 0)[1]
+        cma[angle_index] = tbfunx(alpha, cm, alpha[angle_index], 0, 0)[1]
 
     cos_alpha = np.cos(alpha / RAD)
     sin_alpha = np.sin(alpha / RAD)

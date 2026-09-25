@@ -69,34 +69,43 @@ def agenr(boak: Sequence[float], sb: float) -> list:
     tansb = math.tan(DEG * sb)
     al = [0.0] * 16
     boco16 = [0.0] * 4
-    for i in range(16):
-        k = i // 4
-        boch = float(boak[k])
-        boco16[k] = -boch / 16.
+    for coeff_index in range(16):
+        boch_block = coeff_index // 4
+        boch = float(boak[boch_block])
+        boco16[boch_block] = -boch / 16.
         rcplbc = 1.0 / boch
         boc2 = boch**2
         boctn = boch * tansb
-        denom = 1. + _C3[k] * 2.0 * boctn
-        tmp = (1. + _C1[i] * boctn)**2
-        al[i] = (rcplbc / _C1[i] * (math.sqrt(tmp + boc2 * _C1[i]**2) - 1.)
-                 - rcplbc / _C2[i] * (math.sqrt(tmp + boc2 * _C2[i]**2) /
-                                      denom - 1.0)
-                 - 2. * tansb * math.sqrt((1. + _C3[k] * boctn)**2 +
-                                          boc2 * _C3[k]**2) / denom)
+        denom = 1. + _C3[boch_block] * 2.0 * boctn
+        tmp = (1. + _C1[coeff_index] * boctn)**2
+        al[coeff_index] = (
+            rcplbc / _C1[coeff_index] *
+            (math.sqrt(tmp + boc2 * _C1[coeff_index]**2) - 1.)
+            - rcplbc / _C2[coeff_index] *
+            (math.sqrt(tmp + boc2 * _C2[coeff_index]**2) / denom - 1.0)
+            - 2. * tansb *
+            math.sqrt((1. + _C3[boch_block] * boctn)**2 +
+                      boc2 * _C3[boch_block]**2) / denom)
     a = []
-    for i in range(4):
-        k = 4 * i
-        b = boco16[i]
-        f = [-2. * _F1[i], -2. * _F2[i], -2. * _F3[i], -2. * _F4[i]]
-        f[i] = -f[i]
-        a.append(f[0] + b * (2.6131 * al[k] + 2. * (
-            -.70711 * al[k + 1] - .76537 * al[k + 2] + .20711 * al[k + 3])))
-        a.append(f[1] + b * (-1.4142 * al[k] + 2. * (
-            1.8478 * al[k + 1] - .50000 * al[k + 2] - .76537 * al[k + 3])))
-        a.append(f[2] + b * (1.0824 * al[k] + 2. * (
-            -1.2071 * al[k + 1] + 1.8478 * al[k + 2] - .70711 * al[k + 3])))
-        a.append(f[3] + b * (-.5 * al[k] + 1.0824 * al[k + 1] -
-                             1.4142 * al[k + 2] + 2.6131 * al[k + 3]))
+    for equation_index in range(4):
+        coeff_base = 4 * equation_index
+        b = boco16[equation_index]
+        f = [-2. * _F1[equation_index], -2. * _F2[equation_index],
+             -2. * _F3[equation_index], -2. * _F4[equation_index]]
+        f[equation_index] = -f[equation_index]
+        a.append(f[0] + b * (2.6131 * al[coeff_base] + 2. * (
+            -.70711 * al[coeff_base + 1] - .76537 * al[coeff_base + 2] +
+            .20711 * al[coeff_base + 3])))
+        a.append(f[1] + b * (-1.4142 * al[coeff_base] + 2. * (
+            1.8478 * al[coeff_base + 1] - .50000 * al[coeff_base + 2] -
+            .76537 * al[coeff_base + 3])))
+        a.append(f[2] + b * (1.0824 * al[coeff_base] + 2. * (
+            -1.2071 * al[coeff_base + 1] + 1.8478 * al[coeff_base + 2] -
+            .70711 * al[coeff_base + 3])))
+        a.append(f[3] + b * (-.5 * al[coeff_base] +
+                             1.0824 * al[coeff_base + 1] -
+                             1.4142 * al[coeff_base + 2] +
+                             2.6131 * al[coeff_base + 3]))
     return a
 
 
@@ -127,25 +136,25 @@ def calculate_gdelta(efi: float, efo: float, boch: Sequence[float],
     if asyfp:
         t = {k: float(v) for k, v in tail.items()}
         arg1 = (t['tante'] - t['tanle']) * t['bsto2']
-        boch = [2. * t['bsto2'] / (t['crh'] + _SD[3 - i] * arg1)
-                for i in range(4)]
+        boch = [2. * t['bsto2'] / (t['crh'] + _SD[3 - span_station] * arg1)
+                for span_station in range(4)]
     a = agenr(boch, sb)
     gd = []
-    for i in range(0, 16, 4):
-        gd += simul4(a, _EQ[i:i + 4])
+    for block_start in range(0, 16, 4):
+        gd += simul4(a, _EQ[block_start:block_start + 4])
     gd.append(0.0)
     if asyfp:
         return {'gdh': [gd[15], gd[14], gd[13], gd[12]], 'boch': boch,
                 'gd': gd, 'method': 'legacy_gdelta'}
     gi = []
-    for i in range(3):
-        for j in range(4):
-            gi.append(sum(_CN[4 * j + 16 * i + l] * gd[4 * i + l]
-                          for l in range(4)))
+    for row in range(3):
+        for col in range(4):
+            gi.append(sum(_CN[4 * col + 16 * row + coeff] * gd[4 * row + coeff]
+                          for coeff in range(4)))
     fgc = [0.0] * 36
-    for g in range(4):
-        for l in range(4):
-            fgc[4 * g + l] = gd[4 * g + 3 - l]
+    for curve in range(4):
+        for point in range(4):
+            fgc[4 * curve + point] = gd[4 * curve + 3 - point]
     gd[:16] = fgc[:16]
     for l in (2, 4, 6, 8):
         fgc[l + 26] = tbfunx(_SD, gd[12:17], _SPT[l - 1], 0, 0)[0]
@@ -165,15 +174,16 @@ def calculate_gdelta(efi: float, efo: float, boch: Sequence[float],
         fgc[i - 1] = .25 * fgc[i - 2]
     spu = list(_SPU)
     spu[12], spu[13] = efi, efo
-    curves = [fgc[9 * c:9 * c + 9] for c in range(4)]
+    curves = [fgc[9 * curve:9 * curve + 9] for curve in range(4)]
     zrx = np.zeros((12, 5))
-    for c in range(4):
-        zrx[:, c + 1] = [tbfunx(_SPT, curves[c], spu[l], 0, 0)[0]
-                         for l in range(12)]
+    for curve in range(4):
+        zrx[:, curve + 1] = [
+            tbfunx(_SPT, curves[curve], spu[station], 0, 0)[0]
+            for station in range(12)]
     gd1, gd2, gd3 = [], [], []
-    for l in range(14):
-        gd1.append(tbfunx(_SPT, curves[3], spu[l], 0, 0)[0])
-        gd2.append(float(tlinex(_X1, spu[:12], zrx, efi, spu[l])))
-        gd3.append(float(tlinex(_X1, spu[:12], zrx, efo, spu[l])))
+    for station in range(14):
+        gd1.append(tbfunx(_SPT, curves[3], spu[station], 0, 0)[0])
+        gd2.append(float(tlinex(_X1, spu[:12], zrx, efi, spu[station])))
+        gd3.append(float(tlinex(_X1, spu[:12], zrx, efo, spu[station])))
     return {'gd1': gd1, 'gd2': gd2, 'gd3': gd3, 'fgc': fgc, 'gd': gd,
             'boch': boch, 'method': 'legacy_gdelta'}

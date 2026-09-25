@@ -192,11 +192,11 @@ def calculate_bodopt(x: Sequence[float], s: Sequence[float],
 
     tx95, ty95 = x.copy(), r.copy()
     n95 = None
-    for i in range(nx):
-        if x95 > x[i]:
+    for station in range(nx):
+        if x95 > x[station]:
             continue
-        n95 = i + 1
-        tx95[i], ty95[i] = x95, y95
+        n95 = station + 1
+        tx95[station], ty95[station] = x95, y95
         break
     if n95 is None:
         raise ValueError("BODOPT: the 0.96*YMAX station lies beyond the body")

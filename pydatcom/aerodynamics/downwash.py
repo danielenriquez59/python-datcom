@@ -398,17 +398,18 @@ def calculate_dwash(alpha_deg: Sequence[float],
     vortex_span = np.zeros(nalpha)
     debode_out = np.zeros(nalpha)
     a20 = 0.0
-    for j in range(nalpha):
-        alp = alpha[j] + corr
+    for angle_slot in range(nalpha):
+        alp = alpha[angle_slot] + corr
         na = min(max(int(abs(alp) + 1.5), 2), 21)
         xna = float(na - 1)
         grid = np.array([
-            alpha_zero + k * (alp - alpha_zero) / xna for k in range(na)
+            alpha_zero + substep * (alp - alpha_zero) / xna
+            for substep in range(na)
         ])
         deda = np.zeros(na)
 
-        for k in range(na):
-            bj22 = alpha_zero_ref + k * (alp - alpha_zero_ref) / xna
+        for substep in range(na):
+            bj22 = alpha_zero_ref + substep * (alp - alpha_zero_ref) / xna
             adoad = abs(
                 (bj22 - alpha_zero_ref) / (alpha_clmax_ref - alpha_zero_ref),
             )
@@ -467,15 +468,15 @@ def calculate_dwash(alpha_deg: Sequence[float],
                 abs(2.0 * height / span),
                 2.0 * float(tail['sspn']) / span,
             )
-            deda[k] = deda_441 if idwash == 2 else dedav
+            deda[substep] = deda_441 if idwash == 2 else dedav
 
-        vortex_height[j] = height
-        vortex_span[j] = span
-        debode_out[j] = debode
-        gradient_local[j] = deda[-1]
-        angle[j] = trapz(deda, grid, 1)[0]
+        vortex_height[angle_slot] = height
+        vortex_span[angle_slot] = span
+        debode_out[angle_slot] = debode
+        gradient_local[angle_slot] = deda[-1]
+        angle[angle_slot] = trapz(deda, grid, 1)[0]
         if idwash != 2:
-            angle[j] *= debode
+            angle[angle_slot] *= debode
 
     # Label 1060: the stored gradient becomes the slope of the angle.
     gradient = np.array([tbfunx(alpha, angle, a, 1, 1)[1] for a in alpha])
