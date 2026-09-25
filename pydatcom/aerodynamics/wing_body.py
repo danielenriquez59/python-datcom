@@ -189,10 +189,10 @@ def calculate_wbdrag(mach: float, reynolds_per_length: float,
     ]
     if experimental and (experimental.get('kbody') or
                          experimental.get('kwing')):
-        for j, (b, w) in enumerate(zip(experimental['body_cd'],
-                                       experimental['wing_cd'])):
+        for angle_slot, (b, w) in enumerate(zip(experimental['body_cd'],
+                                                experimental['wing_cd'])):
             if b != UNUSED and w != UNUSED:
-                cd[j] = b + w
+                cd[angle_slot] = b + w
     return {
         'cd': np.array(cd), 'cd0': float(cd0),
         'interference': float(interference), 'reynolds': float(reynolds),
@@ -486,19 +486,22 @@ def calculate_wbcm(alpha_deg: Sequence[float],
     kwb_inc = float(lift['kwb_incidence'])
     kbw_inc = float(lift['kbw_incidence'])
     cm = []
-    for index in range(len(alpha_deg)):
-        dxcp_wing = (0.0 if cn_surface[index] == 0.0 else
-                     (cm_surface[index] - cm0_surface) / cn_surface[index])
-        vortex_cn = (vortex['ivbw'][index] * vortex['go2pav'][index] *
-                     vortex['ratio'] * local_alpha_deg[index] * cla_surface)
-        cn_basic = cn_surface[index] - cla_surface * incidence
-        value = (body['cm'][index] + cm0_surface +
+    for angle_slot in range(len(alpha_deg)):
+        dxcp_wing = (0.0 if cn_surface[angle_slot] == 0.0 else
+                     ((cm_surface[angle_slot] - cm0_surface) /
+                      cn_surface[angle_slot]))
+        vortex_cn = (vortex['ivbw'][angle_slot] *
+                     vortex['go2pav'][angle_slot] *
+                     vortex['ratio'] * local_alpha_deg[angle_slot] *
+                     cla_surface)
+        cn_basic = cn_surface[angle_slot] - cla_surface * incidence
+        value = (body['cm'][angle_slot] + cm0_surface +
                  cn_basic * kwb * dxcp_wing +
                  cla_surface * incidence * kwb_inc * dxcp_wing +
                  cn_basic * kbw * dxcpbw +
                  cla_surface * incidence * kbw_inc * dxcpbw +
-                 vortex_cn * dxcp_wing + ca_surface[index] * lever)
-        cm.append(NOT_AVAILABLE if cm_surface[index] == NOT_AVAILABLE
+                 vortex_cn * dxcp_wing + ca_surface[angle_slot] * lever)
+        cm.append(NOT_AVAILABLE if cm_surface[angle_slot] == NOT_AVAILABLE
                   else value)
     return {
         'cm': np.array(cm), 'cm0': float(cmowb),
@@ -604,9 +607,9 @@ def calculate_wbaero(alpha_deg: Sequence[float],
 
     cd, cl, cm = drag['cd'], lift['cl'], moment['cm']
     available = len(alpha)
-    for j, value in enumerate(cm):
+    for angle_index, value in enumerate(cm):
         if moment_cutoff and value == NOT_AVAILABLE:
-            available = j
+            available = angle_index
             break
     cla = np.array([
         tbfunx(alpha, cl, angle_deg, 0, 0)[1] for angle_deg in alpha

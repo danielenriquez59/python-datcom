@@ -134,17 +134,23 @@ def calculate_sshing(data: Mapping[str, object]) -> Dict[str, object]:
         chrd = [arg4 + eta[0] * arg2]
         spr[31] = chrd[0]
         swf = []
-        for m in range(1, 5):
-            eta.append(eta[m - 1] + deln4)
-            chrd.append(arg4 + eta[m] * arg2)
-            swf.append(arg3 * (2. - (1. - arg5) * (eta[m - 1] + eta[m])))
+        for strip_index in range(1, 5):
+            eta.append(eta[strip_index - 1] + deln4)
+            chrd.append(arg4 + eta[strip_index] * arg2)
+            swf.append(arg3 * (2. - (1. - arg5) *
+                              (eta[strip_index - 1] + eta[strip_index])))
         clalds = []
         for deflection_index in range(ndelta):
             cpi, cpo = f[39 + deflection_index], f[49 + deflection_index]
-            cp = [cpi] + [cpi - (cpi - cpo) / (4. * deln4) *
-                          (eta[m] - eta[0]) for m in range(1, 5)]
-            cfactr = [((cp[m] / chrd[m] + cp[m - 1] / chrd[m - 1]) / 2. -
-                       1.) * swf[m - 1] / sr for m in range(1, 5)]
+            cp = [cpi] + [
+                cpi - (cpi - cpo) / (4. * deln4) *
+                (eta[strip_index] - eta[0])
+                for strip_index in range(1, 5)]
+            cfactr = [
+                ((cp[strip_index] / chrd[strip_index] +
+                  cp[strip_index - 1] / chrd[strip_index - 1]) / 2. - 1.) *
+                swf[strip_index - 1] / sr
+                for strip_index in range(1, 5)]
             cfact = (cfactr[0] + cfactr[1] + cfactr[2] + cfactr[3]) / 4.
             clalds.append(claw * (1. + cfact) + claw)
         out.update({'spr': spr[1:], 'clalds': clalds, 'kaseno': None,

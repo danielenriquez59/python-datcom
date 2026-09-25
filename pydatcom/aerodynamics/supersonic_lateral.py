@@ -189,9 +189,9 @@ def calculate_suplat(data: Mapping[str, object], tail: bool = False
     br = [float(v) for v in data['body']['r']]
     rlb = bx[-1]
     rm, rb = mach**2, beta**2
-    for k in (13, 12, 14):
-        if w[k] == UNUSED:
-            w[k] = 0.0
+    for wing_word in (13, 12, 14):
+        if w[wing_word] == UNUSED:
+            w[wing_word] = 0.0
     diheq = (w[13] * (w[3] - w[12]) + w[14] * w[12]) / w[3]
     sla[4] = diheq
     cybw = list(st.get('cybw', [0.0] * na))
@@ -353,7 +353,8 @@ def m23o27_words(nalpha: int, body: Mapping[int, float],
     b = {int(k): float(v) for k, v in body.items()}
     t = {int(k): float(v) for k, v in vt.items()}
     f = {int(k): float(v) for k, v in vf.items()}
-    bv = {k: b[k] + t[k] + f[k] for k in (141, 161, 181)}
+    bv = {word: b[word] + t[word] + f[word]
+          for word in (141, 161, 181)}
     for angle_slot in range(2, nalpha + 1):
         bv[angle_slot + 140] = -UNUSED
         bv[angle_slot + 160] = -UNUSED

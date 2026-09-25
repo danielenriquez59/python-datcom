@@ -326,8 +326,10 @@ def calculate_liftfp(data: Mapping[str, object]) -> Dict[str, object]:
     s = {k: float(v) for k, v in data['surface'].items()}
     f = [0.0] + [float(v) for v in data['f']]
     flp = [0.0] + [float(v) for v in data['flp']]
-    fcm = {282 + k: float(v) for k, v in enumerate(data['fcm282'])}
-    wing = {200 + k: float(v) for k, v in enumerate(data['wing'], 1)}
+    fcm = {282 + word_offset: float(v)
+           for word_offset, v in enumerate(data['fcm282'])}
+    wing = {200 + word: float(v)
+            for word, v in enumerate(data['wing'], 1)}
     delta = _View(f, 0)
     sdcl, cpi, cpo = _View(f, 18), _View(f, 38), _View(f, 48)
     capi, capo, df2 = _View(f, 84), _View(f, 94), _View(f, 104)
@@ -576,6 +578,6 @@ def calculate_liftfp(data: Mapping[str, object]) -> Dict[str, object]:
             wing[220 + deflection_index] = (dsclmx[deflection_index] * swft *
                                             flp[104] / sr)
     return {'f': f, 'flp': flp,
-            'fcm282': [fcm[282 + k] for k in range(6)],
-            'wing': [wing[200 + k] for k in range(1, 51)],
+            'fcm282': [fcm[282 + word] for word in range(6)],
+            'wing': [wing[200 + word] for word in range(1, 51)],
             'state': {'cfactr': cfactr[1:5]}, 'method': 'legacy_liftfp'}

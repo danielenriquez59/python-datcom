@@ -156,22 +156,23 @@ def calculate_gdelta(efi: float, efo: float, boch: Sequence[float],
         for point in range(4):
             fgc[4 * curve + point] = gd[4 * curve + 3 - point]
     gd[:16] = fgc[:16]
-    for l in (2, 4, 6, 8):
-        fgc[l + 26] = tbfunx(_SD, gd[12:17], _SPT[l - 1], 0, 0)[0]
-    ll = 0
-    j = 1
-    for l in range(16):
-        fgc[ll] = gd[l]
-        if l < 12:
-            fgc[ll + 1] = gi[l]
-        ll += 2
-        j += 1
-        if j >= 5:
-            fgc[ll] = 0.
-            ll += 1
-            j = 1
-    for i in (8, 17, 26, 35):
-        fgc[i - 1] = .25 * fgc[i - 2]
+    for spu_anchor in (2, 4, 6, 8):
+        fgc[spu_anchor + 26] = tbfunx(
+            _SD, gd[12:17], _SPT[spu_anchor - 1], 0, 0)[0]
+    fgc_offset = 0
+    column_in_row = 1
+    for gd_index in range(16):
+        fgc[fgc_offset] = gd[gd_index]
+        if gd_index < 12:
+            fgc[fgc_offset + 1] = gi[gd_index]
+        fgc_offset += 2
+        column_in_row += 1
+        if column_in_row >= 5:
+            fgc[fgc_offset] = 0.
+            fgc_offset += 1
+            column_in_row = 1
+    for layout_anchor in (8, 17, 26, 35):
+        fgc[layout_anchor - 1] = .25 * fgc[layout_anchor - 2]
     spu = list(_SPU)
     spu[12], spu[13] = efi, efo
     curves = [fgc[9 * curve:9 * curve + 9] for curve in range(4)]
