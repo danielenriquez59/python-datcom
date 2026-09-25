@@ -168,14 +168,14 @@ def calculate_hypbod(alpha_deg: Sequence[float], mach: float,
     factor = k * rlb / sref
     indep = x / rlb
     intgcn, intgcm, cn, cm, caf, cl, cd = ([] for _ in range(7))
-    for alpha in alpha_deg:
-        a = abs(alpha / RAD)
+    for angle_deg in alpha_deg:
+        a = abs(angle_deg / RAD)
         sa, ca, ta = math.sin(a), math.cos(a), math.tan(a)
         dep, dep1, dep2 = [], [], []
-        for n in range(nx):
-            th = theta[n] / RAD
+        for station in range(nx):
+            th = theta[station] / RAD
             tn, cnn, sn = math.tan(th), math.cos(th), math.sin(th)
-            if abs(alpha / RAD) > abs(th):
+            if abs(angle_deg / RAD) > abs(th):
                 phe = math.acos(tn / ta)
             else:
                 phe = 0.0 if th > 0.0 else PI
@@ -187,20 +187,22 @@ def calculate_hypbod(alpha_deg: Sequence[float], mach: float,
             kaf = (2. * (ca * sn)**2 * tn * (PI - phe) +
                    4. * ca * sa * sp * sn**2 +
                    cnn * sn * sa**2 * (PI - phe - sp * cp))
-            dep.append(ktheta * r[n])
-            dep1.append(dep[n] * lx[n])
-            dep2.append(kaf * r[n])
+            dep.append(ktheta * r[station])
+            dep1.append(dep[station] * lx[station])
+            dep2.append(kaf * r[station])
         intgcn.append(float(trapz(dep, indep)[0]))
         intgcm.append(float(trapz(dep1, indep)[0]))
         intgca = float(trapz(dep2, indep)[0])
-        sign = -1.0 if alpha < 0.0 else 1.0
+        sign = -1.0 if angle_deg < 0.0 else 1.0
         cn.append(sign * factor * intgcn[-1])
         cm.append(sign * factor * intgcm[-1] / cbar)
         caf.append(factor * intgca)
-    for j, alpha in enumerate(alpha_deg):
-        arg = alpha / RAD
-        cl.append(cn[j] * math.cos(arg) - caf[j] * math.sin(arg))
-        cd.append(caf[j] * math.cos(arg) + cn[j] * math.sin(arg))
+    for angle_index, angle_deg in enumerate(alpha_deg):
+        arg = angle_deg / RAD
+        cl.append(cn[angle_index] * math.cos(arg) -
+                  caf[angle_index] * math.sin(arg))
+        cd.append(caf[angle_index] * math.cos(arg) +
+                  cn[angle_index] * math.sin(arg))
     sbd.update({
         1: rlbp, 2: rlb, 3: rlbt, 4: dn, 5: d1, 6: d2, 10: fn,
         18: cnan + cnaa + cnat, 110: cman + cmaa + cmat, 125: cnanf,

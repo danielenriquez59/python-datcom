@@ -398,9 +398,9 @@ def calculate_m10o12(alpha_deg: Sequence[float],
     bw = {k: np.asarray(wing_body[k], dtype=float)
           for k in ('cd', 'cl', 'cm', 'cla', 'cma')}
     available = len(alpha)
-    for j, value in enumerate(bw['cm']):
+    for angle_index, value in enumerate(bw['cm']):
         if value == NOT_AVAILABLE:
-            available = j
+            available = angle_index
             break
 
     bwv = {'cd': bw['cd'] + vertical_cd + ventral_cd, 'cl': bw['cl'].copy(),

@@ -59,7 +59,7 @@ def m56o70(data: Mapping[str, object]) -> Dict[str, object]:
         the tail to the wing's incidence stays in ``XH``, ``ZH`` for
         BDAREA, and the overlay restores both afterwards.
     """
-    i = int(data['i'])
+    mach_index = int(data['i'])
     syna = {int(k): float(v) for k, v in data['syna'].items()}
     saved = (syna[6], syna[7])
     vertup = bool(data['vertup'])
@@ -68,32 +68,34 @@ def m56o70(data: Mapping[str, object]) -> Dict[str, object]:
             ('vtin', 'avt', vertup, 9, 14, data['vtpl']),
             ('vfin', 'avf', not vertup, 12, 15, data['vfpl'])):
         words = {int(k): float(v) for k, v in data[key].items()}
-        flag = (bool(present) and words[i + 94] == UNUSED) or \
-            words[i + 114] == UNUSED or words[i + 134] == UNUSED
+        flag = (bool(present) and words[mach_index + 94] == UNUSED) or \
+            words[mach_index + 114] == UNUSED or \
+            words[mach_index + 134] == UNUSED
         if flag:
             r = calculate_vtarea(
                 words, data[a_key], up, syna[xv], syna[zv], data['mach'],
                 data['wing'], data['tail'],
-                {k: syna[k] for k in (2, 3, 4, 6, 7, 8)}, data['htpl'],
-                {int(k): v for k, v in data['vt_common'].items()}, i,
-                {134 + i: words[134 + i]})
-            words[94 + i] = r['svwb']
-            words[134 + i] = r['svhb']
-            words[114 + i] = r['svb']
+                {word: syna[word] for word in (2, 3, 4, 6, 7, 8)},
+                data['htpl'],
+                {int(k): v for k, v in data['vt_common'].items()}, mach_index,
+                {134 + mach_index: words[134 + mach_index]})
+            words[94 + mach_index] = r['svwb']
+            words[134 + mach_index] = r['svhb']
+            words[114 + mach_index] = r['svb']
             syna[6], syna[7] = r['syna6'], r['syna7']
         out[key] = words
     htin = {int(k): float(v) for k, v in data['htin'].items()}
-    if data['htpl'] and not (htin[94 + i] != UNUSED and
-                             htin[114 + i] != UNUSED and
-                             htin[134 + i] != UNUSED):
+    if data['htpl'] and not (htin[94 + mach_index] != UNUSED and
+                             htin[114 + mach_index] != UNUSED and
+                             htin[134 + mach_index] != UNUSED):
         b = calculate_bdarea(data['body_x'], data['body_r'], data['mach'],
                              {1: syna[1], 6: syna[6], 7: syna[7],
                               8: syna[8]}, htin, data['aht'])
         if b['abort']:
             out['ig'] = 1
         else:
-            htin[114 + i], htin[134 + i] = b['sb'], b['s']
-            htin[94 + i] = b['xbar']
+            htin[114 + mach_index], htin[134 + mach_index] = b['sb'], b['s']
+            htin[94 + mach_index] = b['xbar']
     out['htin'] = htin
     syna[6], syna[7] = saved
     out['syna'] = syna

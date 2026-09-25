@@ -237,7 +237,7 @@ def calculate_bodyrt(x: Sequence[float], s: Sequence[float],
         _FIG_42120_35A_X, _FIG_42120_35A_Y, fineness, lower=2, upper=2,
     )
 
-    for j, angle in enumerate(angles):
+    for angle_index, angle in enumerate(angles):
         sin_a = np.sin(angle / RAD)
         sin_a_squared = sin_a ** 2
         cos_a = np.cos(angle / RAD)
@@ -247,25 +247,25 @@ def calculate_bodyrt(x: Sequence[float], s: Sequence[float],
             _FIG_42120_35B_X, _FIG_42120_35B_Y,
             mach * abs(sin_a), lower=0, upper=0,
         )
-        cdc[j] = eta
+        cdc[angle_index] = eta
         sign = 1.0 if angle >= 0.0 else -1.0
 
         cn_viscous = (
             2.0 * sin_a_squared * crossflow_drag * eta
             * planform_area / sref * sign
         )
-        cn[j] = cn_potential + cn_viscous
-        cm[j] = (
+        cn[angle_index] = cn_potential + cn_viscous
+        cm[angle_index] = (
             cma * angle
             - 2.0 * sin_a_squared * eta * crossflow_drag
             * (planform_moment - xcg * planform_area)
             / (cbar * sref) * sign
         )
-        cd[j] = cd_zero_lift + (cn_potential + cn_viscous) * sin_a
+        cd[angle_index] = cd_zero_lift + (cn_potential + cn_viscous) * sin_a
 
         # Source labels 1100: the rotation as written.
-        cl[j] = cn[j] * cos_a + cd[j] * sin_a
-        ca[j] = cd[j] * cos_a - cn[j] * sin_a
+        cl[angle_index] = cn[angle_index] * cos_a + cd[angle_index] * sin_a
+        ca[angle_index] = cd[angle_index] * cos_a - cn[angle_index] * sin_a
 
     result.update({
         'alpha_deg': angles,

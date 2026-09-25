@@ -163,14 +163,14 @@ def intkbw(mach: float, sweep_le_deg: float, root_chord: float,
         dn = (cr + dx) / (xx * beta)
     supersonic_edge = beta * m > 1.0
     save, savm = [], []
-    for i in range(nn):
-        n = dn * i
+    for row in range(nn):
+        n = dn * row
         ll = beta * n
         ul = min(cr + ll, cr + dx)
         de = (ul - ll) / xx
         data, datm = [], []
-        for j in range(nn):
-            e = ll + de * j
+        for col in range(nn):
+            e = ll + de * col
             if supersonic_edge:
                 val = 1. / (beta * m) if n == 0.0 else \
                     (e / beta + beta * m * n) / (n + m * e)

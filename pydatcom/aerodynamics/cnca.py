@@ -102,9 +102,9 @@ def calculate_cnca(alpha_deg: Sequence[float], cl: Sequence[float],
     cla = np.full(alpha.shape, np.nan)
     monotonic = alpha.size >= 2 and np.all(np.diff(alpha) > 0)
     if monotonic and np.all(lift_set):
-        for index in range(1, alpha.size):
-            cla[index] = tbfunx(
-                alpha, lift, alpha[index], lower=0, upper=0,
+        for angle_index in range(1, alpha.size):
+            cla[angle_index] = tbfunx(
+                alpha, lift, alpha[angle_index], lower=0, upper=0,
             )[1]
 
     result = {
@@ -122,9 +122,9 @@ def calculate_cnca(alpha_deg: Sequence[float], cl: Sequence[float],
         cma = np.full(alpha.shape, np.nan)
         # The source also tests element 2 of the array before proceeding.
         if monotonic and np.all(_is_set(moment)):
-            for index in range(alpha.size):
-                cma[index] = tbfunx(
-                    alpha, moment, alpha[index], lower=0, upper=0,
+            for angle_index in range(alpha.size):
+                cma[angle_index] = tbfunx(
+                    alpha, moment, alpha[angle_index], lower=0, upper=0,
                 )[1]
         result['cma'] = cma
 

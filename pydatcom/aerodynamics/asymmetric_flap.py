@@ -410,7 +410,8 @@ def calculate_latflp(data: Mapping[str, object]) -> Dict[str, object]:
     s = {k: v for k, v in data['surface'].items()}
     f = [0.0] + [float(v) for v in data['f']]
     fla = [0.0] + [float(v) for v in data['fla']]
-    ht = {200 + k: float(v) for k, v in enumerate(data['ht201'], 1)}
+    ht = {200 + word: float(v)
+          for word, v in enumerate(data['ht201'], 1)}
     clrol = [0.0] + [float(v) for v in data['clrol']]
     cn = [0.0] + [float(v) for v in data['cn']]
     nalpha = int(data['nalpha'])

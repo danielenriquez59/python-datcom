@@ -48,9 +48,10 @@ def calculate_ctabs(data: Mapping[str, object]) -> Dict[str, object]:
     blk = {n: _words(data[n]) for n in ('bw', 'bh', 'bv', 'bwh', 'bwhv')}
     sref, cbarr = float(data['sref']), float(data['cbarr'])
     alpha = [0.0] + [float(v) for v in data['alpha']]
-    ttype, cfitc, cfotc, bitc, botc = (f[k] for k in range(117, 122))
-    b1, b2, b3, b4, d1, d2, d3 = (f[k] for k in range(126, 133))
-    gcmax, ks, rl, bgr, delr = (f[k] for k in range(133, 138))
+    ttype, cfitc, cfotc, bitc, botc = (
+        f[word] for word in range(117, 122))
+    b1, b2, b3, b4, d1, d2, d3 = (f[word] for word in range(126, 133))
+    gcmax, ks, rl, bgr, delr = (f[word] for word in range(133, 138))
     stc = (cfitc + cfotc) * (botc - bitc)
     ctc = 2.0 * (cfitc + cfotc - cfitc * cfotc / (cfitc + cfotc)) / 3.0
     ac = stc * ctc / (sref * cbarr)

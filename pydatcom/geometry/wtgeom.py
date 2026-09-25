@@ -75,10 +75,11 @@ def sweep_records(savsi_deg: float, savso_deg: float,
     previous = previous or {}
     completed = {}
     for start, degrees in ((106, savsi_deg), (112, savso_deg)):
-        record = [float(previous.get(start + k, 0.0)) for k in range(6)]
+        record = [float(previous.get(start + word_offset, 0.0))
+                  for word_offset in range(6)]
         record[0] = float(degrees)
-        for k, value in enumerate(angles(1, record)):
-            completed[start + k] = value
+        for word_offset, value in enumerate(angles(1, record)):
+            completed[start + word_offset] = value
     return completed
 
 
@@ -149,11 +150,11 @@ def calculate_wtgeom(ain: Mapping[int, float],
     co = 0.0 if single else _eq2(a_block[28], a_block[6])
 
     def record(start):
-        return [a_block[start + k] for k in range(6)]
+        return [a_block[start + word_offset] for word_offset in range(6)]
 
     def store(start, values):
-        for k, value in enumerate(values):
-            a_block[start + k] = float(value)
+        for word_offset, value in enumerate(values):
+            a_block[start + word_offset] = float(value)
 
     xovco = surface_in.get(66, 0.0)
     for pass_index in range(5):
