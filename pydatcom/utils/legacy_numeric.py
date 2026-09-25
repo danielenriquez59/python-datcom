@@ -39,7 +39,8 @@ def tranf(x, y, left_slope: float, right_slope: float,
             return float(right_slope)
         slope_left = (y[index] - y[index - 1]) / (x[index] - x[index - 1])
         slope_right = (y[index + 1] - y[index]) / (x[index + 1] - x[index])
-        slope = np.tan((np.arctan(slope_left) + np.arctan(slope_right)) / 2.0)
+        slope = math.tan(
+            (math.atan(slope_left) + math.atan(slope_right)) / 2.0)
         if y[index] <= 0.0:
             slope = 0.0
         if (len(x) > 10 and
@@ -187,8 +188,9 @@ def arccos(value: float) -> float:
     """Translate ARCCOS, the source's "standard FORTRAN only" inverse cosine.
 
     Inside ``[-1, 1]`` this is the ordinary inverse cosine, built from
-    ``atan(sqrt(1-a^2)/a)`` with ``pi`` added when that lands negative, and
-    ``pi/2`` at exactly zero.
+    ``atan(sqrt(1-a^2)/a)`` with ``PI`` added when that lands negative, and
+    ``PI/2`` at exactly zero.  ``PI`` is the source's ``COMMON /CONSNT/``
+    value, 3.141592654, not the full-precision constant.
 
     Outside ``[-1, 1]`` it is *not* an inverse cosine at all: the source
     returns ``log|a + sqrt(a^2-1)|``, the inverse hyperbolic cosine.  For
@@ -210,11 +212,11 @@ def arccos(value: float) -> float:
     if not np.isfinite(value):
         raise ValueError("ARCCOS requires a finite argument")
     if value == 0.0:
-        return float(np.pi / 2.0)
+        return PI / 2.0
     if abs(value) <= 1.0:
-        angle = float(np.arctan(np.sqrt(1.0 - value**2) / value))
-        return angle if angle >= 0.0 else float(np.pi + angle)
-    return float(np.log(abs(value + np.sqrt(value**2 - 1.0))))
+        angle = math.atan(math.sqrt(1.0 - value**2) / value)
+        return angle if angle >= 0.0 else PI + angle
+    return math.log(abs(value + math.sqrt(value**2 - 1.0)))
 
 
 # ANGLES' own DATA constants.  CON differs from the COMMON block's DEG in
@@ -232,7 +234,7 @@ def zerang() -> list:
     return [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
 
 
-def _sign(a: float, b: float) -> float:
+def sign(a: float, b: float) -> float:
     """FORTRAN SIGN(A,B), with gfortran's treatment of a negative zero."""
     return math.copysign(abs(a), b)
 
@@ -287,16 +289,16 @@ def angles(entry: int, arg) -> list:
                 out[4] = out[2] / cosine
             else:
                 out[3] = 0.0
-                out[4] = _sign(_ANGLES_SPE, a2)
+                out[4] = sign(_ANGLES_SPE, a2)
         out[5] = a2
         return out
 
     def quarter(a3: float) -> list:
         # Label 1160: a cosine of zero.
-        out[2] = _sign(1.0, a3)
+        out[2] = sign(1.0, a3)
         out[3] = 0.0
-        out[4] = _sign(_ANGLES_SPE, a3)
-        return resolve(_sign(_ANGLES_HPI, a3), False)
+        out[4] = sign(_ANGLES_SPE, a3)
+        return resolve(sign(_ANGLES_HPI, a3), False)
 
     def from_pair(a3: float, a4: float) -> list:
         # Label 1150.
@@ -329,7 +331,7 @@ def angles(entry: int, arg) -> list:
     if entry == 4:
         a4 = out[3]
         if abs(a4) >= 1.0 - eps:
-            a4 = _sign(1.0, a4)
+            a4 = sign(1.0, a4)
         a3 = math.sqrt(1.0 - a4**2)
         if abs(a4) <= eps:
             return quarter(a3)
@@ -339,8 +341,8 @@ def angles(entry: int, arg) -> list:
     if entry == 5:
         a1 = out[4]
         if abs(a1) > _ANGLES_SPE:
-            a1 = _sign(_ANGLES_SPE, a1)
-        return from_sine(_sign(a1 / math.sqrt(1.0 + a1**2), a1))
+            a1 = sign(_ANGLES_SPE, a1)
+        return from_sine(sign(a1 / math.sqrt(1.0 + a1**2), a1))
     a3, a4 = out[2], out[3]
     norm = math.sqrt(a3**2 + a4**2)
     if norm == 0.0:
@@ -478,10 +480,10 @@ def simul2(x, c1, c2):
         cross = c2[point_index] - c1[point_index]
         if cross == 0.0:
             return x[point_index], c1[point_index]
-        sign = math.copysign(1.0, cross)
-        if point_index > 0 and sign != signp:
+        cross_sign = math.copysign(1.0, cross)
+        if point_index > 0 and cross_sign != signp:
             break
-        signp = sign
+        signp = cross_sign
     else:
         return -1000.0, -1000.0
     xd2 = x[point_index] - x[point_index - 1]

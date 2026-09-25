@@ -9,6 +9,7 @@ Implements supersonic flow methods (Mach > 1.2):
 Reference: datcom.f supersonic calculation sections
 """
 
+import math
 import numpy as np
 from typing import Dict
 import logging
@@ -82,7 +83,7 @@ def calculate_supdrg_straight_wing(state: Dict, mach: float,
     if wing_area <= 0.0 or sref <= 0.0:
         raise ValueError("wing area and SREF must be positive")
 
-    beta = np.sqrt(mach**2 - 1.0)
+    beta = math.sqrt(mach**2 - 1.0)
     tan_le = geometry['tan_le']
     # WTGEOM A(18)=tip-leading-edge offset/root chord for a single panel.
     sigma = semispan * tan_le / root
@@ -113,7 +114,7 @@ def calculate_supdrg_straight_wing(state: Dict, mach: float,
         volume_numerator = float(ksharp) * tceff ** 2 * area_ratio
         cd_wave_volume = volume_numerator / wave_drag_denominator
     else:
-        cos_le = 1.0 / np.sqrt(1.0 + tan_le ** 2)
+        cos_le = 1.0 / math.sqrt(1.0 + tan_le ** 2)
         leri = float(state.get('wing_leri', 0.0) or 0.0)
         average_chord = (root + tip) / 2.0
         lerbw = leri * average_chord
@@ -154,7 +155,7 @@ def calculate_supersonic_lift_slope(mach: float, aspect_ratio: float,
         logger.warning(f"Supersonic method called with M={mach} < 1.0")
         return 2.0 * np.pi
     
-    beta = np.sqrt(mach ** 2 - 1.0)
+    beta = math.sqrt(mach ** 2 - 1.0)
     cla_2d = 4.0 / beta
 
     if aspect_ratio > 0:
@@ -166,9 +167,9 @@ def calculate_supersonic_lift_slope(mach: float, aspect_ratio: float,
 
     if abs(sweep_deg) > 1.0:
         sweep_rad = np.deg2rad(abs(sweep_deg))
-        mach_normal = mach * np.cos(sweep_rad)
+        mach_normal = mach * math.cos(sweep_rad)
         if mach_normal > 1.0:
-            beta_normal = np.sqrt(mach_normal ** 2 - 1.0)
+            beta_normal = math.sqrt(mach_normal ** 2 - 1.0)
             cla_3d = 4.0 / beta_normal * finite_span_factor
 
     return cla_3d
@@ -193,7 +194,7 @@ def calculate_supersonic_wave_drag(mach: float, thickness_ratio: float,
     if mach <= 1.0:
         return {'cd_wave_volume': 0.0, 'cd_wave_lift': 0.0, 'cd_wave_total': 0.0}
     
-    beta = np.sqrt(mach**2 - 1.0)
+    beta = math.sqrt(mach**2 - 1.0)
     
     # Volume wave drag (thickness effect)
     # Linearized theory: CD_volume ≈ k * (t/c)² / β

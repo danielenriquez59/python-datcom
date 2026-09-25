@@ -14,6 +14,7 @@ feed the wing-body-tail buildup:
 Reference: datcom-legacy/datcom_2000/inftgm.f, dwash.f
 """
 
+import math
 import numpy as np
 from typing import Dict, Optional, Sequence
 import logging
@@ -133,8 +134,8 @@ def calculate_downwash_geometry(state: Dict) -> Dict[str, float]:
     hinax = state.get('synths_hinax')
     if hinax is not None:
         hinax = float(hinax)
-        zh = zh + np.sin(alih) * (hinax - xh)
-        xh = hinax * (1.0 - np.cos(alih)) + xh * np.cos(alih)
+        zh = zh + math.sin(alih) * (hinax - xh)
+        xh = hinax * (1.0 - math.cos(alih)) + xh * math.cos(alih)
 
     # XBRSTH = ATH(30)-ATH(16)/4 is the exposed MAC quarter chord aft of the
     # exposed root leading edge; DXSTAR carries it to the centerline.
@@ -146,20 +147,20 @@ def calculate_downwash_geometry(state: Dict) -> Dict[str, float]:
 
     # A(193)/A(194): streamwise tail reference relative to the wing root,
     # then aft to the tail MAC quarter chord.
-    a193 = xh - xw - chrdr * np.cos(aliw)
-    a194 = a193 + dxbh * np.cos(alih)
+    a193 = xh - xw - chrdr * math.cos(aliw)
+    a194 = a193 + dxbh * math.cos(alih)
 
     # A(12) geometry: tail height in the wing chord plane and the streamwise arm.
-    zph = zh - dxbh * np.sin(alih) - zw + chrdr * np.sin(aliw)
-    lateral_shift_from_wing_incidence = zph * np.tan(aliw)
+    zph = zh - dxbh * math.sin(alih) - zw + chrdr * math.sin(aliw)
+    lateral_shift_from_wing_incidence = zph * math.tan(aliw)
     streamwise_at_chord_plane = a194 - lateral_shift_from_wing_incidence
 
-    tail_arm = streamwise_at_chord_plane * np.cos(aliw)
+    tail_arm = streamwise_at_chord_plane * math.cos(aliw)
     tail_height = (
-        zph / np.cos(aliw) + streamwise_at_chord_plane * np.sin(aliw)
+        zph / math.cos(aliw) + streamwise_at_chord_plane * math.sin(aliw)
     )
     tail_angle = (
-        np.arctan2(tail_height, tail_arm) if tail_arm != 0.0 else 0.0
+        math.atan2(tail_height, tail_arm) if tail_arm != 0.0 else 0.0
     )
 
     return {
@@ -220,8 +221,8 @@ def calculate_downwash_gradient_441(state: Dict) -> Dict[str, float]:
 
     # Source tail arm XLH (dwash.f), not the INFTGM A(24) arm.
     tail_arm_xlh = (
-        (xh - tail['mac_c4_theoretical'] * np.cos(alih))
-        - (xw - wing['mac_c4_theoretical'] * np.cos(aliw))
+        (xh - tail['mac_c4_theoretical'] * math.cos(alih))
+        - (xw - wing['mac_c4_theoretical'] * math.cos(aliw))
     )
     if tail_arm_xlh <= 0.0:
         raise ValueError(
@@ -229,14 +230,14 @@ def calculate_downwash_gradient_441(state: Dict) -> Dict[str, float]:
             f"source XLH expression gave {tail_arm_xlh:g}",
         )
 
-    cos_sweep_c4 = 1.0 / np.sqrt(1.0 + wing['tan_c4']**2)
+    cos_sweep_c4 = 1.0 / math.sqrt(1.0 + wing['tan_c4']**2)
     k_a = 1.0 / aspect_ratio - 1.0 / (1.0 + aspect_ratio**1.7)
     k_lambda = (10.0 - 3.0 * taper) / 7.0
     height_over_semispan = abs(0.5 * geometry['tail_height'] / sspne)
     arm_over_semispan = tail_arm_xlh / sspne
     k_h = (1.0 - height_over_semispan) / arm_over_semispan ** (1.0 / 3.0)
 
-    k_product = k_a * k_lambda * k_h * np.sqrt(cos_sweep_c4)
+    k_product = k_a * k_lambda * k_h * math.sqrt(cos_sweep_c4)
     deda = 4.44 * k_product**1.19 if k_product > 0.0 else 0.0
 
     return {
@@ -375,9 +376,10 @@ def calculate_dwash(alpha_deg: Sequence[float],
         sspne = float(wing['sspne'])
         tail_arm_xlh = (
             (float(synthesis['xh'])
-             - float(tail_geometry['mac_c4_theoretical']) * np.cos(alih_rad))
+             - float(tail_geometry['mac_c4_theoretical']) * math.cos(alih_rad))
             - (float(synthesis['xw'])
-               - float(wing_geometry['mac_c4_theoretical']) * np.cos(aliw_rad))
+               - float(wing_geometry['mac_c4_theoretical'])
+               * math.cos(aliw_rad))
         )
         if tail_arm_xlh <= 0.0:
             raise ValueError(
@@ -389,7 +391,7 @@ def calculate_dwash(alpha_deg: Sequence[float],
         height_over_semispan = abs(0.5 * tail_height / sspne)
         arm_over_semispan = tail_arm_xlh / sspne
         k_h = (1.0 - height_over_semispan) / arm_over_semispan ** (1.0 / 3.0)
-        k_product = k_a * k_lambda * k_h * np.sqrt(cos_c4)
+        k_product = k_a * k_lambda * k_h * math.sqrt(cos_c4)
         deda_441 = 4.44 * k_product**1.19
 
     angle = np.zeros(nalpha)
@@ -430,11 +432,12 @@ def calculate_dwash(alpha_deg: Sequence[float],
 
             # Figure 4.4.1-67 with compressibility.
             dedai = 1.62 * claw / (PI * aeff) * RAD * sratio * kwb
-            tzob = tl2ob + np.sqrt(
-                0.5 * (-1.0 + np.sqrt(1.0 + 4.0 / aeff**2)),
+            tzob = tl2ob + math.sqrt(
+                0.5 * (-1.0 + math.sqrt(1.0 + 4.0 / aeff**2)),
             )
             dedav = (
-                dedai + (1.0 - dedai) / (aeff * tzob * np.sqrt(1.0 + tzob**2))
+                dedai
+                + (1.0 - dedai) / (aeff * tzob * math.sqrt(1.0 + tzob**2))
             )
             beff = 2.0 * sspn * beffob
 
@@ -452,16 +455,18 @@ def calculate_dwash(alpha_deg: Sequence[float],
             drop = wfact * (bj22 / RAD - 0.41 * clwj / (PI * aeff))
             if beffo2 > bdff:
                 height = tail_height - drop - (
-                    bdff * np.tan(dhdadi / RAD) +
-                    (beffo2 - bdff) * np.tan(dhdado / RAD))
+                    bdff * math.tan(dhdadi / RAD) +
+                    (beffo2 - bdff) * math.tan(dhdado / RAD))
             else:
-                height = tail_height - drop - .5 * beff * np.tan(dhdadi / RAD)
+                height = (tail_height - drop
+                          - .5 * beff * math.tan(dhdadi / RAD))
 
             if clwj == 0.0:
                 span = beff
             else:
                 eru = 0.56 * aspect_ratio / clwj
-                span = beff - (beff - bvru) * np.sqrt(abs(a20 / (sspn * eru)))
+                span = beff - ((beff - bvru)
+                               * math.sqrt(abs(a20 / (sspn * eru))))
 
             # Figure 4.4.1-68B average factor; integrand from branch.
             debode = fig4417_68b(
@@ -609,12 +614,12 @@ def calculate_dyprls_curve(cdow: float, i2: float, cbar: float,
     else:
         ej = cl_to_ej * cl * sref_over_area
 
-    cos_gamma = np.cos(gamma)
+    cos_gamma = math.cos(gamma)
     i2ocb = (
         i2 * np.cos(gamma - alpha_rad + ej) / (cos_gamma * cbar)
     )
     zwocb = 0.68 * np.sqrt(cdow * (i2ocb + 0.15) * sref_over_area)
-    dqoq0 = 2.42 * np.sqrt(cdow * sref_over_area) / (i2ocb + 0.3)
+    dqoq0 = 2.42 * math.sqrt(cdow * sref_over_area) / (i2ocb + 0.3)
     zocb = i2ocb * np.tan(ej + gamma - alpha_rad)
 
     with np.errstate(divide='ignore', invalid='ignore'):

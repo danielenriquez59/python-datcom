@@ -56,6 +56,15 @@ def test_det4():
         assert det4(np.array(v)) == pytest.approx(r, rel=1e-12, abs=1e-12)
 
 
+def test_det4_is_exactly_zero_for_an_exactly_singular_matrix():
+    # SIMUL4 takes the source's divide-by-zero path only on an exact zero.
+    # Row 4 = row 1 + 2 row 2: np.linalg.det gives about 3e-14 here.
+    rows = np.array([[5., -4., -1., -1.], [4., -3., 0., -3.],
+                     [-5., 3., -5., -2.], [13., -10., -1., -7.]])
+    assert np.linalg.det(rows) != 0.0
+    assert det4(rows) == 0.0
+
+
 def test_sleq():
     for v, r in zip(_IN['sleq'], _OUT['sleq']):
         x, ok = sleq(v['a'], v['b'])

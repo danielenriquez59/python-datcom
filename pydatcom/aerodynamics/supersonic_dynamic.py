@@ -16,6 +16,7 @@ number gives NaN as the compiled FORTRAN does rather than raising.
 Reference: datcom-legacy/datcom_2000/calca.f
 """
 
+import math
 from typing import Dict, Mapping, Optional
 
 import numpy as np
@@ -71,19 +72,19 @@ def calculate_calca(mach: float, a: Mapping[int, float],
     mach = np.float64(mach)
     dyn = {}
     with np.errstate(all='ignore'):
-        beta = np.sqrt(mach**2-1.0)
+        beta = math.sqrt(mach**2-1.0)
         b2 = beta
         pio2 = pi/2.
         d = (win[4]-win[3])*2.
         b = 2.0*win[4]
         db = d/b
-        k6 = beta/np.tan(g[58]/rad)
+        k6 = beta/math.tan(g[58]/rad)
         cr = g[9]
         s = (cr+win[1])*win[4]
         se = g[3]
         are = g[7]
         lame = g[27]
-        gg = beta/(np.tan(g[58]/rad)+(4.0/are)*((lame-1.0)/(lame+1.0)))
+        gg = beta/(math.tan(g[58]/rad)+(4.0/are)*((lame-1.0)/(lame+1.0)))
         egin = _look(_XEGIN, _YEGIN, gg)
         gm = _look(_XGM, _YGM, k6)
         kgin = _look(_XKGIN, _YKGIN, gg)
@@ -105,10 +106,10 @@ def calculate_calca(mach: float, a: Mapping[int, float],
         if a2 < 0.0 or a3 < 0.0 or sn >= 1.0 or sn < 0.0:
             return None
         a4sq = a4**2
-        a1sr = np.sqrt(a1)
-        a2sr = np.sqrt(a2)
-        a3sr = np.sqrt(a3)
-        a4sr = np.sqrt(a4)
+        a1sr = math.sqrt(a1)
+        a2sr = math.sqrt(a2)
+        a3sr = math.sqrt(a3)
+        a4sr = math.sqrt(a4)
         a31p5 = a3*a3sr
         a11p5 = a1*a1sr
         a3a1sr = a3sr*a1sr
@@ -119,7 +120,7 @@ def calculate_calca(mach: float, a: Mapping[int, float],
         sn2 = sn**2
         sn3 = sn*sn2
         sn2m1 = sn2-1.
-        sn2m1s = np.sqrt(-sn2m1)
+        sn2m1s = math.sqrt(-sn2m1)
         cm1 = 3.0*(1.0-pio2/kpg)
         cm2 = w*cm1
         cm3 = (epg-gg**2*kpg)/(kpg-epg)

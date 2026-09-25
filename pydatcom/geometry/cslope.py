@@ -14,6 +14,7 @@ horizontal tail.
 Reference: datcom-legacy/datcom_2000/cslope.f
 """
 
+import math
 import numpy as np
 from typing import Dict, Optional, Sequence
 import logging
@@ -95,7 +96,7 @@ def calculate_cslope(x_upper: Sequence[float], y_upper: Sequence[float],
             continue
         slope = sign * tbfunx(x, y, station, lower=0, upper=0)[1]
         stations[station_slot] = slope
-        angles[station_slot] = np.arctan(slope) * RAD
+        angles[station_slot] = math.atan(slope) * RAD
 
     return {
         'slopes': stations,

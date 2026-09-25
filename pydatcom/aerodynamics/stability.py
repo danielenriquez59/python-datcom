@@ -9,6 +9,7 @@ Computes dynamic stability derivatives:
 Reference: datcom.f DAMP-related subroutines
 """
 
+import math
 import numpy as np
 from typing import Dict
 import logging
@@ -60,7 +61,7 @@ def calculate_pitch_damping(state: Dict, mach: float) -> Dict[str, float]:
     
     # Compressibility effect
     if mach < 0.9:
-        beta = np.sqrt(1.0 - mach**2)
+        beta = math.sqrt(1.0 - mach**2)
         cmq_wing /= beta
     
     # Tail contribution (if present)
@@ -99,10 +100,10 @@ def calculate_roll_damping(state: Dict, mach: float) -> float:
     aspect_ratio = state.get('wing_aspect_ratio', 6.0)
 
     if mach < 0.9:
-        beta = np.sqrt(1.0 - mach ** 2)
+        beta = math.sqrt(1.0 - mach ** 2)
         lift_slope_per_rad = (
             (2.0 * np.pi * aspect_ratio) /
-            (2.0 + np.sqrt(4.0 + aspect_ratio ** 2)) / beta
+            (2.0 + math.sqrt(4.0 + aspect_ratio ** 2)) / beta
         )
     else:
         supersonic_beta = np.sqrt(mach ** 2 - 1.0) if mach > 1.0 else 0.1

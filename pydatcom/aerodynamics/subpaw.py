@@ -15,7 +15,7 @@ an untapered planform below Mach 1 with ``beta * aspect_ratio`` at or below
 Reference: datcom-legacy/datcom_2000/subpaw.f, subpah.f
 """
 
-import numpy as np
+import math
 from typing import Dict, Optional
 import logging
 
@@ -98,7 +98,7 @@ def calculate_subpaw(mach: float, cla: float, section_cla_compressible: float,
         area / sref * (mac / cbarr)**2)
 
     if mach > _COMPRESSIBILITY_MACH:
-        beta_sweep = np.sqrt(1.0 - mach**2 * cos_sweep_c4**2)
+        beta_sweep = math.sqrt(1.0 - mach**2 * cos_sweep_c4**2)
         swept_cubic = aspect_ratio**3 * tan_sweep_c4**2
         cmq = ((swept_cubic / (aspect_ratio * beta_sweep + 6.0 * cos_sweep_c4)
                 + 3.0 / beta_sweep) /
@@ -124,7 +124,7 @@ def calculate_subpaw(mach: float, cla: float, section_cla_compressible: float,
         result['acceleration_gate'] = 'tapered_surface'
         return result
 
-    beta = np.sqrt(1.0 - mach**2)
+    beta = math.sqrt(1.0 - mach**2)
     beta_aspect = beta * aspect_ratio
     if beta_aspect > _BETA_ASPECT_LIMIT:
         result['acceleration_available'] = False

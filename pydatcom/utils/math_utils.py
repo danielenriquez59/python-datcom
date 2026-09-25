@@ -2,11 +2,13 @@
 Mathematical utility functions for PyDATCOM.
 
 Ported from DATCOM FORTRAN subroutines with bounds checking and error handling.
-References: datcom.f lines 390-451 (ARCSIN, ARCCOS), 452-515 (AREA1, AREA2)
+References: datcom.f lines 390-451 (ARCSIN), 452-515 (AREA1, AREA2).
+ARCCOS and SIGN are in ``legacy_numeric``.
 """
 
+import math
 import numpy as np
-from typing import Tuple, List
+from typing import Tuple
 import logging
 
 from pydatcom.utils.constants import PI
@@ -29,39 +31,7 @@ def arcsin(a: float) -> float:
     if abs(a) > 1.0:
         logger.error(f"ARCSIN of {a:.5e} is out of bounds")
         return 1000.0
-    return float(np.arctan(a / np.sqrt(1.0 - a**2)))
-
-
-def arccos(a: float) -> float:
-    """
-    Arc cosine with extended domain handling.
-    
-    Uses inverse cosh for |a| > 1.0 to provide smooth extension.
-    Reference: FORTRAN ARCCOS function, datcom.f line 390
-    
-    Args:
-        a: Input value
-        
-    Returns:
-        Arc cosine in radians (or extended value for |a| > 1)
-    """
-    # Handle a = 0 case
-    if a == 0.0:
-        return PI / 2.0
-    
-    # Handle |a| > 1 using inverse cosh
-    if abs(a) > 1.0:
-        x = np.log(abs(a + np.sqrt(a**2 - 1.0)))
-        return x
-    
-    # Standard calculation
-    x = np.arctan(np.sqrt(1.0 - a**2) / a)
-    
-    # Adjust for negative values
-    if x < 0.0:
-        x = PI + x
-    
-    return x
+    return math.atan(a / math.sqrt(1.0 - a**2))
 
 
 def area1(x: np.ndarray, y: np.ndarray, nsum: int) -> float:
@@ -80,19 +50,19 @@ def area1(x: np.ndarray, y: np.ndarray, nsum: int) -> float:
         Computed area
     """
     # Calculate triangle area using first 3 points
-    a = np.sqrt((x[1] - x[0])**2 + (y[1] - y[0])**2)
-    b = np.sqrt((x[2] - x[1])**2 + (y[2] - y[1])**2)
-    c = np.sqrt((x[0] - x[2])**2 + (y[0] - y[2])**2)
+    a = math.sqrt((x[1] - x[0])**2 + (y[1] - y[0])**2)
+    b = math.sqrt((x[2] - x[1])**2 + (y[2] - y[1])**2)
+    c = math.sqrt((x[0] - x[2])**2 + (y[0] - y[2])**2)
     s = (a + b + c) / 2.0
-    area = np.sqrt(s * (s - a) * (s - b) * (s - c))
+    area = math.sqrt(s * (s - a) * (s - b) * (s - c))
     
     # Add second triangle if nsum is 4 or 6
     if nsum == 4 or nsum == 6:
-        a = np.sqrt((x[3] - x[0])**2 + (y[3] - y[0])**2)
-        b = np.sqrt((x[2] - x[3])**2 + (y[2] - y[3])**2)
-        c = np.sqrt((x[0] - x[2])**2 + (y[0] - y[2])**2)
+        a = math.sqrt((x[3] - x[0])**2 + (y[3] - y[0])**2)
+        b = math.sqrt((x[2] - x[3])**2 + (y[2] - y[3])**2)
+        c = math.sqrt((x[0] - x[2])**2 + (y[0] - y[2])**2)
         s = (a + b + c) / 2.0
-        area2 = np.sqrt(s * (s - a) * (s - b) * (s - c))
+        area2 = math.sqrt(s * (s - a) * (s - b) * (s - c))
         area += area2
     
     return area
@@ -156,11 +126,15 @@ def det4(a: np.ndarray) -> float:
     ``a`` is the source's 16-word array (column-major ``A(4,4)``); a 4x4
     array is taken in the same element order.  The expansion runs along
     ``A(1..4)`` with 3x3 minors formed by skipping every fourth word, as
-    the source does, rather than through a factorisation.
+    the source does, rather than through a factorisation.  An exactly
+    singular matrix gives exactly zero, which SIMUL4 tests for; an LU
+    factorisation (``np.linalg.det``) leaves round-off there instead.
 
     Reference: datcom-legacy/datcom_2000/det4.f
     """
-    flat = np.asarray(a, dtype=float).reshape(-1, order='F')         if np.ndim(a) == 2 else np.asarray(a, dtype=float)
+    flat = np.asarray(a, dtype=float)
+    if flat.ndim == 2:
+        flat = flat.reshape(-1, order='F')
     p = 0.0
     for cofactor_row in range(1, 5):
         a3 = [flat[word - 1] for word in range(5, 17)
@@ -172,72 +146,3 @@ def det4(a: np.ndarray) -> float:
             pp = -pp
         p += flat[cofactor_row - 1] * pp
     return float(p)
-
-
-def solve_linear(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    """
-    Solve linear system Ax = b.
-    
-    Args:
-        a: Coefficient matrix
-        b: Right-hand side vector
-        
-    Returns:
-        Solution vector x
-    """
-    return np.linalg.solve(a, b)
-
-
-# DEPRECATED: Use NumPy directly
-# These wrappers kept for backward compatibility only
-
-def trapz_integrate(x: np.ndarray, y: np.ndarray) -> float:
-    """
-    DEPRECATED: Use np.trapz() or np.trapezoid() directly.
-    
-    Trapezoidal integration.
-    
-    Args:
-        x: Independent variable array
-        y: Dependent variable array
-        
-    Returns:
-        Integral value
-    """
-    # Try new name first (NumPy 2.0+), fall back to old name
-    try:
-        return np.trapezoid(y, x)
-    except AttributeError:
-        return np.trapz(y, x)
-
-
-def linear_interp(x: float, x_data: np.ndarray, y_data: np.ndarray) -> float:
-    """
-    DEPRECATED: Use np.interp() directly.
-    
-    Linear interpolation.
-    
-    Args:
-        x: Point to interpolate at
-        x_data: Known x values
-        y_data: Known y values
-        
-    Returns:
-        Interpolated y value
-    """
-    return np.interp(x, x_data, y_data)
-
-
-def sign(a: float, b: float) -> float:
-    """
-    FORTRAN SIGN function: returns abs(a) with sign of b.
-    
-    Args:
-        a: Magnitude value
-        b: Sign value
-        
-    Returns:
-        abs(a) * sign(b)
-    """
-    return np.abs(a) * np.sign(b) if b != 0 else np.abs(a)
-

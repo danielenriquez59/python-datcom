@@ -24,6 +24,7 @@ and outboard panels separately.
 Reference: datcom-legacy/datcom_2000/vrtcdo.f, vfcdo.f, vtdrag.f, vfdrag.f
 """
 
+import math
 import numpy as np
 from typing import Dict, Optional
 import logging
@@ -126,7 +127,7 @@ def calculate_vertical_panel_cdo(
     if roughness < 0.0:
         raise ValueError("roughness height cannot be negative")
 
-    beta = np.sqrt(mach**2 - 1.0)
+    beta = math.sqrt(mach**2 - 1.0)
     mach_lookup = min(float(mach), _MACH_CAP)
 
     inboard = _friction_coefficient(mac_inboard, reynolds_per_length,

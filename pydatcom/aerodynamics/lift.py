@@ -10,6 +10,7 @@ Implements lift calculations across all flight regimes:
 Reference: datcom.f lines 4122 (CLMCH0), 6549 (CSLOPE), 2589 (CALCA)
 """
 
+import math
 import numpy as np
 from typing import Dict, Optional, Sequence, Tuple, Union
 import logging
@@ -91,9 +92,9 @@ def calculate_lift_curve_slope_compressible(aspect_ratio: float,
         section_factor = section_cla_per_deg * np.rad2deg(1.0) / (2.0 * np.pi)
 
     beta_squared = 1.0 - mach**2
-    tan_half_chord_sweep = np.tan(np.deg2rad(sweep_angle_deg))
+    tan_half_chord_sweep = math.tan(np.deg2rad(sweep_angle_deg))
     ar_over_k_squared = (aspect_ratio / section_factor) ** 2
-    denominator = 2.0 + np.sqrt(
+    denominator = 2.0 + math.sqrt(
         4.0 + ar_over_k_squared *
         (beta_squared + tan_half_chord_sweep**2)
     )
@@ -138,9 +139,9 @@ def _half_chord_sweep_deg(state: Dict) -> float:
         return sweep_reference
 
     chord_gradient = (float(tip_chord) - float(root_chord)) / float(semispan)
-    tangent = (np.tan(np.deg2rad(sweep_reference)) +
+    tangent = (math.tan(np.deg2rad(sweep_reference)) +
                (0.5 - chord_station) * chord_gradient)
-    return float(np.rad2deg(np.arctan(tangent)))
+    return float(np.rad2deg(math.atan(tangent)))
 
 
 def resolve_wing_lift_inputs(state: Dict, mach: float) -> Dict[str, Optional[float]]:

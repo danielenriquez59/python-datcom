@@ -13,6 +13,7 @@ returns the crest-critical Mach number and its lift coefficient.
 Reference: datcom-legacy/datcom_2000/slope.f
 """
 
+import math
 import numpy as np
 from typing import Dict, Optional
 import logging
@@ -48,8 +49,8 @@ def _pressure_distribution(alpha_deg: float, weber: Dict, mach: float,
     count = len(x)
     last = count - 1
 
-    cos_a = np.cos(alpha_deg * DEG)
-    sin_a = np.sin(alpha_deg * DEG)
+    cos_a = math.cos(alpha_deg * DEG)
+    sin_a = math.sin(alpha_deg * DEG)
 
     cp_upper = np.empty(count)
     cp_lower = np.empty(count)
@@ -61,16 +62,16 @@ def _pressure_distribution(alpha_deg: float, weber: Dict, mach: float,
             raise ValueError(
                 "SLOPE's local Mach term went negative; the analysis is not "
                 "possible for this section at this Mach number")
-        bo = np.sqrt(bo2)
+        bo = math.sqrt(bo2)
         chord = x[station]
-        root = np.sqrt((1.0 - chord) / chord) if chord > 0.0 else 0.0
+        root = math.sqrt((1.0 - chord) / chord) if chord > 0.0 else 0.0
 
         upper = ((cos_a * (1.0 + st1[station] / bo + st4[station] / beta) +
                   sin_a / beta * (1.0 + st3[station] / bo) * root) /
-                 np.sqrt(1.0 + ((st2[station] + st5[station]) / bo)**2))
+                 math.sqrt(1.0 + ((st2[station] + st5[station]) / bo)**2))
         lower = ((cos_a * (1.0 + st1[station] / bo - st4[station] / beta) -
                   sin_a / beta * (1.0 + st3[station] / bo) * root) /
-                 np.sqrt(1.0 + ((st2[station] - st5[station]) / bo)**2))
+                 math.sqrt(1.0 + ((st2[station] - st5[station]) / bo)**2))
 
         if mach == 0.0:
             cp_upper[station] = 1.0 - upper**2
@@ -150,7 +151,7 @@ def calculate_slope(weber: Dict, mach: float, reynolds: float,
             "SLOPE is subsonic only; the source leaves CLALPA unset at "
             "Mach 1 and above")
 
-    beta = np.sqrt(1.0 - mach**2)
+    beta = math.sqrt(1.0 - mach**2)
     tmach = 0.0 if mach == 0.0 else 1.0 / (0.7 * mach**2)
 
     # Iterate the zero-lift angle until the lower angle carries no lift.
@@ -192,7 +193,7 @@ def calculate_slope(weber: Dict, mach: float, reynolds: float,
     phite = ((thickness[5] + thickness[6]) / 2.0 - thickness[1]) / \
         _PHITE_INTERVAL
     exponent = -1.0 + 5.0 * phite / 2.0
-    correction = 1.0 - (np.log(used_reynolds / 1.0e5))**exponent * \
+    correction = 1.0 - (math.log(used_reynolds / 1.0e5))**exponent * \
         (0.232 + 1.785 * phite - 2.950 * phite**2)
     correction = max(correction, _CORRECTION_FLOOR)
 

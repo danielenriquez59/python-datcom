@@ -25,6 +25,7 @@ Three source defects are reproduced rather than corrected; see
 Reference: datcom-legacy/datcom_2000/vtlift.f, vflift.f
 """
 
+import math
 import numpy as np
 from typing import Dict, Optional
 import logging
@@ -127,7 +128,7 @@ def calculate_vtlift(mach: float,
     if sref <= 0.0:
         raise ValueError("VTLIFT requires a positive reference area")
 
-    beta = float(np.sqrt(mach**2 - 1.0))
+    beta = math.sqrt(mach**2 - 1.0)
     # The source doubles the panel aspect ratio on entry and halves it again
     # before returning: AVT(7) holds one side, the figures want the
     # image-plane equivalent.
@@ -162,7 +163,7 @@ def _straight_tapered(beta: float, ar: float, tanle: float,
         correction_figure = '4.1.3.2-60A'
         second_argument = deltyt
     else:
-        deltdt = float(np.arctan(float(panel['delta_y']) /
+        deltdt = float(math.atan(float(panel['delta_y']) /
                                  (5.85 * cosle)) * RAD)
         cncnt = fig4132_60b(1.0 / bovert, deltdt)
         correction_figure = '4.1.3.2-60B'

@@ -12,6 +12,7 @@ This module generates airfoil coordinates for various NACA series:
 Reference: datcom.f lines 68-190 (AIRFOL), 5926-6548 (COORD routines)
 """
 
+import math
 import numpy as np
 from typing import Dict, List, Tuple, Optional
 import logging
@@ -281,7 +282,7 @@ class NACAGenerator:
             mask_aft = coords.x > p
             if p < 1.0:
                 yc[mask_aft] = (k1 * p**3 / 6.0) * (1.0 - coords.x[mask_aft])
-                alpha[mask_aft] = np.arctan(-(k1 * p**3 / 6.0))
+                alpha[mask_aft] = math.atan(-(k1 * p**3 / 6.0))
         else:
             # Reflex camber (q == 1)
             # Simplified reflex - full implementation would require more parameters

@@ -24,6 +24,7 @@ translation covers both.
 Reference: datcom-legacy/datcom_2000/hinge.f
 """
 
+import math
 import numpy as np
 from typing import Dict, Optional, Sequence
 import logging
@@ -336,7 +337,7 @@ def _nose_balance_ratio(chord_balance: float, chord_flap_average: float,
     radicand = chord_over_flap ** 2 - half_thickness_over_flap ** 2
     if radicand < 0.0:
         return None
-    return float(np.sqrt(radicand))
+    return math.sqrt(radicand)
 
 
 def _alpha_nose_factor(nose_type: int, balance_ratio: float) -> float:
@@ -440,7 +441,7 @@ def calculate_hinge(mach: float,
     if deflections.size == 0 or np.any(deflections == 0.0):
         raise ValueError("HINGE divides by each deflection; none may be zero")
 
-    beta = float(np.sqrt(1.0 - mach ** 2))
+    beta = math.sqrt(1.0 - mach ** 2)
 
     span_inboard = float(flap['span_inboard'])
     span_outboard = float(flap['span_outboard'])
@@ -452,16 +453,16 @@ def calculate_hinge(mach: float,
 
     # Hinge-line sweep, and the flap chord normal to the quarter chord.
     chord_delta = chord_inboard - chord_outboard
-    sweep_hinge = float(np.arctan(
-        (span_delta * float(surface['tan_te']) + chord_delta) / span_delta))
-    cos_hinge = float(np.cos(sweep_hinge))
+    sweep_hinge = math.atan(
+        (span_delta * float(surface['tan_te']) + chord_delta) / span_delta)
+    cos_hinge = math.cos(sweep_hinge)
     sweep_c4 = float(surface['sweep_c4_deg'])
     sweep_le = float(surface['sweep_le_deg'])
     cos_c4 = float(surface['cos_c4'])
     sin_c4 = float(surface['sin_c4'])
     chord_ratio = float(flap['chord_ratio'])
-    normal_ratio = (cos_hinge / np.cos(sweep_c4 / RAD - sweep_hinge) *
-                    np.cos((sweep_c4 - sweep_le) / RAD) /
+    normal_ratio = (cos_hinge / math.cos(sweep_c4 / RAD - sweep_hinge) *
+                    math.cos((sweep_c4 - sweep_le) / RAD) /
                     float(surface['cos_le']) * chord_ratio)
 
     chord_balance = flap.get('chord_balance')
@@ -532,8 +533,8 @@ def calculate_hinge(mach: float,
                                    0, 1, 1, 1))
     ch_delta = ch_delta_ratio * ch_delta_theory / RAD
 
-    log_reynolds = float(np.log10(reynolds_per_length *
-                                  float(surface['mac_exposed'])))
+    log_reynolds = math.log10(reynolds_per_length *
+                                  float(surface['mac_exposed']))
     cl_alpha_ratio = float(tlinex(_F4112_8A_LOG_RF, _F4112_8A_TANPHP,
                                   _F4112_8A, log_reynolds,
                                   float(flap['tan_te_angle']), 1, 0, 0, 1))

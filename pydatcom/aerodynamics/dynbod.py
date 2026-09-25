@@ -18,6 +18,7 @@ the flare term in the second.
 Reference: datcom-legacy/datcom_2000/dynbod.f
 """
 
+import math
 import numpy as np
 from typing import Dict, Optional, Sequence
 import logging
@@ -124,12 +125,12 @@ def _segment_cnq(half_angle: float, taper: float, diameter: float,
     """
     if taper == 1.0:
         return 0.0
-    tangent = np.tan(half_angle)
+    tangent = math.tan(half_angle)
     if tangent == 0.0:
         raise ValueError(
             "Figure 7.2.1.1-9A divides by tan(theta); a cylindrical segment "
             "needs a unit taper ratio instead of a zero half angle")
-    cosine = np.cos(half_angle)
+    cosine = math.cos(half_angle)
     term = (
         0.66667 / tangent
         * (2.0 * (1.0 - taper ** 3)
@@ -143,12 +144,12 @@ def _segment_cmq(half_angle: float, taper: float, diameter: float,
     """Figure 7.2.1.2-12 for one conical segment."""
     if taper == 1.0:
         return 0.0
-    sine = np.sin(half_angle)
+    sine = math.sin(half_angle)
     if sine == 0.0:
         raise ValueError(
             "Figure 7.2.1.2-12 divides by sin(theta)^2; a cylindrical "
             "segment needs a unit taper ratio instead of a zero half angle")
-    cosine = np.cos(half_angle)
+    cosine = math.cos(half_angle)
     a = 6.0 * taper ** 2 * (1.0 - taper ** 2)
     b = -8.0 * taper * (1.0 - taper ** 3)
     c = 3.0 * (1.0 - taper ** 4)

@@ -38,6 +38,7 @@ Every WINGCL entry point issues :class:`WingclTableWarning`, on every call.
 Reference: datcom-legacy/datcom_2000/wingcl.f
 """
 
+import math
 import numpy as np
 from typing import Dict, Optional, Sequence
 import logging
@@ -348,7 +349,7 @@ def calculate_wingcl_cdl(mach: float, thickness_ratio: float,
     anchor_values = np.array([anchor_at_sweep0, anchor_at_sweep3])
     blended = tbfunx(
         _CDL_ANCHORS, anchor_values,
-        aspect_ratio * np.tan(sweep_le_rad),
+        aspect_ratio * math.tan(sweep_le_rad),
         lower=1, upper=1,
     )[0]
     return {

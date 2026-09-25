@@ -8,6 +8,7 @@ Holds ASMINT and a plain bilinear lookup.  The legacy table routines
 Reference: datcom.f line 516 (ASMINT)
 """
 
+import math
 import numpy as np
 import logging
 
@@ -108,10 +109,10 @@ def asmint(x_data: np.ndarray, y_data: np.ndarray, x_vals: np.ndarray) -> np.nda
                 sr = 0.0
             
             # Average angle method
-            angl = np.arctan(sl)
-            angr = np.arctan(sr)
+            angl = math.atan(sl)
+            angr = math.atan(sr)
             angav = (angl + angr) / 2.0
-            yp[slope_end] = np.tan(angav)
+            yp[slope_end] = math.tan(angav)
             
             # For end points, only calculate one slope
             if locate != 2:

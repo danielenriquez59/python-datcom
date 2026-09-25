@@ -15,6 +15,7 @@ through a Hermite form.
 Reference: datcom-legacy/datcom_2000/tranac.f
 """
 
+import math
 import numpy as np
 from typing import Dict, Sequence
 import logging
@@ -93,8 +94,8 @@ def tranac(x: Sequence[float], y: Sequence[float],
         above = y[point]
         secant_left = (below - here) / (x[point - 2] - x[point - 1])
         secant_right = (here - above) / (x[point - 1] - x[point])
-        mean_angle = (np.arctan(secant_left) + np.arctan(secant_right)) / 2.0
-        slope = np.sin(mean_angle) / np.cos(mean_angle)
+        mean_angle = (math.atan(secant_left) + math.atan(secant_right)) / 2.0
+        slope = math.sin(mean_angle) / math.cos(mean_angle)
         # A negative DELY flattens the slope at the fifth point.
         if dely_active and point == _DELY_INDEX and dely < -UNUSED:
             slope = 0.0

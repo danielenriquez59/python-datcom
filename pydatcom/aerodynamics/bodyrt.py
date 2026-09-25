@@ -15,6 +15,7 @@ rotates the result into wind axes.
 Reference: datcom-legacy/datcom_2000/bodyrt.f
 """
 
+import math
 import numpy as np
 from typing import Dict, Sequence
 import logging
@@ -145,7 +146,7 @@ def calculate_bodyrt(x: Sequence[float], s: Sequence[float],
         tmp3 = tmp5 = nose_length
 
     # Effective fineness ratio feeding the apparent-mass factor.
-    fineness_effective = tmp3 / np.sqrt(tmp2 * 4.0 / PI)          # TMP4
+    fineness_effective = tmp3 / math.sqrt(tmp2 * 4.0 / PI)          # TMP4
     apparent_mass, _ = tbfunx(_FIG_42110_20_X, _FIG_42110_20_Y,
                               fineness_effective, lower=2, upper=1)  # BD(9)
     cla = 2.0 * apparent_mass * tmp1 / (RAD * sref)               # BODY(101)
@@ -192,15 +193,15 @@ def calculate_bodyrt(x: Sequence[float], s: Sequence[float],
     friction_mach = 0.60 if transonic else mach
     cf = fig26(reynolds_used, friction_mach)                        # BD(92)
 
-    base_diameter = np.sqrt(base_area * 4.0 / PI)                   # BD(86)
-    max_diameter = np.sqrt(max_area * 4.0 / PI)                     # BD(85)
+    base_diameter = math.sqrt(base_area * 4.0 / PI)                   # BD(86)
+    max_diameter = math.sqrt(max_area * 4.0 / PI)                     # BD(85)
     fineness = length / max_diameter                                # BD(75)
 
     # Friction drag on the wetted area, with the form factor, then base drag.
     cd_friction = (cf * (1.0 + 60.0 / fineness**3 + 0.0025 * fineness) *
                    perimeter_integral / max_area)                   # BD(59)
     cd_base = 0.029 * ((base_diameter / max_diameter)**3 /
-                       np.sqrt(cd_friction) * max_area / sref)      # BD(60)
+                       math.sqrt(cd_friction) * max_area / sref)      # BD(60)
     cd_friction = cd_friction * max_area / sref
     cd_zero_lift = cd_friction + cd_base                            # BD(61)
 
@@ -239,9 +240,9 @@ def calculate_bodyrt(x: Sequence[float], s: Sequence[float],
     )
 
     for angle_index, angle in enumerate(angles):
-        sin_a = np.sin(angle / RAD)
+        sin_a = math.sin(angle / RAD)
         sin_a_squared = sin_a ** 2
-        cos_a = np.cos(angle / RAD)
+        cos_a = math.cos(angle / RAD)
 
         cn_potential = cla * angle                                  # BD(J+154)
         eta, _ = tbfunx(
@@ -341,14 +342,14 @@ def calculate_bodyjm(x: Sequence[float], s: Sequence[float],
     cnocnn = 1.0
     if ellip < 1.0:
         e = 1.0 - 1.0 / aob ** 2
-        cnocnn = 1.5 * np.sqrt(aob) * (
-            -1.0 / aob ** 2 / e ** 1.5 * np.log(aob * (1.0 + np.sqrt(e)))
+        cnocnn = 1.5 * math.sqrt(aob) * (
+            -1.0 / aob ** 2 / e ** 1.5 * math.log(aob * (1.0 + math.sqrt(e)))
             + 1.0 / e
         )
     elif ellip > 1.0:
-        cnocnn = 1.5 * np.sqrt(1.0 / aob) * (
+        cnocnn = 1.5 * math.sqrt(1.0 / aob) * (
             aob ** 2 / (aob ** 2 - 1.0) ** 1.5
-            * np.arctan(np.sqrt(aob ** 2 - 1.0))
+            * math.atan(math.sqrt(aob ** 2 - 1.0))
             - 1.0 / (aob ** 2 - 1.0)
         )
 

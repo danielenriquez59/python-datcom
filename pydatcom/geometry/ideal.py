@@ -16,6 +16,7 @@ lift coefficient and the quarter-chord pitching moment.
 Reference: datcom-legacy/datcom_2000/ideal.f
 """
 
+import math
 import numpy as np
 from typing import Dict, Optional, Sequence
 import logging
@@ -100,7 +101,7 @@ def calculate_ideal(x_section: Sequence[float],
     count = _STATIONS
     last = count - 1                       # the source's L = N-1
     theta_nu, theta_mu, x = _weber_grid(count)
-    a0 = np.sqrt(2.0 * leading_edge_radius)
+    a0 = math.sqrt(2.0 * leading_edge_radius)
 
     # Resample thickness and camber onto the Weber stations.
     if supersonic_section:
@@ -174,7 +175,7 @@ def calculate_ideal(x_section: Sequence[float],
             else:
                 s3 = (((-1.0)**(station_index + 1) - 1.0) /
                       (count * (1.0 + cos_nu[station_index])))
-                st3[station_index] += s3 * np.sqrt(leading_edge_radius / 2.0)
+                st3[station_index] += s3 * math.sqrt(leading_edge_radius / 2.0)
 
     # ST2NU, ST4NU and ST5NU all divide by sin(THNU) and are singular at
     # the last station; SLOPE never reads any of them there.

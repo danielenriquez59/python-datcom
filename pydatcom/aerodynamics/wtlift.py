@@ -23,6 +23,7 @@ The tables were extracted from the source DATA statements by parsing, with
 Reference: datcom-legacy/datcom_2000/wtlift.f, clmxbs.f
 """
 
+import math
 import numpy as np
 from typing import Dict
 import logging
@@ -250,7 +251,7 @@ def _slope(aspect_ratio: float, section_cla: float, beta: float,
     numerator = 2.0 * PI * aspect_ratio * DEG
     aspect_over_cla_squared = (aspect_ratio * DEG * 2.0 * PI / section_cla) ** 2
     sweep_compressibility = 1.0 + tan_c2 ** 2 / beta ** 2
-    denominator = 2.0 + np.sqrt(aspect_over_cla_squared * sweep_compressibility + 4.0)
+    denominator = 2.0 + math.sqrt(aspect_over_cla_squared * sweep_compressibility + 4.0)
     return numerator / denominator
 
 

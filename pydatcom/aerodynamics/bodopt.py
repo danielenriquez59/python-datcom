@@ -21,6 +21,7 @@ The tables were extracted from the source DATA statements by parsing, with
 Reference: datcom-legacy/datcom_2000/bodopt.f, m04o04.f
 """
 
+import math
 import numpy as np
 from typing import Dict, Sequence
 import logging
@@ -133,15 +134,15 @@ def calculate_bodopt(x: Sequence[float], s: Sequence[float],
 
     resampled = eqspce(x, r, p, s, 20)
     wetted = trapz(resampled['pe'], resampled['xe'], 1)[0]
-    base_diameter = np.sqrt(base * 4.0 / PI)
-    max_diameter = np.sqrt(max_area * 4.0 / PI)
+    base_diameter = math.sqrt(base * 4.0 / PI)
+    max_diameter = math.sqrt(max_area * 4.0 / PI)
     fineness = length / max_diameter
     friction = (
         cf * (1.0 + 60.0 / fineness ** 3 + 0.0025 * fineness) * wetted / max_area
     )
     base_drag = (
         0.029 * (base_diameter / max_diameter) ** 3
-        / np.sqrt(friction) * max_area / sref
+        / math.sqrt(friction) * max_area / sref
     )
     friction = friction * max_area / sref
     cd0 = friction + base_drag
@@ -183,7 +184,7 @@ def calculate_bodopt(x: Sequence[float], s: Sequence[float],
     akp, _ = tbfunx(_XBA1, _YBA1, arb, 0, 2)
     akv, _ = tbfunx(_XBA2, _YBA2, arb, 0, 2)
     smax = s[-1]
-    deff = np.sqrt(4.0 * smax / PI)
+    deff = math.sqrt(4.0 * smax / PI)
     if deff == 0.0:
         ratio, fr = 3.0, 10.0
     else:

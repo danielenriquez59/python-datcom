@@ -9,6 +9,7 @@ Implements hypersonic flow methods (Mach > 5):
 Reference: datcom.f HYPBOD, HYPFLP, HYPROP subroutines
 """
 
+import math
 import numpy as np
 from typing import Dict, Optional
 import logging
@@ -48,23 +49,23 @@ def _hypbod_coefficients(state: Dict, alpha_deg: float, mach: float,
     theta[-1] = theta[-2]  # HYPBOD: THETA(NX)=THETA(NX-1)
 
     angle = abs(np.deg2rad(alpha_deg))
-    sin_alpha = np.sin(angle)
-    cos_alpha = np.cos(angle)
-    tan_alpha = np.tan(angle)
+    sin_alpha = math.sin(angle)
+    cos_alpha = math.cos(angle)
+    tan_alpha = math.tan(angle)
     ktheta = np.empty_like(r)
     kaf = np.empty_like(r)
 
     for station, slope_angle in enumerate(theta):
-        tan_slope = np.tan(slope_angle)
-        cos_slope = np.cos(slope_angle)
-        sin_slope = np.sin(slope_angle)
+        tan_slope = math.tan(slope_angle)
+        cos_slope = math.cos(slope_angle)
+        sin_slope = math.sin(slope_angle)
         if angle > abs(slope_angle):
-            windward_angle = np.arccos(np.clip(tan_slope / tan_alpha, -1.0, 1.0))
+            windward_angle = math.acos(np.clip(tan_slope / tan_alpha, -1.0, 1.0))
         else:
             windward_angle = 0.0 if slope_angle > 0.0 else np.pi
 
-        sin_wind = np.sin(windward_angle)
-        cos_wind = np.cos(windward_angle)
+        sin_wind = math.sin(windward_angle)
+        cos_wind = math.cos(windward_angle)
         normal_term1 = ((2.0 / 3.0) * (cos_slope * sin_alpha) ** 2 *
                         sin_wind * (cos_wind ** 2 + 2.0))
         normal_term2 = (4.0 * sin_slope * cos_slope * cos_alpha * sin_alpha *
@@ -93,8 +94,8 @@ def _hypbod_coefficients(state: Dict, alpha_deg: float, mach: float,
     ca_force = impact_factor * axial_integral / sref
 
     signed_alpha = np.deg2rad(alpha_deg)
-    cl = cn * np.cos(signed_alpha) - ca_force * np.sin(signed_alpha)
-    cd = ca_force * np.cos(signed_alpha) + cn * np.sin(signed_alpha)
+    cl = cn * math.cos(signed_alpha) - ca_force * math.sin(signed_alpha)
+    cd = ca_force * math.cos(signed_alpha) + cn * math.sin(signed_alpha)
     xcp = xcg - cm * cbar / cn if abs(cn) > 1e-14 else np.nan
     return {
         'cl': cl, 'cd': cd, 'cm': cm, 'cn': cn, 'ca': ca_force,
@@ -122,10 +123,10 @@ def calculate_hypersonic_coefficients(state: Dict, alpha_deg: float,
     alpha_rad = np.deg2rad(alpha_deg)
     sign = -1.0 if alpha_deg < 0.0 else 1.0
     cp_max = min(2.0, 1.84 + 0.032 * max(mach - 5.0, 0.0))
-    cn = sign * cp_max * np.sin(alpha_rad) ** 2
+    cn = sign * cp_max * math.sin(alpha_rad) ** 2
     ca_force = 0.2
-    sin_alpha = np.sin(alpha_rad)
-    cos_alpha = np.cos(alpha_rad)
+    sin_alpha = math.sin(alpha_rad)
+    cos_alpha = math.cos(alpha_rad)
     cl = cn * cos_alpha - ca_force * sin_alpha
     cd = ca_force * cos_alpha + cn * sin_alpha
 

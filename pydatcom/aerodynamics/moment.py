@@ -10,6 +10,7 @@ Implements moment calculations:
 Reference: datcom.f lines 4551 (CMALPH), 5105 (CMALPO), 5386 (CNCA)
 """
 
+import math
 import numpy as np
 from typing import Dict
 import logging
@@ -47,7 +48,7 @@ def calculate_cmalph_zero_lift_moment(state: Dict, mach: float) -> float:
         raise ValueError("twisted-wing CMALPH CMO correction is not translated")
 
     tan_c4 = geometry['tan_c4']
-    cos_c4 = 1.0 / np.sqrt(1.0 + tan_c4**2)
+    cos_c4 = 1.0 / math.sqrt(1.0 + tan_c4**2)
     calm, _ = tbfunx(_CMALPH_MACH, _CMALPH_CALM, mach, lower=0, upper=0)
     calm *= area * mac / (sref * cbar)
     return ar * cos_c4**2 / (ar + 2.0 * cos_c4) * cmo * calm
@@ -137,7 +138,7 @@ def calculate_body_pitching_moment(state: Dict, alpha_deg: float,
         return 0.0
     
     alpha_rad = np.deg2rad(alpha_deg)
-    sin_two_alpha = np.sin(2.0 * alpha_rad)
+    sin_two_alpha = math.sin(2.0 * alpha_rad)
     k_body = 1.0  # Body shape factor
 
     if max_area > 0 and sref > 0:
@@ -345,8 +346,8 @@ def calculate_normal_force_coefficient(cl: float, cd: float,
         Normal force coefficient
     """
     alpha_rad = np.deg2rad(alpha_deg)
-    cos_alpha = np.cos(alpha_rad)
-    sin_alpha = np.sin(alpha_rad)
+    cos_alpha = math.cos(alpha_rad)
+    sin_alpha = math.sin(alpha_rad)
     return cl * cos_alpha + cd * sin_alpha
 
 
@@ -366,8 +367,8 @@ def calculate_axial_force_coefficient(cl: float, cd: float,
         Axial force coefficient
     """
     alpha_rad = np.deg2rad(alpha_deg)
-    cos_alpha = np.cos(alpha_rad)
-    sin_alpha = np.sin(alpha_rad)
+    cos_alpha = math.cos(alpha_rad)
+    sin_alpha = math.sin(alpha_rad)
     return cd * cos_alpha - cl * sin_alpha
 
 

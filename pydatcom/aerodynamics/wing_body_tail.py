@@ -17,6 +17,7 @@ of the interference routines.
 Reference: datcom-legacy/datcom_2000/clwbt.f, cdwbt.f
 """
 
+import math
 import numpy as np
 from typing import Dict, Optional
 import logging
@@ -114,8 +115,8 @@ def calculate_cdwbt(cd_wing_body: float, cd_tail: float, cl_tail: float,
     if qoqi < 0.0:
         raise ValueError("dynamic-pressure ratio cannot be negative")
     eps_rad = np.deg2rad(eps_deg)
-    cos_eps = np.cos(eps_rad)
-    sin_eps = np.sin(eps_rad)
+    cos_eps = math.cos(eps_rad)
+    sin_eps = math.sin(eps_rad)
     cd_tail_increment = qoqi * (cd_tail * cos_eps + cl_tail * sin_eps)
     cd_total = cdo_vertical + cd_wing_body + cd_tail_increment
     return {
