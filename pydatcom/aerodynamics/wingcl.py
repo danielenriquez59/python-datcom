@@ -118,20 +118,20 @@ def calculate_wingcl(alpha_schedule: Sequence[float],
         raise ValueError("supplied CL must match the angle schedule")
 
     cl = np.full(alpha.size, np.nan)
-    for index, angle in enumerate(alpha):
-        if angle > alpha_clmax:
+    for angle_slot, angle_deg in enumerate(alpha):
+        if angle_deg > alpha_clmax:
             # The source leaves this and every later angle untouched.
             break
-        if supplied[index] is not None:
-            cl[index] = supplied[index]
+        if supplied[angle_slot] is not None:
+            cl[angle_slot] = supplied[angle_slot]
             continue
-        if angle <= alpha_stall_onset:
-            cl[index] = cla * (angle - alpha_zero_lift)
+        if angle_deg <= alpha_stall_onset:
+            cl[angle_slot] = cla * (angle_deg - alpha_zero_lift)
         elif nonlinear:
-            stall_fraction = ((angle - alpha_clmax) /
+            stall_fraction = ((angle_deg - alpha_clmax) /
                               (alpha_stall_onset - alpha_clmax))
-            cl[index] = (poly_a0 + poly_a1 * (angle - alpha_clmax) +
-                         poly_a2 * stall_fraction ** exponent)
+            cl[angle_slot] = (poly_a0 + poly_a1 * (angle_deg - alpha_clmax) +
+                              poly_a2 * stall_fraction ** exponent)
 
     return {
         'cl': cl,
@@ -188,11 +188,12 @@ def calculate_wingcl_clb(cl: Sequence[float], mach: float, cla: float,
         raise ValueError("supplied CLB must match the CL schedule")
 
     clb = np.full(lift.size, np.nan)
-    for index, value in enumerate(lift):
-        if not np.isfinite(value) or abs(abs(value) - UNUSED) <= 1.0e-40:
+    for angle_slot, cl_value in enumerate(lift):
+        if not np.isfinite(cl_value) or abs(abs(cl_value) - UNUSED) <= 1.0e-40:
             continue
-        clb[index] = (supplied[index] if supplied[index] is not None
-                      else clb_per_cl * value)
+        clb[angle_slot] = (supplied[angle_slot]
+                             if supplied[angle_slot] is not None
+                             else clb_per_cl * cl_value)
 
     return {
         'clb': clb,

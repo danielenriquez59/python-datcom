@@ -118,8 +118,8 @@ def calculate_wtgeom(ain: Mapping[int, float],
     """
     a_block: Dict[int, float] = {int(k): float(v) for k, v in a_in.items()}
     surface_in = {int(k): float(v) for k, v in ain.items()}
-    for key in range(1, 196):
-        a_block.setdefault(key, 0.0)
+    for a_word in range(1, 196):
+        a_block.setdefault(a_word, 0.0)
 
     single = surface_in[2] < 10.0 * UNUSED
     a_block[21] = surface_in[4] - surface_in[2]
@@ -235,12 +235,12 @@ def vertical_panel_adjustments(a: Mapping[int, float],
     panel's vertical offset ``ZV`` or ``ZVF`` to the MAC stations ``A(130)``,
     ``A(133)`` and ``A(136)``.
     """
-    adjusted = {int(k): float(v) for k, v in a.items()}
-    for index in _HALVED:
-        if adjusted.get(index, 0.0) != UNUSED:
-            adjusted[index] = adjusted.get(index, 0.0) / 2.0
-    for index in (130, 133, 136):
-        adjusted[index] = adjusted.get(index, 0.0) + z_offset
+    adjusted = {int(word): float(value) for word, value in a.items()}
+    for word in _HALVED:
+        if adjusted.get(word, 0.0) != UNUSED:
+            adjusted[word] = adjusted.get(word, 0.0) / 2.0
+    for word in (130, 133, 136):
+        adjusted[word] = adjusted.get(word, 0.0) + z_offset
     return adjusted
 
 

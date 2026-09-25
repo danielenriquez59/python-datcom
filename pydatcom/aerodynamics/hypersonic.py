@@ -54,7 +54,7 @@ def _hypbod_coefficients(state: Dict, alpha_deg: float, mach: float,
     ktheta = np.empty_like(r)
     kaf = np.empty_like(r)
 
-    for index, slope_angle in enumerate(theta):
+    for station, slope_angle in enumerate(theta):
         tan_slope = np.tan(slope_angle)
         cos_slope = np.cos(slope_angle)
         sin_slope = np.sin(slope_angle)
@@ -71,14 +71,14 @@ def _hypbod_coefficients(state: Dict, alpha_deg: float, mach: float,
                         (np.pi / 2.0 - 0.5 * sin_wind * cos_wind -
                          windward_angle / 2.0))
         normal_term3 = 2.0 * (sin_slope * cos_alpha) ** 2 * sin_wind
-        ktheta[index] = normal_term1 + normal_term2 + normal_term3
+        ktheta[station] = normal_term1 + normal_term2 + normal_term3
 
         axial_term1 = (2.0 * (cos_alpha * sin_slope) ** 2 * tan_slope *
                        (np.pi - windward_angle))
         axial_term2 = 4.0 * cos_alpha * sin_alpha * sin_wind * sin_slope ** 2
         axial_term3 = (cos_slope * sin_slope * sin_alpha ** 2 *
                        (np.pi - windward_angle - sin_wind * cos_wind))
-        kaf[index] = axial_term1 + axial_term2 + axial_term3
+        kaf[station] = axial_term1 + axial_term2 + axial_term3
 
     # HYPBOD integrates against X/RLB and multiplies by K*RLB/SR.  The
     # cancellation below keeps every moment arm dimensional until /CBAR.

@@ -435,8 +435,10 @@ def _transonic_surface(mach, alpha_deg, wing, a, sref, roughness, body,
         cla = tranf(mt, clamt, dcla7, tranwg['dcna'], mach)
         tra.update({7: aoc, 8: cfbct, 9: betafb, 10: clafbt, 12: clafb,
                     13: claa, 14: boc, 15: clab, 70: claw6})
-        tra.update({16 + i: v for i, v in enumerate(mt)})
-        tra.update({21 + i: v for i, v in enumerate(clamt)})
+        tra.update({16 + word_offset: v
+                    for word_offset, v in enumerate(mt)})
+        tra.update({21 + word_offset: v
+                    for word_offset, v in enumerate(clamt)})
         result['cla'] = float(cla)
 
         # Aspect-ratio classification and, for a low one, CLMAX.
@@ -491,24 +493,26 @@ def _transonic_surface(mach, alpha_deg, wing, a, sref, roughness, body,
         cdw2 = (np.zeros(15) if stale_wave_drag is None
                 else np.array(stale_wave_drag, dtype=float))
         stale_points = []
-        for i, xmi in enumerate(xmtd):
+        for grid_index, xmi in enumerate(xmtd):
             var1 = math.sqrt(abs((xmi * root)**2 - 1.0)) / arg2
             if xmi * root <= 1.0:
                 cdw1 = interx(2, _T429L, [var1, var2], [8, 7], _D429L,
                               lind=8, lx1u=-1, lx2u=2)
-                cdw2[i] = cdw1 * toc**1.666 * arg3 * srstar / sref
+                cdw2[grid_index] = cdw1 * toc**1.666 * arg3 * srstar / sref
             else:
                 cdw1 = interx(2, _T429R, [var1, var2], [5, 7], _D429R,
                               lind=7, lx2u=2)
                 if stores_supersonic_points:
-                    cdw2[i] = cdw1 * toc**1.666 * arg3 * srstar / sref
+                    cdw2[grid_index] = (
+                        cdw1 * toc**1.666 * arg3 * srstar / sref)
                 else:
                     # TRSONI computes CDW1 here and never stores it.
-                    stale_points.append(i)
+                    stale_points.append(grid_index)
         cdw = tranf(xmtd, cdw2, 0.0, 0.0, mach)
         cd0w = cdw + cdf
         tra.update({39: rlcoff, 40: rnn, 41: rl, 42: cf, 67: cdw, 68: cdf})
-        tra.update({43 + i: float(v) for i, v in enumerate(cdw2)})
+        tra.update({43 + word_offset: float(v)
+                    for word_offset, v in enumerate(cdw2)})
         result.update({'cd0': float(cd0w), 'wave_drag': float(cdw),
                        'friction_drag': float(cdf),
                        'stale_wave_points': stale_points,

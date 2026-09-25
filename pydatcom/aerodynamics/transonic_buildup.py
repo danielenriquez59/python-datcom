@@ -772,18 +772,19 @@ def calculate_trancm(mach: float, mfb: float, tovc: float,
     xacv = [0.0] * 6
     fig425_x1, fig425_x2 = _T425AD[9:18], _T425AD[0:7]
     fig425_x3, fig425_x4 = _T425AD[18:22], _T425AD[27:30]
-    for i, vbar in enumerate((-2.0, -1.0, 0.0, 1.0), start=1):
-        xmv[i] = math.sqrt(1.0 + vbar * tovc**.6666)
-        xacv[i] = float(tlin4x(fig425_x1, fig425_x2, fig425_x3, fig425_x4,
-                               _Y425AD, ar_times_tan_le, ar_times_tovc_cbrt,
-                               vbar, taper, 0, 0, 0, 0, 2, 1, 0, 1))
+    for vbar_slot, vbar in enumerate((-2.0, -1.0, 0.0, 1.0), start=1):
+        xmv[vbar_slot] = math.sqrt(1.0 + vbar * tovc**.6666)
+        xacv[vbar_slot] = float(tlin4x(
+            fig425_x1, fig425_x2, fig425_x3, fig425_x4,
+            _Y425AD, ar_times_tan_le, ar_times_tovc_cbrt,
+            vbar, taper, 0, 0, 0, 0, 2, 1, 0, 1))
     with np.errstate(divide='ignore'):
         subsonic_tan_beta = [
-            float(np.float64(tan_le) / math.sqrt(1.0 - m**2))
-            for m in _XM[:3]]
+            float(np.float64(tan_le) / math.sqrt(1.0 - mach**2))
+            for mach in _XM[:3]]
         supersonic_beta_tan = [
-            float(math.sqrt(m**2 - 1.0) / np.float64(tan_le))
-            for m in _XM[3:]]
+            float(math.sqrt(mach**2 - 1.0) / np.float64(tan_le))
+            for mach in _XM[3:]]
     fig26_sub = [_fig26_af(t, ar_times_tan_le, taper, False)
                  for t in subsonic_tan_beta]
     dxac1, xacv[0] = (fig26_sub[1] - fig26_sub[0]) / 0.2, fig26_sub[2]
@@ -1064,12 +1065,12 @@ def calculate_wbclb(alpha_deg: Sequence[float], body_alpha_deg: Sequence[float],
 
 
 def _setup2_mach(state: Dict[str, object], mach: float, beta: float,
-                 i: int) -> None:
+                 mach_slot: int) -> None:
     state['mach'] = mach
     state['b'] = [mach, beta]
     state['bht'] = [mach, beta]
-    state['wingin'][i + 20] = state['wingin'][69] / beta
-    state['htin'][i + 20] = state['htin'][69] / beta
+    state['wingin'][mach_slot + 20] = state['wingin'][69] / beta
+    state['htin'][mach_slot + 20] = state['htin'][69] / beta
 
 
 def setup2_step(nf: int, state: Dict[str, object]) -> int:
@@ -1106,32 +1107,34 @@ def setup2_step(nf: int, state: Dict[str, object]) -> int:
     ``bh101``.
     """
     sec = state['sec']
-    i = int(state.get('i', 1))
+    mach_slot = int(state.get('i', 1))
     while True:
         step_num = -nf
         if step_num == 1:
             sec[17] = state['mach']
             state['subson'], state['transn'] = True, False
             sec[18], sec[19] = state['tra6'], state['trah6']
-            _setup2_mach(state, 0.6, 0.8, i)
-            state['wingin'][i + 40] = state['wingin'][68]
-            state['htin'][i + 40] = state['htin'][68]
+            _setup2_mach(state, 0.6, 0.8, mach_slot)
+            state['wingin'][mach_slot + 40] = state['wingin'][68]
+            state['htin'][mach_slot + 40] = state['htin'][68]
             proceed = state['wgpl'] or state['htpl']
         elif step_num == 2:
             sec[11] = state['wbt67']
             sec[1] = calculate_clbclc(state['wing'], state['nalpha'])
             sec[3] = calculate_clbclc(state['ht'], state['nalpha'])
-            _setup2_mach(state, 0.7, 0.71414284, i)
+            _setup2_mach(state, 0.7, 0.71414284, mach_slot)
             proceed = state['bo'] and state['wgpl'] and state['htpl']
         elif step_num == 3:
             sec[12] = state['wbt67']
             sec[18] = min(sec[18], 0.95)
-            _setup2_mach(state, sec[18], math.sqrt(1.0 - sec[18]**2), i)
+            _setup2_mach(state, sec[18], math.sqrt(1.0 - sec[18]**2),
+                          mach_slot)
             proceed = state['bo'] and state['wgpl']
         elif step_num == 4:
             sec[5] = calculate_clbclc(state['bw'], state['nalpha'])
             sec[19] = min(sec[19], 0.95)
-            _setup2_mach(state, sec[19], math.sqrt(1.0 - sec[19]**2), i)
+            _setup2_mach(state, sec[19], math.sqrt(1.0 - sec[19]**2),
+                          mach_slot)
             proceed = state['bo'] and state['htpl']
         elif step_num == 5:
             sec[7] = calculate_clbclc(state['bh'], state['nalpha'])
@@ -1139,8 +1142,10 @@ def setup2_step(nf: int, state: Dict[str, object]) -> int:
             state['mach'] = 1.4
             proceed = state['wgpl'] or state['htpl']
         elif step_num == 6:
-            for k, block in ((2, 'wing'), (4, 'ht'), (6, 'bw'), (8, 'bh')):
-                sec[k] = calculate_clbclc(state[block], state['nalpha'])
+            for section_key, block in (
+                    (2, 'wing'), (4, 'ht'), (6, 'bw'), (8, 'bh')):
+                sec[section_key] = calculate_clbclc(
+                    state[block], state['nalpha'])
             sec[9], sec[10], sec[14] = state['bw101'], state['bh101'], state['stp155']
             state['mach'] = 1.1
             proceed = state['bo'] and state['wgpl'] and state['htpl']
@@ -1161,8 +1166,8 @@ def setup2_step(nf: int, state: Dict[str, object]) -> int:
                 absent += [7, 8, 10]
             if not (state['bo'] and state['wgpl'] and state['htpl']):
                 absent += [11, 12, 13, 14]
-            for k in absent + list(range(17, 24)):
-                sec[k] = UNUSED
+            for section_key in absent + list(range(17, 24)):
+                sec[section_key] = UNUSED
             proceed = True
         else:
             raise ValueError(f"SETUP2 has no step {step_num}")

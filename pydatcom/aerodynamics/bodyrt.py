@@ -157,12 +157,13 @@ def calculate_bodyrt(x: Sequence[float], s: Sequence[float],
 
     # The source temporarily substitutes (TMP5, TMP1) at the first station
     # at or beyond TMP5, resamples, then restores the originals.
-    index = int(np.argmax(x >= tmp5)) if np.any(x >= tmp5) else len(x) - 1
+    splice_station = (int(np.argmax(x >= tmp5)) if np.any(x >= tmp5)
+                      else len(x) - 1)
     x_work, s_work = x.copy(), s.copy()
-    x_work[index], s_work[index] = tmp5, tmp1
+    x_work[splice_station], s_work[splice_station] = tmp5, tmp1
     # IL is the last station up to that point where the area still changes.
     last_changing = 1
-    for station in range(1, index + 1):
+    for station in range(1, splice_station + 1):
         if s_work[station] - s_work[station - 1] != 0.0:
             last_changing = station
     count = max(last_changing + 1, 2)
@@ -177,7 +178,7 @@ def calculate_bodyrt(x: Sequence[float], s: Sequence[float],
     # source calls EQSPC1(X(L),R(L),...) while X(L) still holds the
     # substituted TMP5 (it is restored only after the drag buildup), so the
     # integral starts at TMP5, with the station's own radius.
-    planform = eqspc1(x_work[index:], r[index:], _STATIONS)
+    planform = eqspc1(x_work[splice_station:], r[splice_station:], _STATIONS)
     planform_area = float(trapz(planform['se'], planform['xe'])[0])   # BD(88)
     planform_moment = float(
         trapz(planform['se'] * planform['xe'], planform['xe'])[0])    # RXDFI

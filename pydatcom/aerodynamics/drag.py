@@ -254,8 +254,8 @@ class DragCalculator:
             cl_range = np.linspace(-0.5, 2.0, 26)
 
         cd_values = np.zeros_like(cl_range)
-        for index, cl_value in enumerate(cl_range):
-            cd_values[index] = self.calculate_drag(
+        for cl_slot, cl_value in enumerate(cl_range):
+            cd_values[cl_slot] = self.calculate_drag(
                 cl_value, mach, reynolds,
             )['cd_total']
 

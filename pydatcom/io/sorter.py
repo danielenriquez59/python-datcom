@@ -23,20 +23,20 @@ def _order(values: Sequence[int]) -> List[int]:
     b = list(values)
     n = len(b)
     bmax = b[0]
-    for k in range(n, 0, -1):
-        if bmax <= b[k - 1]:
-            bmax = b[k - 1]
+    for scan_index in range(n, 0, -1):
+        if bmax <= b[scan_index - 1]:
+            bmax = b[scan_index - 1]
     sentinel = _i32(bmax + bmax)
     order = []
     # The first search starts from the first entry, later ones from the
     # sentinel; KK carries over when no entry equals the minimum.
     bmin, kk = b[0], 1
     for _ in range(n):
-        for k in range(n, 0, -1):
-            if bmin >= b[k - 1]:
-                bmin = b[k - 1]
-            if bmin == b[k - 1]:
-                kk = k
+        for scan_index in range(n, 0, -1):
+            if bmin >= b[scan_index - 1]:
+                bmin = b[scan_index - 1]
+            if bmin == b[scan_index - 1]:
+                kk = scan_index
         b[kk - 1] = sentinel
         order.append(kk)
         bmin = sentinel

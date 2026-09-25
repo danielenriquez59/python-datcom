@@ -92,11 +92,11 @@ class Atmosphere:
             h = cls.R0 * z / (cls.R0 + z)
             
             # Find temperature region
-            for i in range(1, len(cls.HG)):
+            for bound_index in range(1, len(cls.HG)):
                 # ATMOS assigns J before testing, retaining the last interval
                 # when rounded altitude breakpoints leave H above HG[-1].
-                j = i - 1
-                if cls.HG[i] >= h:
+                j = bound_index - 1
+                if cls.HG[bound_index] >= h:
                     break
             
             # Calculate temperature slope and value
@@ -120,11 +120,11 @@ class Atmosphere:
         
         else:
             # Temperature linear with Z (high altitude)
-            for i in range(1, len(cls.ZM)):
+            for bound_index in range(1, len(cls.ZM)):
                 # Preserve the FORTRAN last-interval extrapolation on exhaustion.
-                j = i + 8
-                k = i - 1
-                if cls.ZM[i] >= z:
+                j = bound_index + 8
+                k = bound_index - 1
+                if cls.ZM[bound_index] >= z:
                     break
             
             # Calculate temperature slope and value

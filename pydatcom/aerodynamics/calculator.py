@@ -129,11 +129,11 @@ class AerodynamicCalculator:
         cm_array = np.zeros(n_alpha)
         
         # Calculate at each alpha
-        for i, alpha in enumerate(alpha_range):
-            result = self.calculate_at_condition(alpha, mach, reynolds)
-            cl_array[i] = result['cl']
-            cd_array[i] = result['cd']
-            cm_array[i] = result['cm']
+        for angle_index, alpha_deg in enumerate(alpha_range):
+            result = self.calculate_at_condition(alpha_deg, mach, reynolds)
+            cl_array[angle_index] = result['cl']
+            cd_array[angle_index] = result['cd']
+            cm_array[angle_index] = result['cm']
         
         return {
             'alpha': alpha_range,
@@ -163,13 +163,14 @@ class AerodynamicCalculator:
         cm_array = np.zeros(n_mach)
         
         reynolds_array = np.zeros(n_mach)
-        for i, mach in enumerate(mach_range):
-            reynolds = self._estimate_reynolds(mach, i)
-            result = self.calculate_at_condition(alpha_deg, mach, reynolds, i)
-            cl_array[i] = result['cl']
-            cd_array[i] = result['cd']
-            cm_array[i] = result['cm']
-            reynolds_array[i] = reynolds
+        for mach_index, mach in enumerate(mach_range):
+            reynolds = self._estimate_reynolds(mach, mach_index)
+            result = self.calculate_at_condition(
+                alpha_deg, mach, reynolds, mach_index)
+            cl_array[mach_index] = result['cl']
+            cd_array[mach_index] = result['cd']
+            cm_array[mach_index] = result['cm']
+            reynolds_array[mach_index] = reynolds
         
         return {
             'mach': mach_range,
@@ -194,9 +195,9 @@ class AerodynamicCalculator:
         if requested is not None and 0 <= requested < len(machs):
             if np.isclose(machs[requested], mach, rtol=1e-9, atol=1e-12):
                 return requested
-        for index, scheduled_mach in enumerate(machs):
+        for mach_index, scheduled_mach in enumerate(machs):
             if np.isclose(scheduled_mach, mach, rtol=1e-9, atol=1e-12):
-                return index
+                return mach_index
         # A direct off-schedule API call has no FORTRAN loop index. Retain
         # the first supplied condition rather than inventing interpolation.
         return 0

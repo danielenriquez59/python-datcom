@@ -190,16 +190,16 @@ def calculate_sshing(data: Mapping[str, object]) -> Dict[str, object]:
     pam = [0.0] * 8
     spamt = 0.0
     spamr = 0.0
-    for i in (1, 2):
-        y = float(i)
-        if i == 1:
+    for semispan_pass in (1, 2):
+        y = float(semispan_pass)
+        if semispan_pass == 1:
             v1, v2, v3, v4, v5, v6, v7 = (aloci, ci, cfi, aloco, co, cfo,
                                           sspne)
         else:
             v1, v2, v3, v4, v5, v6, v7 = (aloco, co, cfo, aloci, ci, cfi,
                                           0.)
-        xyz = v7 - v1 if i == 1 else -(v7 - v1)
-        zyx = v7 - v4 if i == 1 else -(v7 - v4)
+        xyz = v7 - v1 if semispan_pass == 1 else -(v7 - v1)
+        zyx = v7 - v4 if semispan_pass == 1 else -(v7 - v4)
         al1 = _alpha(xyz, v1 * tanle + v2 - v3 - v7 * tanle)
         al2 = _alpha(xyz, v1 * tanle + v2 - v7 * tanle)
         al3 = _alpha(zyx, v4 * tanle + v5 - v6 - v7 * tanle)
@@ -217,11 +217,11 @@ def calculate_sshing(data: Mapping[str, object]) -> Dict[str, object]:
         if mu <= al4:
             kaseno = 6
         skip = False
-        if i == 2 and tanle == 0.0:
+        if semispan_pass == 2 and tanle == 0.0:
             spamt = 0.
             skip = True
         if not skip:
-            if i == 2:
+            if semispan_pass == 2:
                 x1, x4, x5, x6 = chrdre, xr, aloco, aloci
                 x7, x8 = 1. - spr[34], 1. - spr[33]
                 x9, x10 = -spr[34], -spr[33]
@@ -283,7 +283,7 @@ def calculate_sshing(data: Mapping[str, object]) -> Dict[str, object]:
                             p6, t6 = ptcp(r6, 6)
                             pam[5] = -r6 * p6 * x4**3 * (1. / (beta * x8))
                             spamt += pam[1] + pam[5]
-        if i == 1:
+        if semispan_pass == 1:
             spr[37:45] = pam
         else:
             spamr = spamt

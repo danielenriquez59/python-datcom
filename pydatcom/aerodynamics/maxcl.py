@@ -142,14 +142,14 @@ def calculate_maxcl(delta_y: float, thickness_station: float,
 
     clmax = np.empty(reynolds_per_length.size)
     del3_values = np.empty(reynolds_per_length.size)
-    for index, reynolds_per_unit_length in enumerate(reynolds_per_length):
+    for reynolds_slot, reynolds_per_unit_length in enumerate(reynolds_per_length):
         reynolds_number = reynolds_per_unit_length * chord
         # The source substitutes a nominal Reynolds number below unity.
         lookup_reynolds = 9.0e6 if reynolds_number < 1.0 else reynolds_number
         del3 = interx(2, _PARM61, [delta_y, lookup_reynolds], [8, 4],
                       _EVAL61, lind=8)
-        del3_values[index] = del3
-        clmax[index] = base + del1 + del2 + del3
+        del3_values[reynolds_slot] = del3
+        clmax[reynolds_slot] = base + del1 + del2 + del3
 
     del4_unused = float(tbfunx(_PARM62, _EVAL62, float(delta_y),
                                lower=0, upper=0)[0])

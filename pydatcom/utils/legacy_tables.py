@@ -169,9 +169,9 @@ def tlin3x(x1, x2, x3, y, query1: float, query2: float, query3: float,
     if y.shape != (len(x2), len(x1), len(x3)) or not np.all(np.isfinite(y)):
         raise ValueError(
             "Y must be finite with shape (len(x2), len(x1), len(x3))")
-    slices = [tlinex(x1, x2, y[:, :, k], query1, query2,
+    slices = [tlinex(x1, x2, y[:, :, x3_slot], query1, query2,
                      lower1, lower2, upper1, upper2)
-              for k in range(len(x3))]
+              for x3_slot in range(len(x3))]
     return tlin1x(x3, slices, query3, lower3, upper3)
 
 
@@ -199,7 +199,7 @@ def tlin4x(x1, x2, x3, x4, y, query1: float, query2: float,
     if y.shape != expected or not np.all(np.isfinite(y)):
         raise ValueError(
             "Y must be finite with shape (len(x2), len(x1), len(x3), len(x4))")
-    slices = [tlin3x(x1, x2, x3, y[:, :, :, l], query1, query2, query3,
+    slices = [tlin3x(x1, x2, x3, y[:, :, :, x4_slot], query1, query2, query3,
                      lower1, lower2, lower3, upper1, upper2, upper3)
-              for l in range(len(x4))]
+              for x4_slot in range(len(x4))]
     return tlin1x(x4, slices, query4, lower4, upper4)

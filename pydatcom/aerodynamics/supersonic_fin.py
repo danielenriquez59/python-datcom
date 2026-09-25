@@ -194,8 +194,8 @@ def calculate_suplav(alpha_deg: Sequence[float], ventral: bool,
         dz = [(zp * math.cos(a / RAD) - rlp * math.sin(a / RAD)) / bw
               for a in alpha_deg]
         vt181 = None if ventral else [dcybv * d * scale for d in dz]
-        for j, d in enumerate(dz):
-            bwv[181 + j] += dcybv * d * scale
+        for angle_index, d in enumerate(dz):
+            bwv[181 + angle_index] += dcybv * d * scale
         if htpl:
             if not ventral:
                 vt141 = dcvwhb
@@ -203,8 +203,8 @@ def calculate_suplav(alpha_deg: Sequence[float], ventral: bool,
             bwhv[141] += dcvwhb
             bwhv[161] -= dcvwhb * rlp / blref
             vt181 = [dcvwhb * d * scale for d in dz]
-            for j, v in enumerate(vt181):
-                bwhv[181 + j] += v
+            for angle_index, v in enumerate(vt181):
+                bwhv[181 + angle_index] += v
     r.update({'zp': zp, 'rlp': rlp, 'dcvwhb': dcvwhb, 'vt141': vt141,
               'vt161': vt161, 'vt181': vt181, 'bwv': bwv, 'bwhv': bwhv,
               'method': 'legacy_suplaf' if ventral else 'legacy_suplav'})

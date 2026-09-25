@@ -258,17 +258,18 @@ def calculate_ptcp(station: float, region: int, location: float,
             pp = np.array([
                 arccos(numerator /
                        (1.0 - squared *
-                        ((1.0 - n) / (1.0 - generator * n))**2) - 1.0) / np.pi
-                for n in _ACC10])
+                        ((1.0 - acc_x) / (1.0 - generator * acc_x))**2) -
+                       1.0) / np.pi
+                for acc_x in _ACC10])
         else:
             # The ten-point tip block after label 1110.
             one_plus = 1.0 + tan_le_beta
             two_plus = 2.0 + tan_le_beta + generator
             difference = tan_le_beta - generator
             pp = np.array([
-                arccos((one_plus - two_plus * n) /
-                       (one_plus - difference * n)) / np.pi
-                for n in _ACC10])
+                arccos((one_plus - two_plus * acc_x) /
+                       (one_plus - difference * acc_x)) / np.pi
+                for acc_x in _ACC10])
     else:
         generator = 0.0
         if at_root:
@@ -276,14 +277,15 @@ def calculate_ptcp(station: float, region: int, location: float,
             squared = tan_le_beta**2
             one_minus_two = 1.0 - 2.0 * squared
             pp = np.array([
-                arccos((squared + one_minus_two * (1.0 + r)**2) /
-                       ((1.0 + r)**2 - squared)) / np.pi
-                for r in _ACC19])
+                arccos((squared + one_minus_two * (1.0 + acc_x)**2) /
+                       ((1.0 + acc_x)**2 - squared)) / np.pi
+                for acc_x in _ACC19])
         else:
             # The nineteen-point tip block after label 1000.
             one_plus = 1.0 + tan_le_beta
-            pp = np.array([arccos((one_plus - r) / (one_plus + r)) / np.pi
-                           for r in _ACC19])
+            pp = np.array([
+                arccos((one_plus - acc_x) / (one_plus + acc_x)) / np.pi
+                for acc_x in _ACC19])
 
     area = [_area_first(pp, root=at_root)] + _area_two_to_four(pp)
     if ten_point and not at_root:

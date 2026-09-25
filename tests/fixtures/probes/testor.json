@@ -1,0 +1,262 @@
+{
+ "names": [
+  [
+   "NMACH",
+   1
+  ],
+  [
+   "MACH",
+   20
+  ],
+  [
+   "ALSCHD",
+   20
+  ],
+  [
+   "STMACH",
+   1
+  ],
+  [
+   "TRIM",
+   -1
+  ],
+  [
+   "FLAGS",
+   -3
+  ],
+  [
+   "RNNUB",
+   20
+  ]
+ ],
+ "cards": [
+  [
+   " $FLTCON NMACH=2.0, MACH(1)=0.6,0.8,",
+   9,
+   2,
+   1,
+   0
+  ],
+  [
+   "  ALSCHD=-2.,0.,2.,4.,",
+   1,
+   2,
+   2,
+   0
+  ],
+  [
+   "  6.,8.,10.$",
+   1,
+   2,
+   2,
+   0
+  ],
+  [
+   " $FLTCON TRIM=.TRUE., FLAGS=2*.FALSE.,.TRUE.$",
+   9,
+   2,
+   1,
+   0
+  ],
+  [
+   " $FLTCON XYZ=1.0, NMACH 3.0, STMACH=1.,2.$",
+   9,
+   2,
+   1,
+   0
+  ],
+  [
+   " $FLTCON NMACH(1)=2, MACH(3)=0.5,0.6,0.7$",
+   9,
+   2,
+   1,
+   0
+  ],
+  [
+   " $FLTCON MACH=0.1,0.2",
+   9,
+   2,
+   1,
+   0
+  ],
+  [
+   " $FLTCON NMACH=1.0$",
+   9,
+   2,
+   1,
+   0
+  ],
+  [
+   "  MACH=0.3$",
+   1,
+   2,
+   2,
+   0
+  ],
+  [
+   " $BADNAM X=1.$",
+   9,
+   2,
+   1,
+   1
+  ],
+  [
+   " SOME TEXT",
+   1,
+   1,
+   1,
+   0
+  ],
+  [
+   " $FLTCON MACH(0)=1., ALSCHD(X)=2.$",
+   9,
+   2,
+   1,
+   0
+  ],
+  [
+   " $FLTCON RNNUB=1.E6,1.E6,1.E6,1.E6,1.E6,1.E6,1.E6,1.E6,1.E6,1.E6,1.E6,1.E6,1.E6$",
+   9,
+   2,
+   1,
+   0
+  ],
+  [
+   " $FLTCON TRIM=.T., FLAGS=.F.,.TRUE,.FALSE.$",
+   9,
+   2,
+   1,
+   0
+  ]
+ ],
+ "records": [
+  {
+   "unit6": [
+    "  $FLTCON NMACH=2.0, MACH(1)=0.6,0.8,                                            "
+   ],
+   "unit11": [
+    " $FLTCON NMACH=2.0, MACH(1)=0.6,0.8,"
+   ],
+   "l": 81
+  },
+  {
+   "unit6": [
+    "   ALSCHD=-2.,0.,2.,4.,                                                          "
+   ],
+   "unit11": [
+    "  ALSCHD=-2.,0.,2.,4.,"
+   ],
+   "l": 81
+  },
+  {
+   "unit6": [
+    "   6.,8.,10.$                                                                    "
+   ],
+   "unit11": [
+    "  6.,8.,10.$"
+   ],
+   "l": 12
+  },
+  {
+   "unit6": [
+    "  $FLTCON TRIM=.TRUE., FLAGS=2*.FALSE.,.TRUE.$                                   "
+   ],
+   "unit11": [
+    " $FLTCON TRIM=.TRUE., FLAGS=2*.FALSE.,.TRUE.$"
+   ],
+   "l": 45
+  },
+  {
+   "unit6": [
+    "  $FLTCON XYZ=1.0, NMACH 3.0, STMACH=1.,2.$                                         ** ERROR **  1*A  1*B  0*C  1*D  0*E  0*F"
+   ],
+   "unit11": [
+    " $FLTCON XYZ=1.0, NMACH 3.0, STMACH=1.,2.$"
+   ],
+   "l": 42
+  },
+  {
+   "unit6": [
+    "  $FLTCON NMACH(1)=2, MACH(3)=0.5,0.6,0.7$                                          ** ERROR **  0*A  0*B  1*C  0*D  0*E  1*F"
+   ],
+   "unit11": [
+    " $FLTCON NMACH(1)=2, MACH(3)=0.5,0.6,0.7$"
+   ],
+   "l": 41
+  },
+  {
+   "unit6": [
+    "  $FLTCON MACH=0.1,0.2                                                              ** ERROR **  0*A  0*B  0*C  0*D  0*E 59*F"
+   ],
+   "unit11": [
+    " $FLTCON MACH=0.1,0.2"
+   ],
+   "l": 81
+  },
+  {
+   "unit6": [
+    "  $END                                                                              ** MISSING NAMELIST TERMINATION ADDED **",
+    "  $FLTCON NMACH=1.0$                                                             "
+   ],
+   "unit11": [
+    " $END",
+    " $FLTCON NMACH=1.0$"
+   ],
+   "l": 19
+  },
+  {
+   "unit6": [
+    "   MACH=0.3$                                                                        ** ERROR ** NO NAMELIST NAME FOLLOWING $ "
+   ],
+   "unit11": [
+    "  MACH=0.3$"
+   ],
+   "l": 1
+  },
+  {
+   "unit6": [
+    "  $BADNAM X=1.$                                                                     ** ERROR ** UNKNOWN NAMELIST NAME"
+   ],
+   "unit11": [
+    " $BADNAM X=1.$"
+   ],
+   "l": 9
+  },
+  {
+   "unit6": [
+    "  SOME TEXT                                                                      "
+   ],
+   "unit11": [
+    " SOME TEXT"
+   ],
+   "l": 1
+  },
+  {
+   "unit6": [
+    "  $FLTCON MACH(0)=1., ALSCHD(X)=2.$                                                 ** ERROR **  0*A  0*B  0*C  0*D  0*E  2*F"
+   ],
+   "unit11": [
+    " $FLTCON MACH(0)=1., ALSCHD(X)=2.$"
+   ],
+   "l": 34
+  },
+  {
+   "unit6": [
+    "  $FLTCON RNNUB=1.E6,1.E6,1.E6,1.E6,1.E6,1.E6,1.E6,1.E6,1.E6,1.E6,1.E6,1.E6,1.E6$"
+   ],
+   "unit11": [
+    " $FLTCON RNNUB=1.E6,1.E6,1.E6,1.E6,1.E6,1.E6,1.E6,1.E6,1.E6,1.E6,1.E6,1.E6,1.E6$"
+   ],
+   "l": 80
+  },
+  {
+   "unit6": [
+    "  $FLTCON TRIM=.T., FLAGS=.F.,.TRUE,.FALSE.$                                        ** ERROR **  4*A  0*B  0*C  0*D  0*E  2*F"
+   ],
+   "unit11": [
+    " $FLTCON TRIM=.T., FLAGS=.F.,.TRUE,.FALSE.$"
+   ],
+   "l": 43
+  }
+ ]
+}
