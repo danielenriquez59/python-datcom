@@ -58,9 +58,12 @@ PyDATCOM maintains full compatibility with the original DATCOM namelist format (
 - NumPy >= 1.19.0
 - PyYAML >= 5.3.0
 
-### Install Dependencies
+### Install
+
+From the repository root:
+
 ```bash
-pip install -r requirements.txt
+pip install -e ".[dev]"
 ```
 
 ## Usage Example
