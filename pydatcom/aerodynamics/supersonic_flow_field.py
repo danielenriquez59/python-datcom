@@ -112,44 +112,53 @@ def calculate_sdwash(data: Mapping[str, object],
         dhb = list(calculate_sddvc(x, abeta, tapr, icase, swepte,
                                    swepr)['dhb'])
         zeff, depx, depavg = [], [], []
-        for j in range(nalpha):
-            na = min(max(int(abs(2.0 * alpha[j]) + 1.5), 2), 21)
+        for angle_slot in range(nalpha):
+            na = min(max(int(abs(2.0 * alpha[angle_slot]) + 1.5), 2), 21)
             xna = float(na - 1)
             alp, depa = [], []
-            for k in range(na):
+            for substep in range(na):
                 if nf >= 0:
                     nf = -1
-                if k == na - 1 and nf == -1:
+                if substep == na - 1 and nf == -1:
                     nf = 0
-                alp.append(alpha[j] * k / xna)
+                alp.append(alpha[angle_slot] * substep / xna)
                 sdw = [0.0, 0.0]
-                for i in range(2):
-                    ze = z[i] + dhb[i] * beta * alp[k] / RAD
-                    if k == na - 1:
+                for station in range(2):
+                    ze = (z[station] + dhb[station] * beta *
+                          alp[substep] / RAD)
+                    if substep == na - 1:
                         zeff.append(ze)
                     ze = abs(ze)
                     if icase in (1, 3):
-                        dep = [calculate_sdwa(x[i], y[i], ze, abeta)['sdw'],
-                               *calculate_sdwc(x[i], y[i], ze, abeta)['sdw'],
-                               calculate_sdwb(x[i], y[i], ze, abeta)['sdw']]
-                        sdw[i] = tbfunx(_TAPER, dep, tapr, 0, 0)[0]
-                        sdw3 = sdw[i]
+                        dep = [calculate_sdwa(x[station], y[station], ze,
+                                              abeta)['sdw'],
+                               *calculate_sdwc(x[station], y[station], ze,
+                                               abeta)['sdw'],
+                               calculate_sdwb(x[station], y[station], ze,
+                                              abeta)['sdw']]
+                        sdw[station] = tbfunx(_TAPER, dep, tapr, 0, 0)[0]
+                        sdw3 = sdw[station]
                     if icase in (2, 3):
-                        dep = [*calculate_sdwd(x[i], y[i], ze, abeta)['sdw'],
-                               calculate_sdwb(x[i], y[i], ze, abeta)['sdw']]
-                        sdw[i] = tbfunx(_TAPER, dep, tapr, 0, 0)[0]
+                        dep = [*calculate_sdwd(x[station], y[station], ze,
+                                               abeta)['sdw'],
+                               calculate_sdwb(x[station], y[station], ze,
+                                              abeta)['sdw']]
+                        sdw[station] = tbfunx(_TAPER, dep, tapr, 0, 0)[0]
                         if icase == 3:
-                            sdw[i] = sdw[i] + swepc2 * (sdw3 - sdw[i]) / swepr
+                            sdw[station] = (sdw[station] +
+                                            swepc2 * (sdw3 - sdw[station]) /
+                                            swepr)
                     if icase == 4:
-                        sdw[i] = calculate_sdwe(x[i], y[i], ze, abeta,
-                                                tapr)['sdw']
-                    if k == na - 1:
-                        depx.append(sdw[i])
-                clanlj = tbfunx(alpha_arr, cla, alp[k], 0, 0)[0]
-                depa.append((sdw[0] + sdw[1]) / 2.0 * clanlj / claw)
-            depavg.append(depa[-1] * claw / clanlj)
-            depda[j] = depa[-1]
-            dwangl[j] = float(trapz(depa, alp)[0])
+                        sdw[station] = calculate_sdwe(
+                            x[station], y[station], ze, abeta, tapr)['sdw']
+                    if substep == na - 1:
+                        depx.append(sdw[station])
+                clanl_at_substep = tbfunx(alpha_arr, cla, alp[substep], 0, 0)[0]
+                depa.append((sdw[0] + sdw[1]) / 2.0 *
+                            clanl_at_substep / claw)
+            depavg.append(depa[-1] * claw / clanl_at_substep)
+            depda[angle_slot] = depa[-1]
+            dwangl[angle_slot] = float(trapz(depa, alp)[0])
         r.update({'x': x, 'y': y, 'z': z, 'dhb': dhb, 'zeff': zeff,
                   'depx': depx, 'depavg': depavg, 'icase': icase})
 
@@ -159,29 +168,31 @@ def calculate_sdwash(data: Mapping[str, object],
     zwakec = delqo = None
     dpresr = None
     stopped = False
-    for j in range(nalpha):
+    for angle_slot in range(nalpha):
         if not user_epsilon and visdw:
-            dwangl[j] = 1.62 * clw[j] / (PI * a[120]) * RAD * sref / a[3]
-        arg = (dwangl[j] - alpha[j]) / RAD + gamma
+            dwangl[angle_slot] = (1.62 * clw[angle_slot] / (PI * a[120]) *
+                                  RAD * sref / a[3])
+        arg = (dwangl[angle_slot] - alpha[angle_slot]) / RAD + gamma
         arg4 = a[24] * math.cos(arg) / (math.cos(gamma) * a[16])
         arg1 = cdow * (arg4 + 0.15) * sref / a[3]
         zwakec = 0.68 * math.sqrt(arg1)
         zwaket = zwakec * a[16]
         delqo = 2.42 * math.sqrt(cdow * sref / a[3]) / (arg4 + 0.3)
-        zc[j] = arg4 * math.tan(arg)
-        test = abs(zc[j] / zwakec)
+        zc[angle_slot] = arg4 * math.tan(arg)
+        test = abs(zc[angle_slot] / zwakec)
         if test <= 1.:
-            qqinfy[j] = 1. - delqo * math.cos(PI * test / 2.0)**2
-            m[j] = mach
+            qqinfy[angle_slot] = 1. - delqo * math.cos(PI * test / 2.0)**2
+            m[angle_slot] = mach
             continue
-        dpresr = calculate_dpresr(zc[j] * a[16], zwaket, alpha[j],
-                                  dwangl[j] / RAD, mach, w[6], a[12], a[24],
-                                  [w[95 + k] for k in range(6)])
+        dpresr = calculate_dpresr(
+            zc[angle_slot] * a[16], zwaket, alpha[angle_slot],
+            dwangl[angle_slot] / RAD, mach, w[6], a[12], a[24],
+            [w[95 + word] for word in range(6)])
         if dpresr['qqinfy'] is not None:
-            qqinfy[j] = dpresr['qqinfy']
-        m[j] = dpresr['mj']
-        if m[j] <= 1.0:
-            jdetch = j
+            qqinfy[angle_slot] = dpresr['qqinfy']
+        m[angle_slot] = dpresr['mj']
+        if m[angle_slot] <= 1.0:
+            jdetch = angle_slot
             stopped = True
             break
     r.update({'qqinfy': qqinfy, 'm': m, 'zc': zc, 'zwakec': zwakec,
@@ -194,8 +205,8 @@ def calculate_sdwash(data: Mapping[str, object],
     if jdetch == 0:
         nalpha = 0
     if visdw or user_epsilon:
-        for j in range(nalpha):
-            depda[j] = tbfunx(alpha_arr[:nalpha], dwangl[:nalpha],
-                              alpha[j], 0, 0)[1]
+        for angle_slot in range(nalpha):
+            depda[angle_slot] = tbfunx(
+                alpha_arr[:nalpha], dwangl[:nalpha], alpha[angle_slot], 0, 0)[1]
     r.update({'nalpha': nalpha, 'dwangl': dwangl, 'depda': depda})
     return r

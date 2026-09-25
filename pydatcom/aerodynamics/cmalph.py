@@ -781,13 +781,14 @@ def calculate_moment_overlay(surface: str,
 
     if not skip_linearity_test:
         past_limit = False
-        for j in range(1, len(alpha)):
-            deviation_pct = 100.0 * abs(cla[j] / cla_reference - 1.0)
+        for angle_index in range(1, len(alpha)):
+            deviation_pct = 100.0 * abs(
+                cla[angle_index] / cla_reference - 1.0)
             if deviation_pct > deviation_limit:
                 past_limit = True
             if past_limit:
-                cm[j] = NOT_AVAILABLE
-                cma[j] = NOT_AVAILABLE
+                cm[angle_index] = NOT_AVAILABLE
+                cma[angle_index] = NOT_AVAILABLE
 
     if surface == 'wing' or not skip_linearity_test:
         cla[0], cma[0] = cla0, cma0

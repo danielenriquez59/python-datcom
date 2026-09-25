@@ -1,0 +1,572 @@
+[
+ {
+  "inputs": {
+   "routine": "VNAME",
+   "card": "  NALPHA=9.0,                                                                   ####",
+   "l": 3,
+   "names": [
+    "ALSCHD",
+    "NALPHA",
+    "MACH",
+    "ALT",
+    "WGPL",
+    "CD"
+   ],
+   "nf": 1
+  },
+  "outputs": {
+   "OUT": [
+    9.0,
+    2.0,
+    1.0,
+    0.0,
+    0.0,
+    1.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "VNAME",
+   "card": "  ALSCHD(3)=1.,                                                                 ####",
+   "l": 3,
+   "names": [
+    "ALSCHD",
+    "NALPHA",
+    "MACH",
+    "ALT",
+    "WGPL",
+    "CD"
+   ],
+   "nf": 1
+  },
+  "outputs": {
+   "OUT": [
+    12.0,
+    1.0,
+    1.0,
+    1.0,
+    2.0,
+    1.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "VNAME",
+   "card": "  ALSCHD(0)=1.,                                                                 ####",
+   "l": 3,
+   "names": [
+    "ALSCHD",
+    "NALPHA",
+    "MACH",
+    "ALT",
+    "WGPL",
+    "CD"
+   ],
+   "nf": 1
+  },
+  "outputs": {
+   "OUT": [
+    12.0,
+    1.0,
+    1.0,
+    1.0,
+    0.0,
+    2.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "VNAME",
+   "card": "  ALSCHD(A)=1.,                                                                 ####",
+   "l": 3,
+   "names": [
+    "ALSCHD",
+    "NALPHA",
+    "MACH",
+    "ALT",
+    "WGPL",
+    "CD"
+   ],
+   "nf": 1
+  },
+  "outputs": {
+   "OUT": [
+    12.0,
+    1.0,
+    1.0,
+    1.0,
+    0.0,
+    2.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "VNAME",
+   "card": "  MACHX=2.                                                                      ####",
+   "l": 3,
+   "names": [
+    "ALSCHD",
+    "NALPHA",
+    "MACH",
+    "ALT",
+    "WGPL",
+    "CD"
+   ],
+   "nf": 1
+  },
+  "outputs": {
+   "OUT": [
+    3.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "VNAME",
+   "card": "  CD =2.                                                                        ####",
+   "l": 3,
+   "names": [
+    "ALSCHD",
+    "NALPHA",
+    "MACH",
+    "ALT",
+    "WGPL",
+    "CD"
+   ],
+   "nf": 1
+  },
+  "outputs": {
+   "OUT": [
+    5.0,
+    6.0,
+    1.0,
+    0.0,
+    0.0,
+    1.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "VNAME",
+   "card": "  ALT(12)=1.                                                                    ####",
+   "l": 3,
+   "names": [
+    "ALSCHD",
+    "NALPHA",
+    "MACH",
+    "ALT",
+    "WGPL",
+    "CD"
+   ],
+   "nf": 1
+  },
+  "outputs": {
+   "OUT": [
+    10.0,
+    4.0,
+    1.0,
+    1.0,
+    11.0,
+    1.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "VNAME",
+   "card": "                                                                          MACH(7####",
+   "l": 75,
+   "names": [
+    "ALSCHD",
+    "NALPHA",
+    "MACH",
+    "ALT",
+    "WGPL",
+    "CD"
+   ],
+   "nf": 1
+  },
+  "outputs": {
+   "OUT": [
+    81.0,
+    3.0,
+    1.0,
+    1.0,
+    0.0,
+    3.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "VNAME",
+   "card": "  WGPL$                                                                         ####",
+   "l": 3,
+   "names": [
+    "ALSCHD",
+    "NALPHA",
+    "MACH",
+    "ALT",
+    "WGPL",
+    "CD"
+   ],
+   "nf": 1
+  },
+  "outputs": {
+   "OUT": [
+    3.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "LVALUE",
+   "card": ".TRUE.,.FALSE.$                                                                 ####",
+   "l": 1,
+   "ndml": 0,
+   "nf": 0
+  },
+  "outputs": {
+   "OUT": [
+    15.0,
+    2.0,
+    0.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "LVALUE",
+   "card": "3*.TRUE., .FALSE.,                                                              ####",
+   "l": 1,
+   "ndml": 0,
+   "nf": 0
+  },
+  "outputs": {
+   "OUT": [
+    81.0,
+    4.0,
+    0.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "LVALUE",
+   "card": "*.TRUE.,2.FALSE.$                                                               ####",
+   "l": 1,
+   "ndml": 0,
+   "nf": 0
+  },
+  "outputs": {
+   "OUT": [
+    17.0,
+    3.0,
+    2.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "LVALUE",
+   "card": ".TRUE. .FALSE.                                                                  ####",
+   "l": 1,
+   "ndml": 0,
+   "nf": 0
+  },
+  "outputs": {
+   "OUT": [
+    81.0,
+    2.0,
+    68.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "LVALUE",
+   "card": "2**.TRUE.,                                                                      ####",
+   "l": 1,
+   "ndml": 0,
+   "nf": 0
+  },
+  "outputs": {
+   "OUT": [
+    81.0,
+    2.0,
+    1.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "LVALUE",
+   "card": "                                                                                ####",
+   "l": 1,
+   "ndml": 0,
+   "nf": 0
+  },
+  "outputs": {
+   "OUT": [
+    81.0,
+    0.0,
+    1.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "LVALUE",
+   "card": "XYZ                                                                             ####",
+   "l": 1,
+   "ndml": 0,
+   "nf": 0
+  },
+  "outputs": {
+   "OUT": [
+    1.0,
+    0.0,
+    1.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "LVALUE",
+   "card": "                                                                              0*####",
+   "l": 79,
+   "ndml": 0,
+   "nf": 0
+  },
+  "outputs": {
+   "OUT": [
+    80.0,
+    0.0,
+    1.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "LVALUE",
+   "card": "                                                                          .TRUE.####",
+   "l": 75,
+   "ndml": 0,
+   "nf": 0
+  },
+  "outputs": {
+   "OUT": [
+    81.0,
+    1.0,
+    1.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "RVALUE",
+   "card": "1.0,2.5,-3.E2,4.5E-1$                                                           ####",
+   "l": 1,
+   "ndml": 0,
+   "nf": 0
+  },
+  "outputs": {
+   "OUT": [
+    21.0,
+    4.0,
+    0.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "RVALUE",
+   "card": "3*1.5,2*-.25$                                                                   ####",
+   "l": 1,
+   "ndml": 0,
+   "nf": 0
+  },
+  "outputs": {
+   "OUT": [
+    13.0,
+    5.0,
+    0.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "RVALUE",
+   "card": "1,2.,3.E,+-4.$                                                                  ####",
+   "l": 1,
+   "ndml": 0,
+   "nf": 0
+  },
+  "outputs": {
+   "OUT": [
+    14.0,
+    4.0,
+    4.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "RVALUE",
+   "card": "1. 2.,                                                                          ####",
+   "l": 1,
+   "ndml": 0,
+   "nf": 0
+  },
+  "outputs": {
+   "OUT": [
+    81.0,
+    1.0,
+    2.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "RVALUE",
+   "card": "..5,1.E2E3,                                                                     ####",
+   "l": 1,
+   "ndml": 0,
+   "nf": 0
+  },
+  "outputs": {
+   "OUT": [
+    81.0,
+    2.0,
+    2.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "RVALUE",
+   "card": "*2.,3**4.,                                                                      ####",
+   "l": 1,
+   "ndml": 0,
+   "nf": 0
+  },
+  "outputs": {
+   "OUT": [
+    81.0,
+    4.0,
+    2.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "RVALUE",
+   "card": "$                                                                               ####",
+   "l": 1,
+   "ndml": 0,
+   "nf": 0
+  },
+  "outputs": {
+   "OUT": [
+    1.0,
+    0.0,
+    1.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "RVALUE",
+   "card": "E5,                                                                             ####",
+   "l": 1,
+   "ndml": 0,
+   "nf": 0
+  },
+  "outputs": {
+   "OUT": [
+    1.0,
+    0.0,
+    1.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "RVALUE",
+   "card": "                                                                                ####",
+   "l": 1,
+   "ndml": 0,
+   "nf": 0
+  },
+  "outputs": {
+   "OUT": [
+    81.0,
+    0.0,
+    1.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "RVALUE",
+   "card": "                                                                            1.5,####",
+   "l": 77,
+   "ndml": 0,
+   "nf": 0
+  },
+  "outputs": {
+   "OUT": [
+    81.0,
+    1.0,
+    0.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "RVALUE",
+   "card": "-1.2E+03,2.E-4$                                                                 ####",
+   "l": 1,
+   "ndml": 0,
+   "nf": 0
+  },
+  "outputs": {
+   "OUT": [
+    15.0,
+    2.0,
+    0.0
+   ]
+  }
+ },
+ {
+  "inputs": {
+   "routine": "RVALUE",
+   "card": "                                                                             7.1####",
+   "l": 78,
+   "ndml": 0,
+   "nf": 0
+  },
+  "outputs": {
+   "OUT": [
+    81.0,
+    0.0,
+    1.0
+   ]
+  }
+ }
+]

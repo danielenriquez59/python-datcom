@@ -63,9 +63,9 @@ def _accumulated(count: int):
     at the last ten-point station, where ``ARCCOS`` of exactly -1 is 0
     (the source's sign defect) but of -0.99999... is nearly pi."""
     out, value, step = [], .1, .1
-    for k in range(count):
+    for step_index in range(count):
         out.append(value)
-        if k == 9:
+        if step_index == 9:
             step = 1.0
         value = value + step
     return np.array(out)

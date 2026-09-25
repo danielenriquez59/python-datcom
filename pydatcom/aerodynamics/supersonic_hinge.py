@@ -139,8 +139,8 @@ def calculate_sshing(data: Mapping[str, object]) -> Dict[str, object]:
             chrd.append(arg4 + eta[m] * arg2)
             swf.append(arg3 * (2. - (1. - arg5) * (eta[m - 1] + eta[m])))
         clalds = []
-        for i in range(ndelta):
-            cpi, cpo = f[39 + i], f[49 + i]
+        for deflection_index in range(ndelta):
+            cpi, cpo = f[39 + deflection_index], f[49 + deflection_index]
             cp = [cpi] + [cpi - (cpi - cpo) / (4. * deln4) *
                           (eta[m] - eta[0]) for m in range(1, 5)]
             cfactr = [((cp[m] / chrd[m] + cp[m - 1] / chrd[m - 1]) / 2. -

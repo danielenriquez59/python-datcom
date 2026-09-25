@@ -97,13 +97,13 @@ def calculate_dpresr(zj: float, zwake: float, alpha_deg: float,
     knu = [0.0] * 7
     dknu = [0.0] * 7
 
-    def expand_from(i):
-        for i in range(i, 6):
-            dknu[i] = slope[i - 1] - slope[i]
-            knu[i] = knu[i - 1] + dknu[i]
-            m[i] = mach2(knu[i])[0]
-            qqpt[i] = _qpt(m[i])
-            qq[i] = qqpt[i] * qq[i - 1] / qqpt[i - 1]
+    def expand_from(start_knot):
+        for knot in range(start_knot, 6):
+            dknu[knot] = slope[knot - 1] - slope[knot]
+            knu[knot] = knu[knot - 1] + dknu[knot]
+            m[knot] = mach2(knu[knot])[0]
+            qqpt[knot] = _qpt(m[knot])
+            qq[knot] = qqpt[knot] * qq[knot - 1] / qqpt[knot - 1]
 
     if dle >= 0.0:
         u = math.atan(1. / math.sqrt(mach**2 - 1.))
@@ -143,16 +143,17 @@ def calculate_dpresr(zj: float, zwake: float, alpha_deg: float,
             out.update({'qqinfy': None, 'mj': m[0], 'z': z})
             return out
         knu[0] = _nu(m[0])
-        for i in range(1, 6):
-            dknu[i] = slope[i - 1] - slope[i]
-            theta = fig68(m[i - 1], dknu[i])[0]
-            if dknu[i] > 0.0:
-                qqpt[i - 1] = _qpt(m[i - 1])
-                knu[i - 1] = _nu(m[i - 1])
-                expand_from(i)
+        for shock_knot in range(1, 6):
+            dknu[shock_knot] = slope[shock_knot - 1] - slope[shock_knot]
+            theta = fig68(m[shock_knot - 1], dknu[shock_knot])[0]
+            if dknu[shock_knot] > 0.0:
+                qqpt[shock_knot - 1] = _qpt(m[shock_knot - 1])
+                knu[shock_knot - 1] = _nu(m[shock_knot - 1])
+                expand_from(shock_knot)
                 break
-            ratio, m[i] = _shock(m[i - 1], theta, dknu[i])
-            qq[i] = ratio * qq[i - 1]
+            ratio, m[shock_knot] = _shock(
+                m[shock_knot - 1], theta, dknu[shock_knot])
+            qq[shock_knot] = ratio * qq[shock_knot - 1]
 
     if m[5] <= mach:
         dknu[6] = alpha * RAD + slope[5]

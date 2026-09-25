@@ -148,9 +148,9 @@ def calculate_supwbt(data: Mapping[str, object],
     nalph = len(alpha)
     nalpha = nalph
     na1 = nalph
-    for j in range(nalph):
-        if float(tl['cl'][j]) == UNUSED and float(wb['cl'][j]) == UNUSED:
-            na1 = j
+    for angle_slot in range(nalph):
+        if float(tl['cl'][angle_slot]) == UNUSED and float(wb['cl'][angle_slot]) == UNUSED:
+            na1 = angle_slot
     tanle = aht[62] if aht[62] != 0.0 else .00001
     jdetch = int(dw['jdetch'])
     if user_downwash:
@@ -201,20 +201,20 @@ def calculate_supwbt(data: Mapping[str, object],
                     [9, 5, 3], _D4467, lind=9, lx1u=1, lx2u=1, lx3u=1)
         bvto2 = float(wg['spans']) * yt + dbwo2
         r['yt'] = yt
-        for j in range(nalpha):
+        for angle_slot in range(nalpha):
             z0 = aw[12] - (aw[24] - aw[80] * bvto2) * math.tan(
-                (alpha[j] + pos['aliw']) / RAD)
+                (alpha[angle_slot] + pos['aliw']) / RAD)
             ivwh.append(ali(z0, bvto2, spans, rcreo2, tapexp))
-            anum = (float(wg['cla']) * clah[0] * q[j] * float(wg['kwb']) *
-                    spans * ivwh[j])
+            anum = (float(wg['cla']) * clah[0] * q[angle_slot] * float(wg['kwb']) *
+                    spans * ivwh[angle_slot])
             aden = 2.0 * PI * arstar * (bvto2 - dbwo2)
             deltat.append((anum / aden) * RAD * sref / aht[3])
-            fact122.append(-deltat[j] / ((clahb + clabh) * q[j]))
-        clawbt = [clawb + (clahb + clabh) * q[j] + deltat[j]
-                  for j in range(nalpha)]
+            fact122.append(-deltat[angle_slot] / ((clahb + clabh) * q[angle_slot]))
+        clawbt = [clawb + (clahb + clabh) * q[angle_slot] + deltat[angle_slot]
+                  for angle_slot in range(nalpha)]
     else:
-        clawbt = [clawb + (clahb + clabh) * (1.0 - dedalp[j]) * q[j]
-                  for j in range(nalpha)]
+        clawbt = [clawb + (clahb + clabh) * (1.0 - dedalp[angle_slot]) * q[angle_slot]
+                  for angle_slot in range(nalpha)]
 
     alih, aliw = pos['alih'], pos['aliw']
     kkbw, kkwb = st['kkbw'], st['kkwb']
@@ -256,68 +256,68 @@ def calculate_supwbt(data: Mapping[str, object],
                                                          range(7))
     cdwbt, cdwbtv, clh = [], [], []
     dxacwb = cmawb / clawb
-    for j in range(nalpha):
-        cdawb.append(tbfunx(fl, cdwb, alpha[j], 0, 0)[1])
-        alpaht = alpha[j] - eps[j] + alih
-        alpat = (stga[j] * RAD - eps[j]) / RAD
+    for angle_slot in range(nalpha):
+        cdawb.append(tbfunx(fl, cdwb, alpha[angle_slot], 0, 0)[1])
+        alpaht = alpha[angle_slot] - eps[angle_slot] + alih
+        alpat = (stga[angle_slot] * RAD - eps[angle_slot]) / RAD
         if canard:
-            alpat = stga[j]
+            alpat = stga[angle_slot]
         clh.append(tbfunx(stga, htcl, alpat, 0, 0)[0])
         claha = tbfunx(stga, htcla, alpat, 0, 0)[0]
-        detcl = arg3 * alpaht * ivbh[j] * gamma[j] * q[j]
-        dcloal = arg3 * ivbh[j] * gamma[j] * q[j]
-        alpa = alpha[j] - eps[j]
-        mratio = ((mach**2 - 1.0) / (hmach[j]**2 - 1.0))**0.50
-        cltb.append((arg2 + (clh[j] - cli) * arg1) * q[j] * mratio)
+        detcl = arg3 * alpaht * ivbh[angle_slot] * gamma[angle_slot] * q[angle_slot]
+        dcloal = arg3 * ivbh[angle_slot] * gamma[angle_slot] * q[angle_slot]
+        alpa = alpha[angle_slot] - eps[angle_slot]
+        mratio = ((mach**2 - 1.0) / (hmach[angle_slot]**2 - 1.0))**0.50
+        cltb.append((arg2 + (clh[angle_slot] - cli) * arg1) * q[angle_slot] * mratio)
         if canard:
-            clwbt.append(clwb[j] + cltb[j] + detcl + deltat[j] * alpha[j])
+            clwbt.append(clwb[angle_slot] + cltb[angle_slot] + detcl + deltat[angle_slot] * alpha[angle_slot])
             f = 0.0
             if alpaht != 0.0:
-                f = ((dcloal * dedalp[j] - deltat[j] * alpha[j]) /
-                     (dcloal + claha * arg1 * q[j] * mratio))
+                f = ((dcloal * dedalp[angle_slot] - deltat[angle_slot] * alpha[angle_slot]) /
+                     (dcloal + claha * arg1 * q[angle_slot] * mratio))
             fact102.append(f)
-            alpa = alpha[j]
+            alpa = alpha[angle_slot]
         else:
-            clwbt.append(clwb[j] + cltb[j] + detcl)
+            clwbt.append(clwb[angle_slot] + cltb[angle_slot] + detcl)
         sa, ca = math.sin(alpa / RAD), math.cos(alpa / RAD)
-        sf, cf = math.sin(alpha[j] / RAD), math.cos(alpha[j] / RAD)
-        apart = dxacwb * ((-clwb[j] / RAD + cdawb[j]) * sf +
-                          (clawb + cdwb[j] / RAD) * cf)
+        sf, cf = math.sin(alpha[angle_slot] / RAD), math.cos(alpha[angle_slot] / RAD)
+        apart = dxacwb * ((-clwb[angle_slot] / RAD + cdawb[angle_slot]) * sf +
+                          (clawb + cdwb[angle_slot] / RAD) * cf)
         zac = float(body['bd68']) - pos['zcg'] - float(body['bd78']) * \
             xacw * aw[10]
-        bpart = (zac / cbarr) * ((clawb + cdwb[j] / RAD) * sf +
-                                 (clwb[j] / RAD - cdawb[j]) * cf)
+        bpart = (zac / cbarr) * ((clawb + cdwb[angle_slot] / RAD) * sf +
+                                 (clwb[angle_slot] / RAD - cdawb[angle_slot]) * cf)
         cdht, dcdda = tbfunx(stga, htcd, alpat, 0, 0)
-        clht = (clwbt[j] - clwb[j]) / q[j]
+        clht = (clwbt[angle_slot] - clwb[angle_slot]) / q[angle_slot]
         dclda = clahb + clabh
         if canard:
-            dclda = dclda + deltat[j] / q[j]
+            dclda = dclda + deltat[angle_slot] / q[angle_slot]
         cpart = (-clht + dcdda) * sa / RAD
         dpart = (clht - dcdda) * ca / RAD
-        epart = q[j] * (1.0 - dedalp[j])
+        epart = q[angle_slot] * (1.0 - dedalp[angle_slot])
         fpart = (dclda + cdht / RAD) * sa
         gpart = (dclda + cdht / RAD) * ca
         cm_h = ((bd63 / cbarr) * (cpart + gpart) * epart -
                 (bd64 / cbarr) * (fpart + dpart) * epart)
         if canard:
-            cm_h = cm_h / (1.0 - dedalp[j])
+            cm_h = cm_h / (1.0 - dedalp[angle_slot])
         cmah.append(cm_h)
         cmawbt.append(apart - bpart + cm_h)
-        cmwbt.append(cmawbt[j] * alpha[j] +
+        cmwbt.append(cmawbt[angle_slot] * alpha[angle_slot] +
                      (float(wg['xac136']) / RAD) *
                      (float(wg['kkwb']) + float(wg['kkbw'])) * aliw +
                      (float(tl['xac136']) / RAD) * (kkbw + kkwb) * alih *
-                     q[j])
-        cdwbt.append(cdwb[j] + (cdht * math.cos(eps[j] / RAD) +
-                                clh[j] * math.sin(eps[j] / RAD)) * q[j])
-        cdwbtv.append(cdwbt[j] + st['cd0v'] + st['cd0vf'])
+                     q[angle_slot])
+        cdwbt.append(cdwb[angle_slot] + (cdht * math.cos(eps[angle_slot] / RAD) +
+                                clh[angle_slot] * math.sin(eps[angle_slot] / RAD)) * q[angle_slot])
+        cdwbtv.append(cdwbt[angle_slot] + st['cd0v'] + st['cd0vf'])
     cn, ca_, cnv, cav = [], [], [], []
-    for j in range(nalpha):
-        c, s = math.cos(alpha[j] / RAD), math.sin(alpha[j] / RAD)
-        cn.append(clwbt[j] * c + cdwbt[j] * s)
-        ca_.append(cdwbt[j] * c - clwbt[j] * s)
-        cnv.append(clwbt[j] * c + cdwbtv[j] * s)
-        cav.append(cdwbtv[j] * c - clwbt[j] * s)
+    for angle_slot in range(nalpha):
+        c, s = math.cos(alpha[angle_slot] / RAD), math.sin(alpha[angle_slot] / RAD)
+        cn.append(clwbt[angle_slot] * c + cdwbt[angle_slot] * s)
+        ca_.append(cdwbt[angle_slot] * c - clwbt[angle_slot] * s)
+        cnv.append(clwbt[angle_slot] * c + cdwbtv[angle_slot] * s)
+        cav.append(cdwbtv[angle_slot] * c - clwbt[angle_slot] * s)
     r.update({
         'nalpha': nalpha, 'kbw': float(kbw), 'kwb': float(kwb),
         'kkbw': float(kkbw), 'kkwb': float(kkwb), 'clahb': float(clahb),
