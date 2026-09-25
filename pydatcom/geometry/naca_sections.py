@@ -478,16 +478,17 @@ def xycord(x: Sequence[float], yu: Sequence[float], yl: Sequence[float],
     given.  The surfaces are rebuilt about the mean line's TBFUNX slope.
     (The source's optional print, and its doubling and halving of the
     thickness around it, leave the arrays unchanged.)"""
-    n = len(x)
+    station_count = len(x)
     if ival == 0:
-        thn = [0.5 * (a - b) for a, b in zip(yu, yl)]
-        cam = [0.5 * (a + b) for a, b in zip(yu, yl)]
+        thn = [0.5 * (upper - lower) for upper, lower in zip(yu, yl)]
+        cam = [0.5 * (upper + lower) for upper, lower in zip(yu, yl)]
     else:
         thn, cam = list(thn), list(cam)
-    thn[0] = thn[n - 1] = 0.0
-    cam[0] = cam[n - 1] = 0.0
-    xu, xl, yun, yln = [0.0] * n, [0.0] * n, [0.0] * n, [0.0] * n
-    for station in range(n):
+    thn[0] = thn[station_count - 1] = 0.0
+    cam[0] = cam[station_count - 1] = 0.0
+    xu, xl, yun, yln = ([0.0] * station_count, [0.0] * station_count,
+                        [0.0] * station_count, [0.0] * station_count)
+    for station in range(station_count):
         dydx = tbfunx(x, cam, x[station], 0, 0)[1]
         slope_angle = math.atan(dydx)
         sin_slope = math.sin(slope_angle)
@@ -497,8 +498,8 @@ def xycord(x: Sequence[float], yu: Sequence[float], yl: Sequence[float],
         yun[station] = cam[station] + thn[station] * cos_slope
         yln[station] = cam[station] - thn[station] * cos_slope
     xu[0] = xl[0] = 0.0
-    xu[n - 1] = xl[n - 1] = 1.0
-    yun[0] = yun[n - 1] = yln[0] = yln[n - 1] = 0.0
+    xu[station_count - 1] = xl[station_count - 1] = 1.0
+    yun[0] = yun[station_count - 1] = yln[0] = yln[station_count - 1] = 0.0
     return {'xu': xu, 'xl': xl, 'yun': yun, 'yln': yln, 'thn': thn,
             'cam': cam, 'method': 'legacy_xycord'}
 
@@ -542,33 +543,36 @@ def cordsp(digits: Mapping[str, int], x: Sequence[float],
     yu = []
     if kind == 1:
         ksharp = (1. / xt) / (1. - xt)
-        for xi in x:
-            yu.append(xi * toc / (2. * xt) if not xi > xt else
-                      toc / 2. - (xi - xt) * toc / (2. * (1. - xt)))
+        for chord_fraction in x:
+            yu.append(chord_fraction * toc / (2. * xt) if not chord_fraction > xt else
+                      toc / 2. - (chord_fraction - xt) * toc / (2. * (1. - xt)))
     elif kind == 3:
         ksharp = (1. - xf) / (xt * (1. - xt - xf))
-        for xi in x:
-            if xi >= xt + xf:
-                yu.append(toc / 2. - (xi - xt - xf) * toc /
+        for chord_fraction in x:
+            if chord_fraction >= xt + xf:
+                yu.append(toc / 2. - (chord_fraction - xt - xf) * toc /
                           (2. * (1. - xt - xf)))
-            elif xi >= xt:
+            elif chord_fraction >= xt:
                 yu.append(toc / 2.)
             else:
-                yu.append(xi * toc / (2. * xt))
+                yu.append(chord_fraction * toc / (2. * xt))
     else:
         xt = 0.50
         ksharp = 16. / 3.
         rc = (toc**2 + 1.) / (4. * toc)
-        yu = [toc / 2. - rc + math.sqrt(rc**2 - (xi - .5)**2) for xi in x]
+        yu = [toc / 2. - rc + math.sqrt(rc**2 - (chord_fraction - .5)**2)
+              for chord_fraction in x]
     unused = 1.0e-30
-    surface_words = {int(k): float(v) for k, v in surface_in.items()}
+    surface_words = {int(word): float(value)
+                     for word, value in surface_in.items()}
     for word, value in ((16, toc), (18, xt), (70, toc), (71, ksharp),
                         (62, 0.)):
         if surface_words[word] == unused:
             surface_words[word] = value
     if surface_words[63] == unused:
         surface_words[63] = 0.0
-    return {'xu': list(x), 'xl': list(x), 'yu': yu, 'yl': [-v for v in yu],
+    return {'xu': list(x), 'xl': list(x), 'yu': yu,
+            'yl': [-upper for upper in yu],
             'toc': toc, 'xt': xt, 'xf': xf, 'ksharp': ksharp, 'rho': 0.,
             'surface_in': surface_words, 'method': 'legacy_cordsp'}
 

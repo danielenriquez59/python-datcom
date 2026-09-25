@@ -76,11 +76,12 @@ def _pressure_distribution(alpha_deg: float, weber: Dict, mach: float,
             cp_upper[station] = 1.0 - upper**2
             cp_lower[station] = 1.0 - lower**2
         else:
-            for value, target in ((upper, 'upper'), (lower, 'lower')):
-                if 1.0 + 0.2 * mach**2 * (1.0 - value**2) < 0.0:
+            for surface_velocity, surface_label in (
+                    (upper, 'upper'), (lower, 'lower')):
+                if 1.0 + 0.2 * mach**2 * (1.0 - surface_velocity**2) < 0.0:
                     raise ValueError(
-                        f"SLOPE's {target}-surface isentropic term went "
-                        "negative; the analysis is not possible")
+                        f"SLOPE's {surface_label}-surface isentropic term "
+                        "went negative; the analysis is not possible")
             cp_upper[station] = tmach * ((1.0 + 0.2 * mach**2 *
                                           (1.0 - upper**2))**3.5 - 1.0)
             cp_lower[station] = tmach * ((1.0 + 0.2 * mach**2 *

@@ -70,25 +70,25 @@ def theory(section: Dict[str, object], machs: Sequence[float],
     lines += fortran_write(_F1070, [s['ai'], s['alo'], s['cli'], s['cmco4'],
                                     cla0, s['rho'], s['tmax'], s['deltay']])
     cla, xac = list(s['cla']), list(s['xac'])
-    crit = flag = False
+    past_crest_critical = slope_failed = False
     for mach_index, mach in enumerate(machs):
-        renn = reynolds[mach_index] * cbar
+        reynolds_at_cbar = reynolds[mach_index] * cbar
         if mach >= s['mcc']:
-            crit = True
+            past_crest_critical = True
         if cla[mach_index] != UNUSED:
             continue
         if mach >= s['mcc']:
             cla[mach_index] = s['clcc']
-        if crit:
+        if past_crest_critical:
             continue
-        cla[mach_index], xac[mach_index] = slope(mach, renn)
+        cla[mach_index], xac[mach_index] = slope(mach, reynolds_at_cbar)
         if cla[mach_index] != UNUSED:
             lines += fortran_write(_F1080, [mach, cla[mach_index],
                                             xac[mach_index]])
         else:
-            flag = True
+            slope_failed = True
             lines += fortran_write(_F1110, [mach])
-    if crit:
+    if past_crest_critical:
         lines += fortran_write(_F1090, [s['mcc'], s['xc'], s['clcc']])
     return {'lines': lines, 'cla0': cla0, 'cla': cla, 'xac': xac,
-            'exit': flag}
+            'exit': slope_failed}

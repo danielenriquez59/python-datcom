@@ -24,18 +24,52 @@ That cannot be reproduced meaningfully, and guessing the four missing values
 would mean inventing chart data.  ``calculate_wingcl_cdl`` therefore raises
 unless the caller supplies a completed 168-element table explicitly.
 
+The damage in the original is wider than the last taper ratio.  The lookup
+expects 42 values per taper group but the data packs 41, so the groups for
+taper ratios 0.2, 0.5 and 1.0 are read shifted by one, two and three
+positions, and the zero-taper group's last point takes the next group's
+first value.  Against the published charts (datcom-legacy/figure
+4.1.5.2-55A.png and -55B.png) the short row in every group is the
+``A(t/c)**(1/3) = 2.0`` curve, missing one point at ``(M**2-1)/(t/c)**(2/3)``
+of -3 or -2; TRANSLATION_STATUS.md lists the chart readings.
+
+Every WINGCL entry point issues :class:`WingclTableWarning`, on every call.
+
 Reference: datcom-legacy/datcom_2000/wingcl.f
 """
 
 import numpy as np
 from typing import Dict, Optional, Sequence
 import logging
+import warnings
 
 from pydatcom.utils.constants import UNUSED
 from pydatcom.utils.legacy_interp import interx
 from pydatcom.utils.legacy_numeric import tbfunx
 
 logger = logging.getLogger(__name__)
+
+
+class WingclTableWarning(UserWarning):
+    """WINGCL's transonic drag-due-to-lift tables are incomplete in the
+    DATCOM source (see the module docstring)."""
+
+
+# Shown on every call, not once per call site.
+warnings.simplefilter('always', WingclTableWarning)
+
+WINGCL_TABLE_WARNING = (
+    "WINGCL: DATCOM's transonic drag-due-to-lift tables (Figures "
+    "4.1.5.2-55A/B, DEP55A/DEP55B) hold 164 of the 168 values their lookup "
+    "reads; the original program misreads them for any taper ratio above 0 "
+    "and reads past the arrays at taper 1.0. The CDL section is not "
+    "computed without a completed table. See TRANSLATION_STATUS.md, "
+    "'A source defect left unresolved: WINGCL's CDL tables'.")
+
+
+def _warn_incomplete_tables() -> None:
+    warnings.warn(WINGCL_TABLE_WARNING, WingclTableWarning, stacklevel=3)
+    logger.warning(WINGCL_TABLE_WARNING)
 
 # Figure 4.1.5.2-55A/B independent grids.  LIND=7, so the three grids start
 # at offsets 0, 7 and 14.
@@ -45,6 +79,56 @@ _PARM = [-4., -3., -2., -1., 0., 1., 2.,
 _CDL_SHAPE = (7, 6, 4)
 _CDL_REQUIRED = _CDL_SHAPE[0] * _CDL_SHAPE[1] * _CDL_SHAPE[2]
 _CDL_SOURCE_LENGTH = 164
+
+# Figures 4.1.5.2-55A/B as the source's DATA statements hold them (164
+# values each, 41 per taper group; see the module docstring), extracted by
+# parsing with tools/fortran_data.py.  They are incomplete, so the CDL
+# section still needs a completed 168-value table from the caller.
+DEP55A = [
+    1.2, 1.14, 1.13, 1.17, 1.2, 1.18, 1.13, 0.94, 0.88, 0.88,
+    0.9, 0.95, 0.98, 0.97, 0.75, 0.7, 0.68, 0.71, 0.75, 0.78,
+    0.8, 0.4, 0.4, 0.4, 0.46, 0.54, 0.55, 0.53, 0.27, 0.28,
+    0.3, 0.37, 0.49, 0.48, 0.46, 0.16, 0.17, 0.27, 0.43, 0.42,
+    0.4, 1.05, 1.04, 1.04, 1.05, 1.06, 1.05, 1.02, 0.8, 0.77,
+    0.76, 0.78, 0.8, 0.82, 0.82, 0.6, 0.58, 0.58, 0.58, 0.59,
+    0.62, 0.65, 0.36, 0.36, 0.37, 0.42, 0.47, 0.49, 0.5, 0.28,
+    0.27, 0.3, 0.36, 0.42, 0.44, 0.45, 0.2, 0.24, 0.32, 0.39,
+    0.41, 0.42, 1.02, 1.03, 1.02, 1.0, 0.97, 0.96, 0.97, 0.78,
+    0.76, 0.73, 0.7, 0.68, 0.68, 0.7, 0.58, 0.55, 0.54, 0.52,
+    0.52, 0.53, 0.56, 0.33, 0.34, 0.36, 0.39, 0.43, 0.45, 0.47,
+    0.28, 0.29, 0.31, 0.34, 0.39, 0.43, 0.45, 0.23, 0.27, 0.32,
+    0.38, 0.41, 0.43, 0.82, 0.84, 0.88, 0.92, 0.98, 1.02, 1.02,
+    0.63, 0.63, 0.67, 0.75, 0.79, 0.82, 0.82, 0.51, 0.52, 0.56,
+    0.62, 0.68, 0.7, 0.71, 0.4, 0.4, 0.41, 0.52, 0.55, 0.62,
+    0.63, 0.37, 0.37, 0.37, 0.45, 0.54, 0.6, 0.62, 0.35, 0.35,
+    0.42, 0.5, 0.56, 0.58,
+]
+DEP55B = [
+    1.22, 1.16, 1.14, 1.18, 1.22, 1.19, 1.14, 1.03, 1.01, 0.98,
+    0.96, 0.95, 0.96, 0.98, 0.87, 0.84, 0.81, 0.79, 0.77, 0.78,
+    0.8, 0.57, 0.51, 0.49, 0.52, 0.55, 0.56, 0.54, 0.31, 0.31,
+    0.31, 0.37, 0.49, 0.49, 0.45, 0.17, 0.21, 0.29, 0.43, 0.43,
+    0.4, 1.11, 1.1, 1.09, 1.08, 1.07, 1.05, 1.03, 0.92, 0.88,
+    0.86, 0.84, 0.84, 0.82, 0.83, 0.75, 0.73, 0.71, 0.68, 0.66,
+    0.66, 0.67, 0.46, 0.42, 0.41, 0.45, 0.51, 0.52, 0.51, 0.28,
+    0.29, 0.3, 0.32, 0.44, 0.46, 0.47, 0.2, 0.24, 0.32, 0.4,
+    0.43, 0.44, 1.11, 1.09, 1.07, 1.03, 0.99, 0.98, 0.99, 0.9,
+    0.88, 0.86, 0.83, 0.79, 0.78, 0.81, 0.7, 0.7, 0.68, 0.64,
+    0.6, 0.62, 0.66, 0.46, 0.46, 0.47, 0.49, 0.5, 0.52, 0.52,
+    0.4, 0.39, 0.4, 0.42, 0.45, 0.47, 0.48, 0.37, 0.35, 0.38,
+    0.41, 0.44, 0.44, 0.83, 0.87, 0.9, 0.94, 0.99, 0.92, 0.93,
+    0.7, 0.72, 0.74, 0.77, 0.8, 0.84, 0.87, 0.6, 0.61, 0.63,
+    0.67, 0.73, 0.76, 0.78, 0.46, 0.46, 0.48, 0.52, 0.6, 0.64,
+    0.66, 0.4, 0.39, 0.4, 0.47, 0.56, 0.61, 0.63, 0.37, 0.37,
+    0.43, 0.53, 0.58, 0.6,
+]
+# Correction checked against the published chart (datcom-legacy/figure
+# 4.1.5.2-55B.png): at taper 1.0 the A(t/c)**(1/3) = 0.5 curve keeps rising
+# past 0.99 at (M**2-1)/(t/c)**(2/3) = 0, but the source has 0.92 and 0.93
+# at +1 and +2, a transcription slip.  The chart reads 1.01 and 1.02.
+DEP55B_CORRECTIONS = {128: 1.01, 129: 1.02}
+for _index, _value in DEP55B_CORRECTIONS.items():
+    DEP55B[_index] = _value
 
 # The two figures are anchored at these values of AR*tan(leading-edge sweep).
 _CDL_ANCHORS = np.array([0.0, 3.0])
@@ -85,6 +169,7 @@ def calculate_wingcl(alpha_schedule: Sequence[float],
         stall onset angle, so a configuration whose stated maximum lift is
         weaker than its own linear curve is corrected rather than rejected.
     """
+    _warn_incomplete_tables()
     alpha = np.atleast_1d(np.asarray(alpha_schedule, dtype=float))
     if alpha.size == 0:
         raise ValueError("WINGCL needs a nonempty angle schedule")
@@ -171,6 +256,7 @@ def calculate_wingcl_clb(cl: Sequence[float], mach: float, cla: float,
     Raises:
         ValueError: If either anchor lift slope is zero.
     """
+    _warn_incomplete_tables()
     lift = np.atleast_1d(np.asarray(cl, dtype=float))
     if cla_mach06 == 0.0 or cla_mach14 == 0.0:
         raise ValueError("WINGCL CLB divides by the anchor lift slopes")
@@ -232,6 +318,7 @@ def calculate_wingcl_cdl(mach: float, thickness_ratio: float,
         ValueError: If either table is not exactly 168 elements, with the
             source's own length called out.
     """
+    _warn_incomplete_tables()
     for name, table in (('55A', table_55a), ('55B', table_55b)):
         if len(table) != _CDL_REQUIRED:
             raise ValueError(
