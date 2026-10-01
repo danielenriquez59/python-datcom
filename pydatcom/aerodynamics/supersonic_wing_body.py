@@ -9,7 +9,7 @@ surface-body lift, drag, force and moment curves.  SUPHB is SUPWB on the
 tail's blocks, with the differences listed on :func:`calculate_supwb`.
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``, rather than by hand; the Figure 4.3.1.2-10 and
+``test_parity/fortran_data.py``, rather than by hand; the Figure 4.3.1.2-10 and
 4.3.2.2-37A/B tables are WBTRAN's, pinned equal by test.
 
 Reference: datcom-legacy/datcom_2000/supwb.f, suphb.f, m20o24.f

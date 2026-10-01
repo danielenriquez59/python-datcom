@@ -5,14 +5,13 @@ WBTRAN/HBTRAN and WBCM1, TRACM0, TRANCD, and WBTRA with TRAWBT.
 Source of truth: datcom-legacy/datcom_2000/trancm.f, trhtcm.f, wbtran.f,
 hbtran.f, wbcm1.f, tracm0.f, trancd.f, trawbt.f, wbtra.f.
 
-Checked against a compiled probe (tools/probes/transonic_buildup.py) that
+Checked against a compiled probe (test_parity/probes/transonic_buildup.py) that
 runs the routines in overlay order on shared COMMON, so each pass sees
 what the one before it left.
 """
 
 import json
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -26,8 +25,8 @@ from pydatcom.aerodynamics.wing_body import _X21C, _X38B, _Y21C, _Y38B
 from pydatcom.utils.constants import PI, UNUSED
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads((_ROOT / 'tests' / 'fixtures' / 'probes' /
                      'transonic_buildup.json').read_text())
@@ -203,6 +202,7 @@ def test_probe_reaches_every_branch():
     assert any(p['inputs']['wgpl'] and not p['inputs']['bo'] for p in _PROBE)
 
 
+@requires_fortran
 def test_tables_match_the_source():
     cm, wt, tw = parse('trancm'), parse('wbtran'), parse('trawbt')
     assert cm == parse('trhtcm') and wt == parse('hbtran')
@@ -300,7 +300,7 @@ def test_m24o30_body_words():
                                                                / 30.0)}
 
 
-# --- Second level: WBCLB, CLBCLC and SETUP2 (tools/probes/second_level.py)
+# --- Second level: WBCLB, CLBCLC and SETUP2 (test_parity/probes/second_level.py)
 
 from pydatcom.aerodynamics.transonic_buildup import (  # noqa: E402
     calculate_clbclc, calculate_wbclb, setup2_step,

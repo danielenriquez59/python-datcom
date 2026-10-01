@@ -3,13 +3,12 @@ Regression tests for TRANJT, the hypersonic transverse jet sizing.
 
 Source of truth: datcom-legacy/datcom_2000/tranjt.f.
 
-Checked against a compiled probe (tools/probes/tranjt.py) on the 150
+Checked against a compiled probe (test_parity/probes/tranjt.py) on the 150
 ``JET`` words and the ``JETA`` words set.
 """
 
 import json
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -18,8 +17,8 @@ from pydatcom.aerodynamics import hypersonic_jet as module
 from pydatcom.aerodynamics.hypersonic_jet import calculate_tranjt
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'tranjt.json').read_text())
@@ -55,6 +54,7 @@ def test_probe_reaches_every_branch():
     assert min(turbulent_m1) <= 5.0 < max(turbulent_m1)
 
 
+@requires_fortran
 def test_tables_match_the_source():
     for name, values in parse('tranjt').items():
         if name.startswith('Q'):

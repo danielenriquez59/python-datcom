@@ -3,7 +3,7 @@ Regression tests for SYPBOD, the supersonic body alone.
 
 Source of truth: datcom-legacy/datcom_2000/sypbod.f.
 
-Checked against a compiled probe (tools/probes/sypbod.py) on every
+Checked against a compiled probe (test_parity/probes/sypbod.py) on every
 ``SBD`` word, the ``BODY`` curves and the ``BD`` potential/viscous split.
 The probe's cases run in one program, so the replay carries the saved
 ``RACH``.
@@ -12,7 +12,6 @@ The probe's cases run in one program, so the replay carries the saved
 import json
 import math
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -21,8 +20,8 @@ from pydatcom.aerodynamics import supersonic_body as module
 from pydatcom.aerodynamics.supersonic_body import calculate_sypbod
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'sypbod.json').read_text())
@@ -91,6 +90,7 @@ def test_afterbody_drag_word_is_not_reset():
     assert stale['sbd'][124] - base['sbd'][124] == pytest.approx(0.01)
 
 
+@requires_fortran
 def test_tables_match_the_source():
     source = parse('sypbod')
     for name, values in source.items():

@@ -3,7 +3,7 @@ Regression tests for FLAPCM and M37O45, the flap pitching moment.
 
 Source of truth: datcom-legacy/datcom_2000/flapcm.f, m37o45.f.
 
-Checked against a compiled probe (tools/probes/flapcm.py) on the moment
+Checked against a compiled probe (test_parity/probes/flapcm.py) on the moment
 increments and every ``/SUPWH/`` and ``TCD`` word.  The probe's cases run
 in one program, so the replay carries FLAPCM's saved span stations.
 """

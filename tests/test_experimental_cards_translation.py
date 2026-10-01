@@ -4,7 +4,7 @@ card counts.
 
 Source of truth: datcom-legacy/datcom_2000/xpernm.f, m34o42.f, tbtrn.f.
 
-Checked against a compiled probe (tools/probes/xpernm.py) that writes each
+Checked against a compiled probe (test_parity/probes/xpernm.py) that writes each
 deck to unit 8 and runs XPERNM on it.
 """
 

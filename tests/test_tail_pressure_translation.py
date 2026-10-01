@@ -3,7 +3,7 @@ Regression tests for DPRESR, the supersonic dynamic pressure at the tail.
 
 Source of truth: datcom-legacy/datcom_2000/dpresr.f.
 
-Checked against a compiled probe (tools/probes/dpresr.py) on the pressure
+Checked against a compiled probe (test_parity/probes/dpresr.py) on the pressure
 ratio, the Mach number and the ``DWA`` words set.
 """
 

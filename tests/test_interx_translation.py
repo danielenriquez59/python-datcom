@@ -95,7 +95,7 @@ def test_four_variables_rejected_as_in_source():
 # varies fastest and the effective layout is Y(NX2,NX1,NX3).
 #
 # The values below are that program's output.  To regenerate, see
-# tools/fortran_parity.py for the build pattern.
+# test_parity/fortran_parity.py for the build pattern.
 # --------------------------------------------------------------------------
 
 _TLIN3X_X1 = [1.0, 2.0]          # TLIN3X's X1 == INTERX's second variable

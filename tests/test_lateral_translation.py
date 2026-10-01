@@ -3,7 +3,7 @@ Regression tests for the subsonic lateral pass: M29O35, SUBLAT, M17O21.
 
 Source of truth: datcom-legacy/datcom_2000/m29o35.f, sublat.f, m17o21.f.
 
-Checked against a compiled probe (tools/probes/lateral.py) that runs M29O35
+Checked against a compiled probe (test_parity/probes/lateral.py) that runs M29O35
 and then M17O21, which calls SUBLAT for the wing and again for the
 horizontal tail, as the main program does.  Every derivative block, both
 ``/SBETA/`` arrays and the dihedral inputs M29O35 writes back are compared.
@@ -11,7 +11,6 @@ horizontal tail, as the main program does.  Every derivative block, both
 
 import json
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -23,8 +22,8 @@ from pydatcom.aerodynamics.lateral import (
 from pydatcom.utils.constants import UNUSED
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'lateral.json').read_text())
@@ -162,6 +161,7 @@ def test_probe_reaches_every_branch():
     assert any(c['syna']['7'] < 0.0 for c in inputs)
 
 
+@requires_fortran
 def test_every_table_value_matches_the_source():
     source = parse('sublat')
     names = ['X327', 'X127', 'X227', 'Y27', 'X128A', 'X228A', 'Y28A',

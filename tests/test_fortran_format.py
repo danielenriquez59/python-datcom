@@ -1,6 +1,6 @@
 """
 Tests for the FORTRAN FORMAT interpreter, against records written by
-gfortran (tools/probes/fortran_format.py).
+gfortran (test_parity/probes/fortran_format.py).
 """
 
 import json

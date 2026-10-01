@@ -4,7 +4,7 @@ tail's Mach zone.
 
 Source of truth: datcom-legacy/datcom_2000/ptint2.f, bdarea.f.
 
-Checked against a compiled probe (tools/probes/bdarea.py) on the three
+Checked against a compiled probe (test_parity/probes/bdarea.py) on the three
 ``HTIN`` words set and the abort flag.
 """
 

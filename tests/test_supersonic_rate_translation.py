@@ -4,14 +4,13 @@ Regression tests for the supersonic rate derivatives: SUPCLD/SUPHLD
 
 Source of truth: datcom-legacy/datcom_2000/supcld.f, suphld.f.
 
-Checked against compiled probes (tools/probes/supcld.py), both routines
+Checked against compiled probes (test_parity/probes/supcld.py), both routines
 on their own COMMON blocks, on every word of ``DYN`` and ``A`` and the
 result word, with CALCA linked.
 """
 
 import json
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -20,8 +19,8 @@ from pydatcom.aerodynamics import supersonic_rate as module
 from pydatcom.aerodynamics.supersonic_rate import calculate_supcld
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _CLD = json.loads((_ROOT / 'tests' / 'fixtures' / 'probes' /
                    'supcld.json').read_text())
@@ -58,6 +57,7 @@ def test_low_taper_is_left_at_a_quarter():
     assert calculate_supcld(_inputs(_CLD['cases'][k]))['a'][27] == 0.25
 
 
+@requires_fortran
 def test_tables_match_the_source():
     for name, values in parse('supcld').items():
         if name.startswith('I'):
@@ -66,7 +66,7 @@ def test_tables_match_the_source():
                                       err_msg=name)
 
 
-# --- SUPCMD / SUPHMD (tools/probes/supcmd.py) ------------------------------
+# --- SUPCMD / SUPHMD (test_parity/probes/supcmd.py) ------------------------------
 
 from pydatcom.aerodynamics.supersonic_rate import calculate_supcmd  # noqa
 
@@ -95,6 +95,7 @@ def test_supcmd_matches_compiled_routine(name, case):
         o['RES'], rel=1e-9)
 
 
+@requires_fortran
 def test_supcmd_tables_match_the_source():
     for name, values in parse('supcmd').items():
         if name.startswith('I'):
@@ -103,7 +104,7 @@ def test_supcmd_tables_match_the_source():
                                       err_msg=name)
 
 
-# --- SUPCMQ / SUPHMQ (tools/probes/supcmq.py) ------------------------------
+# --- SUPCMQ / SUPHMQ (test_parity/probes/supcmq.py) ------------------------------
 
 from pydatcom.aerodynamics.supersonic_rate import calculate_supcmq  # noqa
 
@@ -148,6 +149,7 @@ def test_supcmq_leaves_a_zero_sweep_nudged():
         .00001
 
 
+@requires_fortran
 def test_supcmq_tables_match_the_source():
     for name, values in parse('supcmq').items():
         if name.startswith('I'):
@@ -156,7 +158,7 @@ def test_supcmq_tables_match_the_source():
                                       err_msg=name)
 
 
-# --- SUPPAW / SUPPAH (tools/probes/suppaw.py) ------------------------------
+# --- SUPPAW / SUPPAH (test_parity/probes/suppaw.py) ------------------------------
 
 from pydatcom.aerodynamics.supersonic_rate import calculate_suppaw  # noqa
 
@@ -195,6 +197,7 @@ def test_suppaw_transonic_overwrites_beta():
     assert r['slg'][1] == pytest.approx(0.663324958)
 
 
+@requires_fortran
 def test_suppaw_tables_match_the_source():
     for name, values in parse('suppaw').items():
         if name.startswith('I'):

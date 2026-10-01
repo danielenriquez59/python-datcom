@@ -6,7 +6,7 @@ READCD.
 Source of truth: the matching files in datcom-legacy/datcom_2000.
 
 Checked against the records the compiled routines print
-(tools/probes/namelist_io.py).  READCD is checked on the cards before end
+(test_parity/probes/namelist_io.py).  READCD is checked on the cards before end
 of file: under gfortran its retry after END stops the run with "Read past
 ENDFILE record", where the source expects END again.
 """

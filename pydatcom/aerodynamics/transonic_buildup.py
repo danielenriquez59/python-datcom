@@ -14,7 +14,7 @@ Each wing routine and its tail twin (TRANCM/TRHTCM, WBTRAN/HBTRAN) is the
 same code on different COMMON blocks, so one translation serves both.
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``, rather than by hand.
+``test_parity/fortran_data.py``, rather than by hand.
 
 Reference: datcom-legacy/datcom_2000/trancd.f, tracm0.f, trancm.f,
 trhtcm.f, wbtran.f, hbtran.f, wbcm1.f, trawbt.f, wbtra.f, m24o30.f,

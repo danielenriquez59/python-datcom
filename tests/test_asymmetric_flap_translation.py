@@ -4,7 +4,7 @@ flaps, spoilers and a differentially deflected horizontal tail.
 
 Source of truth: datcom-legacy/datcom_2000/latflp.f.
 
-Checked against a compiled probe (tools/probes/latflp.py) on every word of
+Checked against a compiled probe (test_parity/probes/latflp.py) on every word of
 ``/FLAPIN/``, ``FLA``, ``HT`` 201-230, ``WING`` 201-400 and ``BODY``
 201-400.
 """
@@ -12,7 +12,6 @@ Checked against a compiled probe (tools/probes/latflp.py) on every word of
 import json
 import math
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -21,8 +20,8 @@ from pydatcom.aerodynamics import asymmetric_flap as module
 from pydatcom.aerodynamics.asymmetric_flap import calculate_latflp
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'latflp.json').read_text())
@@ -80,6 +79,7 @@ def test_rolling_moment_is_antisymmetric():
                             rel_tol=1e-12)
 
 
+@requires_fortran
 def test_tables_match_the_source():
     for name, values in parse('latflp').items():
         np.testing.assert_array_equal(getattr(module, '_' + name), values,

@@ -72,3 +72,5 @@ implemenation documentation/*
 .cursor/*
 # Compiled FORTRAN parity harness artifacts
 build/
+# DATCOM Fortran source, obtained separately
+datcom-legacy/

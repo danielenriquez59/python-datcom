@@ -6,7 +6,7 @@ Source of truth: datcom-legacy/datcom_2000/tolog.f, reptct.f, theory.f,
 m51o63.f.
 
 TOLOG, REPTCT and THEORY are checked against compiled probes
-(tools/probes/theory_decode.py); THEORY runs with IDEAL and SLOPE stubbed,
+(test_parity/probes/theory_decode.py); THEORY runs with IDEAL and SLOPE stubbed,
 and with its CALL EXIT redirected, since gfortran binds that call to its
 own intrinsic EXIT, which ends the run.
 """

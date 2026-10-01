@@ -3,14 +3,13 @@ Regression tests for AGENR and GDELTA, the flap spanwise loading.
 
 Source of truth: datcom-legacy/datcom_2000/agenr.f, gdelta.f.
 
-Checked against a compiled probe (tools/probes/gdelta.py) on the three
+Checked against a compiled probe (test_parity/probes/gdelta.py) on the three
 loading curves, the all-moving tail's ``TCD(43..46)`` and the ``BOCH`` it
 forms.
 """
 
 import json
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -20,8 +19,8 @@ from pydatcom.aerodynamics.flap_loading import agenr, calculate_gdelta
 from pydatcom.utils.legacy_numeric import simul4
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'gdelta.json').read_text())
@@ -74,6 +73,7 @@ def test_tail_path_skips_the_tip_station():
         2. * t['bsto2'] / (t['crh'] + 0.924 * arg1), rel=1e-15)
 
 
+@requires_fortran
 def test_tables_match_the_source():
     for stem in ('agenr', 'gdelta'):
         for name, values in parse(stem).items():

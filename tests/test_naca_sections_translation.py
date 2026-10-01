@@ -5,7 +5,7 @@ COORD5, COORD6, CORD4M, CORD5M and XYCORD.
 Source of truth: datcom-legacy/datcom_2000/coord*.f, cord4m.f, cord5m.f,
 xycord.f.
 
-Checked against a compiled probe (tools/probes/naca_sections.py) on every
+Checked against a compiled probe (test_parity/probes/naca_sections.py) on every
 surface, mean-line and thickness ordinate and the scalar words set.
 """
 

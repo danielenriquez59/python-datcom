@@ -4,7 +4,7 @@ force, and the overlay M36O44.
 
 Source of truth: datcom-legacy/datcom_2000/ctabs.f and m36o44.f.
 
-CTABS is checked against a compiled probe (tools/probes/ctabs.py) on
+CTABS is checked against a compiled probe (test_parity/probes/ctabs.py) on
 ``BW``, ``BH``, ``BV``, ``BWH`` and ``BWHV`` words 201-380.
 """
 

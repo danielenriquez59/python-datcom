@@ -3,13 +3,12 @@ Regression tests for HYPBOD and M26O32, the hypersonic body.
 
 Source of truth: datcom-legacy/datcom_2000/hypbod.f, m26o32.f.
 
-Checked against a compiled probe of the overlay (tools/probes/hypbod.py)
+Checked against a compiled probe of the overlay (test_parity/probes/hypbod.py)
 on every ``SBD`` and ``BODY`` word it sets.
 """
 
 import json
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -20,8 +19,8 @@ from pydatcom.aerodynamics.hypersonic_body import (calculate_hypbod,
                                                    m26o32_slopes)
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'hypbod.json').read_text())
@@ -101,6 +100,7 @@ def test_centre_section_moment_lacks_rad():
     assert s[134] != pytest.approx(own / 57.2957795 + arm, rel=1e-3)
 
 
+@requires_fortran
 def test_tables_match_the_source():
     source = parse('hypbod')
     for name in ('T425', 'D425', 'T422', 'D422'):

@@ -3,7 +3,7 @@ Regression tests for TLIP2X, TLINEX over a packed table.
 
 Source of truth: datcom-legacy/datcom_2000/tlip2x.f.
 
-Checked against a compiled probe (tools/probes/tlip2x.py) on interior,
+Checked against a compiled probe (test_parity/probes/tlip2x.py) on interior,
 grid-point and extrapolated points, for a whole table and for a slice of a
 three-variable table selected through the shape array.
 """
@@ -36,7 +36,7 @@ def test_probe_tables_pack_as_intended():
         pytest.approx(_PROBE['y'])
 
 
-# --- TLIP3X and INTEP3 (tools/probes/tlip3x.py) ----------------------------
+# --- TLIP3X and INTEP3 (test_parity/probes/tlip3x.py) ----------------------------
 
 from pydatcom.utils.packed_tables import intep3, tlip3x  # noqa: E402
 

@@ -18,7 +18,7 @@ and fills the quantities the rest of the program reads:
 caller.
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``, rather than by hand.
+``test_parity/fortran_data.py``, rather than by hand.
 
 Reference: datcom-legacy/datcom_2000/wtlift.f, clmxbs.f
 """

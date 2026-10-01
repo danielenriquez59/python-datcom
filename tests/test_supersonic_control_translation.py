@@ -3,7 +3,7 @@ Regression tests for DFLCON, the supersonic control derivatives.
 
 Source of truth: datcom-legacy/datcom_2000/dflcon.f.
 
-Checked against a compiled probe (tools/probes/dflcon.py) on its four
+Checked against a compiled probe (test_parity/probes/dflcon.py) on its four
 ``/POWR/`` outputs over tapered and untapered, inboard and tip controls.
 """
 

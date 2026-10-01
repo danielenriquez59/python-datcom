@@ -83,7 +83,7 @@ _CDL_SOURCE_LENGTH = 164
 
 # Figures 4.1.5.2-55A/B as the source's DATA statements hold them (164
 # values each, 41 per taper group; see the module docstring), extracted by
-# parsing with tools/fortran_data.py.  They are incomplete, so the CDL
+# parsing with test_parity/fortran_data.py.  They are incomplete, so the CDL
 # section still needs a completed 168-value table from the caller.
 DEP55A = [
     1.2, 1.14, 1.13, 1.17, 1.2, 1.18, 1.13, 0.94, 0.88, 0.88,

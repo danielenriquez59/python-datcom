@@ -6,13 +6,12 @@ Source of truth: datcom-legacy/datcom_2000/wbaero.f, wbdrag.f, wblift.f,
 wbcm.f, wbcm0.f.
 
 Every output is checked against a compiled probe of the whole chain
-(tools/probes/wbaero.py), which runs the legacy WBAERO with BODOWG, GETMAX,
+(test_parity/probes/wbaero.py), which runs the legacy WBAERO with BODOWG, GETMAX,
 ALI and TABLEC linked in, and every table against a re-parse of the FORTRAN.
 """
 
 import json
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -25,8 +24,8 @@ from pydatcom.interactions import carryover
 from pydatcom.utils.legacy_numeric import tbfunx
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'wbaero.json').read_text())
@@ -92,6 +91,7 @@ def test_probe_reaches_every_branch():
     assert any(np.any(np.diff(r['cl']) < 0) for r in results)
 
 
+@requires_fortran
 @pytest.mark.parametrize("stem,names", [
     ('wbdrag', ['X137', 'X237', 'Y37']),
     ('wblift', ['X10A', 'Y10A', 'X10B', 'Y10B', 'X12A1', 'Y12A1', 'X12A2',

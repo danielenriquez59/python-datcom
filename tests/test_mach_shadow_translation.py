@@ -4,7 +4,7 @@ Mach shadows of the wing and horizontal tail.
 
 Source of truth: datcom-legacy/datcom_2000/ptint1.f, vtarea.f.
 
-Checked against a compiled probe (tools/probes/vtarea.py) on the three
+Checked against a compiled probe (test_parity/probes/vtarea.py) on the three
 shadowed areas and the tail position the routine leaves.
 """
 

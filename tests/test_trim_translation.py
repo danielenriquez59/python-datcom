@@ -3,13 +3,12 @@ Regression tests for DRAGFP, TRIMRT and TRIMR2 (overlay M38O46).
 
 Source of truth: datcom-legacy/datcom_2000/dragfp.f, trimrt.f, trimr2.f.
 
-Checked against a compiled probe (tools/probes/trim.py); the tables are
+Checked against a compiled probe (test_parity/probes/trim.py); the tables are
 re-parsed from source.
 """
 
 import json
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -20,8 +19,8 @@ from pydatcom.aerodynamics.trim import (
 )
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'trim.json').read_text())
@@ -144,6 +143,7 @@ def test_dragfp_uses_the_tails_geometry_when_there_is_one():
     assert r['aspect'] == c['tail']['a7']
 
 
+@requires_fortran
 def test_tables_match_the_source():
     source = parse('dragfp')
     for name, values in source.items():

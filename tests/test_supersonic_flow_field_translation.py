@@ -4,7 +4,7 @@ at the horizontal tail.
 
 Source of truth: datcom-legacy/datcom_2000/sdwash.f.
 
-Checked against a compiled probe (tools/probes/sdwash.py) on every
+Checked against a compiled probe (test_parity/probes/sdwash.py) on every
 ``/SUPDW/`` and ``/IDWASH/`` word the routine sets, and on ``NALPHA``,
 ``NF`` and ``JDETCH``.  INFTGM is stubbed in the probe; its ``A`` words are
 inputs here.

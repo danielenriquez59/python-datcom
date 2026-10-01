@@ -3,7 +3,7 @@ Regression tests for SSHING, the supersonic hinge moments.
 
 Source of truth: datcom-legacy/datcom_2000/sshing.f.
 
-Checked against a compiled probe (tools/probes/sshing.py, SSSYM stubbed)
+Checked against a compiled probe (test_parity/probes/sshing.py, SSSYM stubbed)
 on all 59 ``/POWR/`` words and the ``WING`` words set.  The probe's cases
 run in one program, so the replay carries SSHING's saved locals.
 """

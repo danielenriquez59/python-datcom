@@ -10,7 +10,7 @@ CN-p (Figures 7.1.2.3-14 and -16 for a subsonic leading edge, -17 for a
 supersonic one), and scales them to the configuration's reference.
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``; the packed tables keep their packed words.
+``test_parity/fortran_data.py``; the packed tables keep their packed words.
 
 Reference: datcom-legacy/datcom_2000/suphyw.f, supryw.f, subhyw.f,
 subryw.f

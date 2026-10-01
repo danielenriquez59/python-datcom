@@ -4,7 +4,7 @@ Regression tests for the CMALPH translation.
 Source of truth: datcom-legacy/datcom_2000/cmalph.f.
 
 Checked against a compiled probe of CMALPH with FWDXAC linked in
-(tools/probes/cmalph.py): the moment curve, CMa, CM0, the whole C work
+(test_parity/probes/cmalph.py): the moment curve, CMa, CM0, the whole C work
 array, and the COMMON values it overwrites.  Every table is checked against
 a re-parse of the FORTRAN.
 """
@@ -12,7 +12,6 @@ a re-parse of the FORTRAN.
 import json
 import math
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -23,8 +22,8 @@ from pydatcom.aerodynamics.moment import calculate_cmalph_zero_lift_moment
 from pydatcom.geometry.wing import calculate_straight_exposed_geometry
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'cmalph.json').read_text())
@@ -67,6 +66,7 @@ def test_probe_reaches_every_branch():
     assert any(46 in r['c'] for r, _ in nonlinear)
 
 
+@requires_fortran
 def test_every_table_value_matches_the_source():
     source = parse('cmalph')
     names = ['XCMOM', 'YCMOM', 'X31412', 'X11412', 'X21412', 'X322A',
@@ -210,7 +210,7 @@ def test_tail_limit_is_tighter_than_the_wing_limit():
             np.sum(wing['cm'] == NOT_AVAILABLE))
 
 
-# --- CMALPO (tools/probes/cmalpo.py)
+# --- CMALPO (test_parity/probes/cmalpo.py)
 
 from pydatcom.aerodynamics.cmalph import calculate_cmalpo  # noqa: E402
 

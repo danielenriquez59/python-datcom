@@ -3,14 +3,13 @@ Regression tests for FG6115, JETPWE and M30O36, the jet power effects.
 
 Source of truth: datcom-legacy/datcom_2000/fg6115.f, jetpwe.f, m30o36.f.
 
-Checked against a compiled probe of the overlay (tools/probes/jetpwe.py)
+Checked against a compiled probe of the overlay (test_parity/probes/jetpwe.py)
 on every ``/POWR/`` and ``/IPOWER/`` word it sets.  The probe's cases run
 in one program, so the replay carries JETPWE's saved ``COSAIH``.
 """
 
 import json
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -20,8 +19,8 @@ from pydatcom.aerodynamics.jet_power import (calculate_jetpwe, fg6115,
                                              m30o36_block)
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'jetpwe.json').read_text())
@@ -123,6 +122,7 @@ def test_fg6115_blends_parts():
     assert fg6115(10.0, 4.0, 4.005) == b
 
 
+@requires_fortran
 def test_tables_match_the_source():
     fg, jp = parse('fg6115'), parse('jetpwe')
     for source in (fg, jp):

@@ -3,13 +3,12 @@ Regression tests for BODOPT and overlay M04O04: the asymmetric body.
 
 Source of truth: datcom-legacy/datcom_2000/bodopt.f, m04o04.f.
 
-Checked against a compiled probe of the overlay (tools/probes/m04o04.py),
+Checked against a compiled probe of the overlay (test_parity/probes/m04o04.py),
 and every table against a re-parse of the FORTRAN.
 """
 
 import json
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -18,8 +17,8 @@ from pydatcom.aerodynamics import bodopt as module
 from pydatcom.aerodynamics.bodopt import calculate_m04o04
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'm04o04.json').read_text())
@@ -68,6 +67,7 @@ def test_probe_reaches_every_branch():
                for r, c in zip(results, inputs))
 
 
+@requires_fortran
 def test_every_table_value_matches_the_source():
     source = parse('bodopt')
     for name in ('XBA1', 'YBA1', 'XBA2', 'YBA2', 'X1BA3', 'X2BA3', 'YBA3',

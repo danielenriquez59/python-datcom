@@ -4,14 +4,13 @@ horizontal tail).
 
 Source of truth: datcom-legacy/datcom_2000/suphyw.f.
 
-Checked against a compiled probe (tools/probes/suphyw.py) on ``DYN``
+Checked against a compiled probe (test_parity/probes/suphyw.py) on ``DYN``
 204-213 and ``HT`` 280-340, over leading-edge regimes and taper ratios in
 one program (INTEP3 keeps its chart pair).
 """
 
 import json
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -20,8 +19,8 @@ from pydatcom.aerodynamics import lateral_rate as module
 from pydatcom.aerodynamics.lateral_rate import calculate_suphyw
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _HYW = json.loads((_ROOT / 'tests' / 'fixtures' / 'probes' /
                    'suphyw.json').read_text())
@@ -67,6 +66,7 @@ def test_subsonic_edge_cnp_uses_the_stale_word():
         (r['dyn'][212] - r['ht'][281]) * alpha[2] / 57.2957795)
 
 
+@requires_fortran
 def test_tables_match_the_source():
     for name, values in parse('suphyw').items():
         if name.startswith('I') or name in ('X13170', 'X23170', 'Y23170'):
@@ -75,7 +75,7 @@ def test_tables_match_the_source():
                                       err_msg=name)
 
 
-# --- SUBHYW (tools/probes/subhyw.py) ---------------------------------------
+# --- SUBHYW (test_parity/probes/subhyw.py) ---------------------------------------
 
 import math  # noqa: E402
 
@@ -121,7 +121,7 @@ def test_subhyw_matches_compiled_routine(case):
                                o['HT'], rtol=1e-9, atol=1e-14)
 
 
-# --- SUBRYW (tools/probes/subryw.py) ---------------------------------------
+# --- SUBRYW (test_parity/probes/subryw.py) ---------------------------------------
 
 from pydatcom.aerodynamics.lateral_rate import calculate_subryw  # noqa
 
@@ -173,7 +173,7 @@ def test_subryw_zero_lift_term_follows_the_word_after_the_curve():
     assert _RB_RESULTS[k]['dyn'][46] == 0.0
 
 
-# --- SUPRYW, SUPHYW's wing twin (tools/probes/suphyw.py) -------------------
+# --- SUPRYW, SUPHYW's wing twin (test_parity/probes/suphyw.py) -------------------
 
 from pydatcom.aerodynamics.lateral_rate import calculate_supryw  # noqa
 

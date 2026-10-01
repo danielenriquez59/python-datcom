@@ -6,7 +6,7 @@ MAIN07).
 Source of truth: the matching files in datcom-legacy/datcom_2000.
 
 SYNDIM, SECI and SECO are checked against compiled probes
-(tools/probes/section_setup.py) on every word of their blocks, including
+(test_parity/probes/section_setup.py) on every word of their blocks, including
 the words they leave alone.
 """
 

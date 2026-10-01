@@ -4,7 +4,7 @@ LIFTCF in sequence).
 
 Source of truth: datcom-legacy/datcom_2000/clmch0.f, m15o17.f, calca0.f.
 
-Checked against a compiled probe (tools/probes/clmch0.py) that runs CLMCH0
+Checked against a compiled probe (test_parity/probes/clmch0.py) that runs CLMCH0
 and then M15O17 at a flight Mach number, as the main program does; the
 second pass inherits LIFTCF's angle state from the first.  This is also the
 first execution-backed check of CALCA0's twist and camber branches.

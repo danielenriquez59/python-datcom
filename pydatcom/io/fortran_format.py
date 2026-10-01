@@ -12,7 +12,7 @@ Supported: ``nX``, ``Tn``, ``TLn``, ``TRn``, ``nHtext`` and quoted text,
 control is not interpreted: column 1 is written like any other, as gfortran
 does.  Character items are ``str``; a Hollerith word is its characters.
 
-Checked against gfortran by ``tools/probes/fortran_format.py``.
+Checked against gfortran by ``test_parity/probes/fortran_format.py``.
 """
 
 import math

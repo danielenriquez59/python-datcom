@@ -16,7 +16,7 @@ tail type of at most 2); otherwise DRAGFP for flap types 1 to 6 and
 TRIMRT when trimming.
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``, rather than by hand.
+``test_parity/fortran_data.py``, rather than by hand.
 
 Reference: datcom-legacy/datcom_2000/dragfp.f, trimrt.f, trimr2.f,
 m38o46.f

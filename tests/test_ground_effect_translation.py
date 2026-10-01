@@ -22,6 +22,7 @@ from pydatcom.aerodynamics.ground_effect import (
     _F21_HWOCBR, _F21_CL, _F21_BW,
     _F17_HMAC_OVER_CR, _F17_CURVE_A, _F17_CURVE_B,
 )
+from conftest import requires_fortran
 
 _SOURCE = (pathlib.Path(__file__).resolve().parents[1] /
            'datcom-legacy' / 'datcom_2000' / 'grdeff.f')
@@ -79,6 +80,7 @@ def _parse_data(name):
 # The figure tables, against the source
 # --------------------------------------------------------------------------
 
+@requires_fortran
 @pytest.mark.parametrize('name,expected', [
     ('X218', _F14_HWOB2), ('X118', _F14_DXOB2),
     ('X219', _F15_HWCOCR), ('X119', _F15_CLOCOS),
@@ -91,6 +93,7 @@ def test_grid_matches_source(name, expected):
     np.testing.assert_allclose(_parse_data(name), expected, rtol=0, atol=0)
 
 
+@requires_fortran
 @pytest.mark.parametrize('name,table,shape', [
     ('Y18', _F14_X, (11, 7)),
     ('Y19', _F15_LOLOM1, (12, 9)),

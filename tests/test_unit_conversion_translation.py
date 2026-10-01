@@ -3,7 +3,7 @@ Regression tests for CONV, the input unit conversion and scaling.
 
 Source of truth: datcom-legacy/datcom_2000/conv.f.
 
-Checked against a compiled probe (tools/probes/conv.py) on every word of
+Checked against a compiled probe (test_parity/probes/conv.py) on every word of
 the arrays and scalars CONV converts, the body-origin shift, and the line
 it prints.
 """

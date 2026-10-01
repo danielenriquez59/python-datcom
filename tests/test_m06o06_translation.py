@@ -4,7 +4,7 @@ lateral pass.
 
 Source of truth: datcom-legacy/datcom_2000/m06o06.f, bodyrt.f, bodyjm.f.
 
-Checked against a compiled probe of the overlay (tools/probes/m06o06.py),
+Checked against a compiled probe of the overlay (test_parity/probes/m06o06.py),
 which was also BODYRT's first check against execution and found its
 crossflow planform integral starting at the wrong station.
 """

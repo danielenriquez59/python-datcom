@@ -3,7 +3,7 @@ Regression tests for M46O56, the dynamic-derivative overlay.
 
 Source of truth: datcom-legacy/datcom_2000/m46o56.f.
 
-Checked against the compiled overlay (tools/probes/m46o56.py) with its
+Checked against the compiled overlay (test_parity/probes/m46o56.py) with its
 five routines stubbed to announce themselves: the call sequence, the dump
 records and every word of the fifteen blocks.
 """

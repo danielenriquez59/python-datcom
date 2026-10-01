@@ -14,7 +14,7 @@ five-strip span breakdown with the centres of Figures 6.1.2.1-37 and
 6.1.5.1-68.
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``.
+``test_parity/fortran_data.py``.
 
 Reference: datcom-legacy/datcom_2000/jetfp.f, m55o67.f
 """

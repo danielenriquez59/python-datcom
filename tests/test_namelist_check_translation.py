@@ -4,7 +4,7 @@ checks.
 
 Source of truth: datcom-legacy/datcom_2000/vname.f, lvalue.f, rvalue.f.
 
-Checked against a compiled probe (tools/probes/namelist_check.py) on the
+Checked against a compiled probe (test_parity/probes/namelist_check.py) on the
 column reached, the value count and the fault count (and for VNAME the
 name matched, its subscript and whether it was subscripted), on 30 cards.
 """

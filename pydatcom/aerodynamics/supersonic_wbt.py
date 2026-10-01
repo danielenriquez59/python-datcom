@@ -11,7 +11,7 @@ through the supersonic downwash (SDWASH's ``QOQINF``, ``EPSLON``,
 ``DEDALP`` and the local Mach number ``HMACH``).
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``.  Figure 4.3.1.2-10 and 4.3.1.2-12A are WBTRAN's
+``test_parity/fortran_data.py``.  Figure 4.3.1.2-10 and 4.3.1.2-12A are WBTRAN's
 and SUPWB's, pinned equal by test; SUPWBT's Figure 4.3.1.2-12B keeps the
 chart's end abscissae where SUPWB's moves them inward.
 

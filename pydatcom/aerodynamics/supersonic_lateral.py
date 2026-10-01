@@ -12,7 +12,7 @@ force increment on the body (Figure 5.3.1.1-25OO).  SUPLAH is the same
 buildup on the tail's blocks.
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``.
+``test_parity/fortran_data.py``.
 
 Reference: datcom-legacy/datcom_2000/suplat.f, suplah.f
 """

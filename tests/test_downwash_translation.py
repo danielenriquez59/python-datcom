@@ -560,8 +560,8 @@ _DWASH_OUTPUTS = [('ANGLE', 'angle'), ('GRADIENT', 'gradient'),
 def test_dwash_matches_compiled_routine(case):
     """Every DWASHI and FACT entry DWASH writes, against execution.
 
-    The fixture is produced by tools/probes/dwash.py, which runs the legacy
-    dwash.f built in double precision; see tools/probe.py.
+    The fixture is produced by test_parity/probes/dwash.py, which runs the legacy
+    dwash.f built in double precision; see test_parity/probe.py.
     """
     probe = _DWASH_PROBE[case]
     result = calculate_dwash(**probe['inputs'])

@@ -3,14 +3,13 @@ Regression tests for PRPWEF and M13O15, the propeller power effects.
 
 Source of truth: datcom-legacy/datcom_2000/prpwef.f, m13o15.f.
 
-Checked against a compiled probe (tools/probes/prpwef.py) on every
+Checked against a compiled probe (test_parity/probes/prpwef.py) on every
 ``/POWR/`` word the routine sets; the tables are re-parsed from source.
 """
 
 import json
 import math
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -21,8 +20,8 @@ from pydatcom.aerodynamics.propeller import (
 )
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'prpwef.json').read_text())
@@ -109,6 +108,7 @@ def test_upwash_lookup_is_dimensional():
     assert r['deuda'] != -1.0
 
 
+@requires_fortran
 def test_tables_match_the_source():
     source = parse('prpwef')
     for name, values in source.items():

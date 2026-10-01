@@ -3,13 +3,12 @@ Regression tests for LOARWB and M14O16, the low-aspect-ratio wing-body.
 
 Source of truth: datcom-legacy/datcom_2000/loarwb.f, m14o16.f.
 
-Checked against a compiled probe (tools/probes/loarwb.py), including every
+Checked against a compiled probe (test_parity/probes/loarwb.py), including every
 ``/SUPDW/`` word the routine sets; the tables are re-parsed from source.
 """
 
 import json
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -19,8 +18,8 @@ from pydatcom.aerodynamics.loarwb import calculate_loarwb, calculate_m14o16
 from pydatcom.utils.constants import UNUSED
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'loarwb.json').read_text())
@@ -81,6 +80,7 @@ def test_m14o16_recovers_loarwb_normal_and_axial_force():
         np.testing.assert_allclose(b['ca'], a['ca'], rtol=1e-12, atol=1e-18)
 
 
+@requires_fortran
 def test_tables_match_the_source():
     source = parse('loarwb')
     for name, values in source.items():

@@ -3,7 +3,7 @@ Regression tests for HYPFLP, the hypersonic flap increments.
 
 Source of truth: datcom-legacy/datcom_2000/hypflp.f.
 
-Checked against a compiled probe (tools/probes/hypflp.py) on the normal-
+Checked against a compiled probe (test_parity/probes/hypflp.py) on the normal-
 and axial-force and hinge-moment increments.  The probe's cases run in one
 program, so the replay carries the saved ``PHE`` and ``CPI2``.  SIMUL2's
 crossing search stops at 0.1 percent, which turns last-digit differences

@@ -10,7 +10,7 @@ turbulent (Figure 6.3.2-40) layer, the jet thrust and total pressure
 and the centre of pressure of the interaction.
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``.
+``test_parity/fortran_data.py``.
 
 Reference: datcom-legacy/datcom_2000/tranjt.f
 """

@@ -3,14 +3,13 @@ Regression tests for TRANWG and CLMXB1, TRSONI's two anchors.
 
 Source of truth: datcom-legacy/datcom_2000/tranwg.f, clmxb1.f.
 
-Checked against a compiled probe (tools/probes/tranwg.py); the shared
+Checked against a compiled probe (test_parity/probes/tranwg.py); the shared
 tables are pinned to each routine's own DATA.
 """
 
 import json
 import math
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -20,8 +19,8 @@ from pydatcom.aerodynamics.transonic_wing import (
 )
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'tranwg.json').read_text())
@@ -59,6 +58,7 @@ def test_probe_reaches_every_branch():
     assert regimes == {True, False}
 
 
+@requires_fortran
 def test_shared_tables_are_the_routines_own():
     """TRANWG's figures are VTLIFT's and CLMXB1's are CLMXBS's."""
     tranwg, vtlift = parse('tranwg'), parse('vtlift')
@@ -159,6 +159,7 @@ def test_trsoni_probe_reaches_every_branch():
     assert min(machs) < 1.0 < 1.2 < max(machs)
 
 
+@requires_fortran
 def test_tail_routines_share_the_wing_tables():
     assert parse('trsonj') == parse('trsoni')
     assert parse('trnht') == parse('tranwg')
@@ -187,6 +188,7 @@ def test_trsonj_stores_the_points_trsoni_drops():
     assert r['wave_drag'] > 0.01
 
 
+@requires_fortran
 def test_trsoni_tables_match_the_source():
     source = parse('trsoni')
     for name in ('X', 'Y', 'TR', 'DR', 'X27M', 'X27I', 'T43A', 'D43A',

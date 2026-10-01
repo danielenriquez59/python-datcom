@@ -20,7 +20,7 @@ The ``/FLAPIN/``, ``FLA`` (``/POWR/`` 60-104) and ``HT`` words are
 mirrored as flat 1-based arrays with the source's EQUIVALENCE offsets.
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``.
+``test_parity/fortran_data.py``.
 
 Reference: datcom-legacy/datcom_2000/latflp.f
 """

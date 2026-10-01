@@ -6,7 +6,7 @@ Source of truth: datcom-legacy/datcom_2000/namew.f, toint.f, m11o13.f,
 m42o52.f.
 
 NAMEW and TOINT are checked against records the compiled routines print
-(tools/probes/namelist_write.py).  NAMEW runs in the source's own word
+(test_parity/probes/namelist_write.py).  NAMEW runs in the source's own word
 size, where a LOGICAL word printed through FORREA shows its bits as a
 REAL.
 """

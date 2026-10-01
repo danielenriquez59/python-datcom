@@ -3,14 +3,13 @@ Regression tests for JETFP and M55O67, the jet-flap increments.
 
 Source of truth: datcom-legacy/datcom_2000/jetfp.f, m55o67.f.
 
-Checked against a compiled probe of the overlay (tools/probes/jetfp.py)
+Checked against a compiled probe of the overlay (test_parity/probes/jetfp.py)
 on every ``WING`` word it sets and on ``JEANGL``.  The probe's cases run
 in one program, so the replay carries JETFP's saved ``ETAT``.
 """
 
 import json
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -19,8 +18,8 @@ from pydatcom.aerodynamics import jet_flap as module
 from pydatcom.aerodynamics.jet_flap import calculate_jetfp
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'jetfp.json').read_text())
@@ -77,6 +76,7 @@ def test_pure_jet_flap_reads_the_saved_turning_efficiency():
     assert fresh['delcm'] != r['delcm']
 
 
+@requires_fortran
 def test_tables_match_the_source():
     for name, values in parse('jetfp').items():
         np.testing.assert_array_equal(getattr(module, '_' + name), values,

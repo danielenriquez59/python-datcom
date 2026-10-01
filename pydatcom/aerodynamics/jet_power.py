@@ -11,7 +11,7 @@ jet, moved to its fully expanded orifice).  M30O36 adds the body-axis
 forces and the lift and moment slopes.
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``.
+``test_parity/fortran_data.py``.
 
 Reference: datcom-legacy/datcom_2000/fg6115.f, jetpwe.f, m30o36.f
 """

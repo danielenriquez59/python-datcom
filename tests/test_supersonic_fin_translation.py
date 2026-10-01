@@ -4,13 +4,12 @@ vertical-panel sideslip increments.
 
 Source of truth: datcom-legacy/datcom_2000/masrat.f, suplav.f, suplaf.f.
 
-Checked against a compiled probe (tools/probes/suplav.py) on every
+Checked against a compiled probe (test_parity/probes/suplav.py) on every
 ``SBETA``, panel-block, ``BWV`` and ``BWHV`` word the routines set.
 """
 
 import json
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -19,8 +18,8 @@ from pydatcom.aerodynamics import supersonic_fin as module
 from pydatcom.aerodynamics.supersonic_fin import calculate_suplav, masrat
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'suplav.json').read_text())
@@ -100,6 +99,7 @@ def test_masrat_interpolates_between_the_three_positions():
     assert masrat(0.3, 0.5, 2.0) == hi
 
 
+@requires_fortran
 def test_tables_match_the_source():
     source = parse('masrat')
     for name, values in source.items():

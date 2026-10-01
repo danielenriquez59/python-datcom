@@ -3,7 +3,7 @@ Regression tests for M41O51, M53O65 and M56O70.
 
 Source of truth: datcom-legacy/datcom_2000/m41o51.f, m53o65.f, m56o70.f.
 
-M56O70 is checked against a compiled probe (tools/probes/m56o70.py) that
+M56O70 is checked against a compiled probe (test_parity/probes/m56o70.py) that
 runs VTAREA for both panels and BDAREA through the overlay.
 """
 

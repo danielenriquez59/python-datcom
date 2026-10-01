@@ -11,7 +11,7 @@ all-moving horizontal tail (``ASYFP``) it returns the four loadings at
 the root for the tail's own planform instead.
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``.
+``test_parity/fortran_data.py``.
 
 Reference: datcom-legacy/datcom_2000/agenr.f, gdelta.f
 """

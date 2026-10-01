@@ -6,7 +6,7 @@ M22O26.
 Source of truth: datcom-legacy/datcom_2000/suplng.f, supltg.f, m27o33.f
 and m22o26.f.
 
-Checked against compiled probes (tools/probes/suplng.py and supltg.py) on
+Checked against compiled probes (test_parity/probes/suplng.py and supltg.py) on
 every word of ``/SUPWH/`` (bar the LOGICAL ``DETACH``, checked on its
 own), the surface's geometry block and its result words 1-200.  The
 SUPLTG cases run in one program, so the replay carries the saved ``RACH``.
@@ -14,7 +14,6 @@ SUPLTG cases run in one program, so the replay carries the saved ``RACH``.
 
 import json
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -24,8 +23,8 @@ from pydatcom.aerodynamics.supersonic_wing import (
     calculate_suplng, calculate_supltg, m22o26, m27o33)
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 
 def _load(name):
@@ -122,6 +121,7 @@ def test_detachment_search_tries_one_degree():
     assert r['slg'][115] == pytest.approx(90. / 57.2957795)
 
 
+@requires_fortran
 def test_tables_match_the_source():
     for name, values in parse('suplng').items():
         if name in _UNUSED_TABLES:

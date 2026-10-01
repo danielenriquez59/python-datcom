@@ -4,14 +4,13 @@ derivatives of the wing, tail and body.
 
 Source of truth: datcom-legacy/datcom_2000/suplat.f, suplah.f.
 
-Checked against a compiled probe (tools/probes/suplat.py) on every
+Checked against a compiled probe (test_parity/probes/suplat.py) on every
 ``SBETA`` word and every surface and body word the routines set.
 """
 
 import json
 import math
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -20,8 +19,8 @@ from pydatcom.aerodynamics import supersonic_lateral as module
 from pydatcom.aerodynamics.supersonic_lateral import calculate_suplat
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'suplat.json').read_text())
@@ -83,6 +82,7 @@ def test_suplah_swept_forward_power_is_nan():
     assert all(math.isnan(v) for v in p['outputs']['SURF'][40:44])
 
 
+@requires_fortran
 def test_tables_match_the_source():
     source = parse('suplat')
     assert parse('suplah') == {k: v for k, v in source.items()

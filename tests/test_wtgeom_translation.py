@@ -5,7 +5,7 @@ records.
 Source of truth: datcom-legacy/datcom_2000/wtgeom.f, setup1.f, m02o02.f.
 
 Every one of the 195 A-block words is checked against a compiled probe
-(tools/probes/wtgeom.py), for single- and two-panel surfaces and for a
+(test_parity/probes/wtgeom.py), for single- and two-panel surfaces and for a
 repeated call on a block that already holds values.
 """
 

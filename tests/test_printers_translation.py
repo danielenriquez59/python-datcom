@@ -4,7 +4,7 @@ Regression tests for DMPARY, PRCSID and SWRITE, the small printers.
 Source of truth: datcom-legacy/datcom_2000/dmpary.f, prcsid.f, swrite.f.
 
 Checked against the records the compiled routines print
-(tools/probes/printers.py); SWRITE runs on AUXOUT's own formats.
+(test_parity/probes/printers.py); SWRITE runs on AUXOUT's own formats.
 """
 
 import json
@@ -46,7 +46,7 @@ def test_swrite_matches_compiled_routine(case):
     assert lines + [flags] == _RECORDS[_N_DMP + _N_TITLE + 1 + case]
 
 
-# --- MESSGE, in the source's word size (tools/probes/messge.py) -----------
+# --- MESSGE, in the source's word size (test_parity/probes/messge.py) -----------
 
 from pydatcom.io.printers import messge  # noqa: E402
 

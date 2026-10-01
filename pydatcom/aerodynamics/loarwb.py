@@ -22,7 +22,7 @@ interpolated back to the flight angles.  M14O16 then forms CN, CA and the
 two slopes.
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``, rather than by hand.
+``test_parity/fortran_data.py``, rather than by hand.
 
 Reference: datcom-legacy/datcom_2000/loarwb.f, m14o16.f
 """

@@ -4,7 +4,7 @@ Regression tests for M19O23, M21O25, M28O34 and EXPDAT.
 Source of truth: datcom-legacy/datcom_2000/m19o23.f, m21o25.f, m28o34.f,
 expdat.f.
 
-M19O23 is checked against a compiled probe (tools/probes/m19o23.py) with
+M19O23 is checked against a compiled probe (test_parity/probes/m19o23.py) with
 SYPBOD and EXSUBT stubbed, on the reference quantities and body words
 1-200.
 """

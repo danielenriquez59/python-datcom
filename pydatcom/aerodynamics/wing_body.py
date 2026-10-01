@@ -19,7 +19,7 @@ has no numerical content here.  ``EXIT``, which WBCM calls when its ellipse
 fit fails, only closes files; the translation raises instead.
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``, rather than by hand.
+``test_parity/fortran_data.py``, rather than by hand.
 
 Reference: datcom-legacy/datcom_2000/wbaero.f, wbdrag.f, wblift.f, wbcm.f,
 wbcm0.f

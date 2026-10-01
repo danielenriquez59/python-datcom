@@ -4,13 +4,12 @@ Regression tests for overlay M10O12: WGEOTL, WBTAIL and its closing pass.
 Source of truth: datcom-legacy/datcom_2000/m10o12.f, wgeotl.f, wbtail.f.
 
 Checked against a compiled probe of the overlay itself
-(tools/probes/m10o12.py), so the chaining of the three routines is tested
+(test_parity/probes/m10o12.py), so the chaining of the three routines is tested
 as the program runs it, and every table against a re-parse of the FORTRAN.
 """
 
 import json
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -21,8 +20,8 @@ from pydatcom.aerodynamics.wbtail import (
 )
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'm10o12.json').read_text())
@@ -103,6 +102,7 @@ def test_probe_reaches_every_branch():
     assert any(p['inputs']['synthesis']['alih'] != 0.0 for p in _PROBE)
 
 
+@requires_fortran
 def test_every_table_value_matches_the_source():
     source = parse('wgeotl')
     for name in ('X41602', 'X41601', 'X41603', 'Y44160'):

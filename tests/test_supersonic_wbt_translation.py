@@ -3,13 +3,12 @@ Regression tests for SUPWBT, the supersonic wing-body-tail.
 
 Source of truth: datcom-legacy/datcom_2000/supwbt.f.
 
-Checked against a compiled probe (tools/probes/supwbt.py) on every
+Checked against a compiled probe (test_parity/probes/supwbt.py) on every
 ``STP``, ``BWH``, ``BWHV``, ``FACT`` and ``BD`` word the routine sets.
 """
 
 import json
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -20,8 +19,8 @@ from pydatcom.aerodynamics import transonic_buildup as tb
 from pydatcom.aerodynamics.supersonic_wbt import calculate_supwbt
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'supwbt.json').read_text())
@@ -100,6 +99,7 @@ def test_canard_reads_dedalp_as_epsilon():
     assert any(a != b for a, b in zip(base, moved) if a)
 
 
+@requires_fortran
 def test_tables_match_the_source():
     source = parse('supwbt')
     np.testing.assert_array_equal(tb._TFIG10, source['TFIG10'])

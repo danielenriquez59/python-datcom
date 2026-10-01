@@ -74,7 +74,9 @@ pip install .
 
 Optional extras: `plots` (matplotlib), `analysis` (pandas).
 
-For helper scripts under `tools/` that need PDF support, see `requirements.txt`.
+For helper scripts under `test_parity/` that need PDF support, see `requirements.txt`.
+
+The parity tools in `test_parity/` and the tests that compare against the Fortran need the DATCOM Fortran source. It is not distributed with this repository; obtain it separately and place it at `datcom-legacy/datcom_2000/`. Without it, those tests are skipped.
 
 ## Usage Example
 

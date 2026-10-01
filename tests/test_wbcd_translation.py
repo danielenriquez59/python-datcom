@@ -6,7 +6,7 @@ Source of truth: datcom-legacy/datcom_2000/wbcd.f, wbcdl.f, tables.f,
 m08o10.f.
 
 TABLES is checked directly against a compiled probe at 232 Mach and angle
-points, and WBCD for both halves (tools/probes/wbcd.py).
+points, and WBCD for both halves (test_parity/probes/wbcd.py).
 """
 
 import json

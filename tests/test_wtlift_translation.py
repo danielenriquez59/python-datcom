@@ -4,13 +4,12 @@ Regression tests for the WTLIFT and CLMXBS translations.
 Source of truth: datcom-legacy/datcom_2000/wtlift.f, clmxbs.f.
 
 Every output is checked against a compiled probe of the legacy routines
-(tools/probes/wtlift.py), and every embedded table against a re-parse of
+(test_parity/probes/wtlift.py), and every embedded table against a re-parse of
 the FORTRAN DATA statements.
 """
 
 import json
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -19,8 +18,8 @@ from pydatcom.aerodynamics import wtlift as module
 from pydatcom.aerodynamics.wtlift import calculate_clmxbs, calculate_wtlift
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'wtlift.json').read_text())
@@ -65,6 +64,7 @@ def test_probe_reaches_every_branch():
     assert curved and 'NO CLALPHA COMPUTATION' in curved[0]['outputs']['_text'][0]
 
 
+@requires_fortran
 @pytest.mark.parametrize("stem,names", [
     ('clmxbs', ['C1ABC', 'DYAG', 'CBASE', 'C2A', 'AMN', 'DE']),
     ('wtlift', ['TR', 'C2', 'SALE', 'DELTAY', 'CLL', 'DY', 'DACLL', 'DYA',

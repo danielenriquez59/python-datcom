@@ -24,7 +24,7 @@ CMALPO, the Mach-zero ``dCm/dCL`` for the dynamic derivatives, repeats
 the aerodynamic-centre part with ``BETA = 1`` and shares its tables.
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``, rather than by hand.
+``test_parity/fortran_data.py``, rather than by hand.
 
 Reference: datcom-legacy/datcom_2000/cmalph.f, cmalpo.f
 """

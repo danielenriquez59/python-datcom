@@ -5,10 +5,10 @@ input namelists).
 Source of truth: datcom-legacy/datcom_2000/namer.f and xnam1.f ...
 xnam23.f.
 
-NAMER is checked against a compiled probe (tools/probes/namer.py) on six
+NAMER is checked against a compiled probe (test_parity/probes/namer.py) on six
 reads and twelve error stops; the build copy restores the caret that the
 shipped namer.f has lost.  Each XNAM routine is checked
-(tools/probes/xnam.py) on reading and echoing a namelist that sets every
+(test_parity/probes/xnam.py) on reading and echoing a namelist that sets every
 variable: the printed records and every COMMON word, bit for bit, in the
 source's own word size.
 """

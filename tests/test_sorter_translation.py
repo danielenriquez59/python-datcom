@@ -3,7 +3,7 @@ Regression tests for SORTER, the INTEGER table sort.
 
 Source of truth: datcom-legacy/datcom_2000/sorter.f.
 
-Checked against a compiled probe (tools/probes/sorter.py) on ``A``, ``B``,
+Checked against a compiled probe (test_parity/probes/sorter.py) on ``A``, ``B``,
 the row and column orders and ``IFLAG``.
 """
 

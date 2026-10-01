@@ -3,7 +3,7 @@ Regression tests for SPRYAW, the supersonic control roll and yaw.
 
 Source of truth: datcom-legacy/datcom_2000/spryaw.f.
 
-Checked against a compiled probe (tools/probes/spryaw.py) on all 59
+Checked against a compiled probe (test_parity/probes/spryaw.py) on all 59
 ``/POWR/`` words and the ``HT``, ``BODY`` and ``WING`` curves it sets.
 """
 

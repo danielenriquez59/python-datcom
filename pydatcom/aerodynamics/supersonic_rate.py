@@ -13,7 +13,7 @@ CL-alpha-dot comes from:
   aspect ratio, the Mach-cone angle and the taper ratio (TLIP3X).
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``; the packed tables keep their packed words.
+``test_parity/fortran_data.py``; the packed tables keep their packed words.
 
 Reference: datcom-legacy/datcom_2000/supcld.f, suphld.f
 """

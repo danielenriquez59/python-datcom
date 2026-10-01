@@ -12,7 +12,7 @@ moment increments.  SUPLAF is SUPLAV on the ventral fin's blocks, with the
 height measured the other way.
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``.
+``test_parity/fortran_data.py``.
 
 Reference: datcom-legacy/datcom_2000/masrat.f, suplav.f, suplaf.f
 """

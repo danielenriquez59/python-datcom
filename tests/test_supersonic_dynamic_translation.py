@@ -3,13 +3,12 @@ Regression tests for CALCA, the supersonic wing acceleration derivatives.
 
 Source of truth: datcom-legacy/datcom_2000/calca.f.
 
-Checked against a compiled probe (tools/probes/calca.py) on the four
+Checked against a compiled probe (test_parity/probes/calca.py) on the four
 ``DYN`` words it sets; the tables are re-parsed from the source.
 """
 
 import json
 import pathlib
-import sys
 
 import pytest
 
@@ -17,8 +16,8 @@ from pydatcom.aerodynamics import supersonic_dynamic as module
 from pydatcom.aerodynamics.supersonic_dynamic import calculate_calca
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'calca.json').read_text())
@@ -47,6 +46,7 @@ def test_probe_reaches_every_branch():
     assert any(r['gg'] >= 1 for r in live)
 
 
+@requires_fortran
 def test_tables_match_the_source():
     source = parse('calca')
     for name in ('XEGIN', 'YEGIN', 'XGM', 'YGM', 'XKGIN', 'YKGIN', 'XEDM',

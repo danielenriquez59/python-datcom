@@ -6,7 +6,7 @@ Source of truth: datcom-legacy/datcom_2000/fwdxac.f.
 The four tables were extracted from the source DATA statements by parsing;
 these tests re-parse the FORTRAN independently and compare every value.  The
 lookups are checked against a compiled probe of the legacy routine, see
-tools/probes/fwdxac.py.
+test_parity/probes/fwdxac.py.
 """
 
 import json
@@ -17,6 +17,7 @@ import numpy as np
 import pytest
 
 from pydatcom.aerodynamics.fwdxac import calculate_fwdxac, _TABLES
+from conftest import requires_fortran
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 _SOURCE = _ROOT / 'datcom-legacy' / 'datcom_2000' / 'fwdxac.f'
@@ -54,6 +55,7 @@ def _flat(table):
     return _TABLES[table].transpose(2, 1, 0).ravel()
 
 
+@requires_fortran
 @pytest.mark.parametrize("table,prefix,first", [
     ('TYSUBL', 'SUBT', 1), ('TYSUBR', 'SUBT', 7),
     ('TYSUPL', 'SUPT', 1), ('TYSUPR', 'SUPT', 7),
@@ -120,6 +122,7 @@ def test_source_defect_is_preserved_and_reported():
         assert 'source_defect' not in calculate_fwdxac(3.0, .3, factor, mach)
 
 
+@requires_fortran
 def test_suspect_supt6_entry_is_preserved():
     """SUPT6 row five keeps its -.56, which breaks an otherwise smooth row."""
     row = _source_table('SUPT', 1)[5 * 36 + 4 * 6:5 * 36 + 5 * 6]

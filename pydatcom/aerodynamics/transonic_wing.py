@@ -125,7 +125,7 @@ def calculate_tranwg(a: Mapping[int, float], deltay: float,
             'a62': tan_le, 'a86': tan_out, 'method': 'legacy_tranwg'}
 
 
-# TRSONI's tables, extracted from the source DATA by tools/fortran_data.py.
+# TRSONI's tables, extracted from the source DATA by test_parity/fortran_data.py.
 _X = np.array([
     0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
     1.0,

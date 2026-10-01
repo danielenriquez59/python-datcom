@@ -6,28 +6,26 @@ source or against independent physics.  These check it against numbers the
 compiled original actually produced.
 
 The values come from running Example Problem 2 through the build that
-`tools/fortran_parity.py` produces.  That deck carries a `DUMP A` card, so
+`test_parity/fortran_parity.py` produces.  That deck carries a `DUMP A` card, so
 its listing contains the 195-element WINGD COMMON block exactly as WTGEOM
 filled it.
 
 These tests skip when the build is absent, so the suite still runs on a
 machine without gfortran.  To enable them:
 
-    python tools/fortran_parity.py setup
-    python tools/fortran_parity.py run 2
+    python test_parity/fortran_parity.py setup
+    python test_parity/fortran_parity.py run 2
 
 Agreement is asserted at 1e-5 relative.  The listing prints six significant
 figures, so that is the floor set by the output format rather than by the
 arithmetic.
 """
 
-import sys
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / 'tools'))
 
 from pydatcom.geometry.wing import calculate_straight_exposed_geometry
 
@@ -38,7 +36,7 @@ PRINT_PRECISION = 1.0e-5
 
 pytestmark = pytest.mark.skipif(
     not LISTING.exists(),
-    reason="compiled FORTRAN listing absent; run tools/fortran_parity.py "
+    reason="compiled FORTRAN listing absent; run test_parity/fortran_parity.py "
            "setup && run 2 to enable execution parity tests")
 
 

@@ -15,6 +15,7 @@ from pydatcom.aerodynamics.wingcl import (
     calculate_wingcl, calculate_wingcl_clb, calculate_wingcl_cdl,
     _CDL_REQUIRED, _CDL_SOURCE_LENGTH, _PARM,
 )
+from conftest import requires_fortran
 
 _ALPHA = np.array([-4., 0., 4., 8., 10., 12., 14., 16.])
 
@@ -200,11 +201,8 @@ def test_every_wingcl_entry_point_warns_on_every_call():
             assert '164 of the 168' in str(caught[0].message)
 
 
+@requires_fortran
 def test_tables_match_the_source_except_the_chart_correction():
-    import pathlib
-    import sys
-    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent /
-                           'tools'))
     from fortran_data import parse
     from pydatcom.aerodynamics.wingcl import (DEP55A, DEP55B,
                                               DEP55B_CORRECTIONS)

@@ -3,13 +3,12 @@ Regression tests for TRNYRL and M40O50, the transonic flap increments.
 
 Source of truth: datcom-legacy/datcom_2000/trnyrl.f, m40o50.f.
 
-Checked against a compiled probe of the overlay (tools/probes/trnyrl.py)
+Checked against a compiled probe of the overlay (test_parity/probes/trnyrl.py)
 on every ``WING``, ``HT``, ``BODY`` and ``TRN`` word it touches.
 """
 
 import json
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -19,8 +18,8 @@ from pydatcom.aerodynamics.transonic_flap import (calculate_trnyrl,
                                                   m40o50_words)
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'trnyrl.json').read_text())
@@ -90,6 +89,7 @@ def test_translating_flap_slope_counts_the_basic_slope_twice():
     assert r['claldl'][0] == pytest.approx(claw * (2. + c['cfact'][0]))
 
 
+@requires_fortran
 def test_tables_match_the_source():
     source = parse('trnyrl')
     for name, values in source.items():

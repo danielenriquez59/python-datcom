@@ -24,6 +24,7 @@ from pydatcom.aerodynamics.cdrag import (
     _F4312_10A_DIAMETER_RATIO, _F4312_10A_KWB,
     _suction_parameter,
 )
+from conftest import requires_fortran
 
 _SOURCE = (pathlib.Path(__file__).resolve().parents[1] /
            'datcom-legacy' / 'datcom_2000' / 'cdrag.f')
@@ -64,9 +65,10 @@ def _parse_all():
     return tables
 
 
-_TABLES = _parse_all()
+_TABLES = _parse_all() if _SOURCE.exists() else {}
 
 
+@requires_fortran
 @pytest.mark.parametrize('name,expected', [
     ('X228B', _F28B_COS_SWEEP), ('X128B', _F28B_MACH),
     ('X228BD', _F28BD_COS_SWEEP), ('X128BD', _F28BD_MACH),
@@ -81,6 +83,7 @@ def test_grid_matches_source(name, expected):
     np.testing.assert_allclose(_TABLES[name], expected, rtol=0, atol=0)
 
 
+@requires_fortran
 @pytest.mark.parametrize('names,table,shape', [
     (('Y28B',), _F28B_RLS, (11, 4)),
     (('Y28BD',), _F28BD_RLS, (9, 4)),

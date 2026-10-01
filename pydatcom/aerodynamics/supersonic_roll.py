@@ -9,7 +9,7 @@ all-moving horizontal tail (Figure 4.3.1.2-12A1/A2 with SUPWBT's body
 vortex terms).
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``.
+``test_parity/fortran_data.py``.
 
 Reference: datcom-legacy/datcom_2000/spryaw.f
 """

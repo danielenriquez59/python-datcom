@@ -18,7 +18,7 @@ the forward surface's downwash does not act on the wing and a vortex-lift
 increment is added instead.
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``, rather than by hand.  WBTAIL's five carryover
+``test_parity/fortran_data.py``, rather than by hand.  WBTAIL's five carryover
 tables are the same digitisations as WBLIFT's, and are shared.
 
 Reference: datcom-legacy/datcom_2000/m10o12.f, wgeotl.f, wbtail.f

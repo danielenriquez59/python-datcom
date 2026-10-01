@@ -6,7 +6,7 @@ Source of truth: datcom-legacy/datcom_2000/clrder.f.
 The figure lookups go through the already-tested INTERX, so these cover the
 tables CLRDER owns, the Section 7.1.3.2 compressibility correction, the
 sweep-bracket interpolation, and the panel increments.  The whole routine
-is also checked against a compiled probe (tools/probes/clrder.py).
+is also checked against a compiled probe (test_parity/probes/clrder.py).
 """
 
 import json
@@ -178,7 +178,7 @@ def test_panel_increment_rejects_bad_reference_length():
 
 
 # --- The whole routine, checked against a compiled probe -------------------
-# tools/probes/clrder.py runs its cases in one program, so the replay
+# test_parity/probes/clrder.py runs its cases in one program, so the replay
 # carries the saved horizontal-tail carryover factors AKHB and AKBH.
 
 _PROBE = json.loads((pathlib.Path(__file__).resolve().parent / 'fixtures'

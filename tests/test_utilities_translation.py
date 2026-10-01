@@ -4,7 +4,7 @@ SLEQ, QUADIN, MACH2, SIMUL2, TLINVS and INTER3.
 
 Source of truth: the routines of the same names in
 datcom-legacy/datcom_2000/.  Checked against a compiled probe
-(tools/probes/utilities.py).
+(test_parity/probes/utilities.py).
 """
 
 import json
@@ -18,6 +18,7 @@ from pydatcom.utils.legacy_numeric import (
     inter3, mach2, quadin, simul2, simul4, sleq, tlinvs,
 )
 from pydatcom.utils.math_utils import arcsin, area1, det4
+from conftest import requires_fortran
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 _PROBE = json.loads((_ROOT / 'tests' / 'fixtures' / 'probes' /
@@ -140,6 +141,7 @@ def test_intkbw():
     assert any(edges) and not all(edges)
 
 
+@requires_fortran
 def test_supcm0_is_tracm0_with_another_output_word():
     root = _ROOT / 'datcom-legacy' / 'datcom_2000'
 

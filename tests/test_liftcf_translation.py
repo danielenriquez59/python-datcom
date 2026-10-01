@@ -4,14 +4,13 @@ Regression tests for the ANGLES and LIFTCF translations.
 Source of truth: datcom-legacy/datcom_2000/angles.f, liftcf.f.
 
 Both are checked against compiled probes of the legacy routines
-(tools/probes/angles.py and tools/probes/liftcf.py), and every LIFTCF table
+(test_parity/probes/angles.py and test_parity/probes/liftcf.py), and every LIFTCF table
 against a re-parse of the FORTRAN DATA statements.
 """
 
 import json
 import math
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -22,8 +21,8 @@ from pydatcom.aerodynamics.wtlift import calculate_wtlift
 from pydatcom.utils.legacy_numeric import angles, zerang
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _FIXTURES = _ROOT / 'tests' / 'fixtures' / 'probes'
 _ANGLES = json.loads((_FIXTURES / 'angles.json').read_text())
@@ -118,6 +117,7 @@ def test_liftcf_probe_reaches_every_branch():
     assert max(breaks) <= 7.0
 
 
+@requires_fortran
 @pytest.mark.parametrize("names", [
     ['AJ', 'TRAT', 'DC', 'A58', 'CLJ58', 'TIR', 'D', 'C90I', 'C90',
      'X13356', 'X23356', 'Y13356', 'X33356', 'Y33356', 'X13357', 'Y13357'],

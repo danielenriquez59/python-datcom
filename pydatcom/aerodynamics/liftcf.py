@@ -16,7 +16,7 @@ and fills the lift curve ``AOUT(21)`` onward and the normal-force curve
   Figure 4.1.3.3-56 increment above it.
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``, rather than by hand.
+``test_parity/fortran_data.py``, rather than by hand.
 
 Reference: datcom-legacy/datcom_2000/liftcf.f
 """

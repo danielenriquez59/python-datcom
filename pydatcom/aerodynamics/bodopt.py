@@ -16,7 +16,7 @@ asked for.  BODOPT builds the same friction and base drag as BODYRT, then:
   planform.
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``, rather than by hand.
+``test_parity/fortran_data.py``, rather than by hand.
 
 Reference: datcom-legacy/datcom_2000/bodopt.f, m04o04.f
 """

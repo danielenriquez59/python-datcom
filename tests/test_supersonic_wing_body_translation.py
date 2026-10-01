@@ -4,12 +4,11 @@ Regression tests for SUPWB, SUPHB and their overlay M20O24.
 Source of truth: datcom-legacy/datcom_2000/supwb.f, suphb.f, m20o24.f.
 
 Checked against a compiled probe of the whole overlay
-(tools/probes/supwb.py), including SUPCM0's write over the first moment.
+(test_parity/probes/supwb.py), including SUPCM0's write over the first moment.
 """
 
 import json
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -23,8 +22,8 @@ from pydatcom.aerodynamics.transonic_buildup import calculate_supcm0
 from pydatcom.utils.constants import UNUSED
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'supwb.json').read_text())
@@ -162,6 +161,7 @@ def test_supcm0_overwrites_the_first_moment():
     assert hits
 
 
+@requires_fortran
 def test_tables_match_the_source():
     source = parse('supwb')
     assert source == parse('suphb')

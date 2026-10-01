@@ -12,7 +12,7 @@ skin friction, afterbody interference (4.2.3.1-44A) and base drag
 (4.2.3.1-50, -55, -60).
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``.
+``test_parity/fortran_data.py``.
 
 Reference: datcom-legacy/datcom_2000/sypbod.f
 """

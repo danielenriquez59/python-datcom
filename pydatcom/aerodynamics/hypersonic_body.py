@@ -13,7 +13,7 @@ slopes of the lift and moment curves and the stability-axis words.
 a state dictionary; this module is the whole routine on its COMMON words.
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``.  Figure 4.2.3.1-68 (``T468``/``D468``) and the
+``test_parity/fortran_data.py``.  Figure 4.2.3.1-68 (``T468``/``D468``) and the
 Figure 4.1.5.1-27 grid are declared but never read.
 
 Reference: datcom-legacy/datcom_2000/hypbod.f, m26o32.f

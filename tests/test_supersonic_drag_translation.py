@@ -3,14 +3,13 @@ Regression tests for SUPDRG and M18O22, the supersonic wing drag.
 
 Source of truth: datcom-legacy/datcom_2000/supdrg.f, m18o22.f.
 
-Checked against a compiled probe (tools/probes/supdrg.py) on every
+Checked against a compiled probe (test_parity/probes/supdrg.py) on every
 ``/SUPWH/`` word the routine sets.  The probe's cases run in one program,
 so the replay carries SUPDRG's saved local ``RACH`` from case to case.
 """
 
 import json
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -21,8 +20,8 @@ from pydatcom.aerodynamics.supersonic_drag import (calculate_supdrg,
 from pydatcom.utils.constants import UNUSED
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'supdrg.json').read_text())
@@ -107,6 +106,7 @@ def test_m18o22_options():
     assert m18o22_options(1., 1., UNUSED, 0., 0.)['roughness'] == 1.6e-4
 
 
+@requires_fortran
 def test_tables_match_the_source():
     source = parse('supdrg')
     np.testing.assert_array_equal(sup._FIG_415258_X, source['T15258'])

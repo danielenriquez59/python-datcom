@@ -24,7 +24,7 @@ forward-swept edge).  The ``/SUPWH/`` words (``SLG``), the wing's
 1-based arrays.
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``.
+``test_parity/fortran_data.py``.
 
 Reference: datcom-legacy/datcom_2000/suplng.f, supltg.f, m27o33.f,
 m22o26.f

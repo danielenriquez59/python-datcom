@@ -15,7 +15,7 @@ offsets, because the double-slotted path indexes one word below some of
 its arrays.
 
 The tables were extracted from the source DATA statements by parsing, with
-``tools/fortran_data.py``.
+``test_parity/fortran_data.py``.
 
 Reference: datcom-legacy/datcom_2000/liftfp.f
 """

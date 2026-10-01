@@ -4,7 +4,7 @@ lift.
 
 Source of truth: datcom-legacy/datcom_2000/liftfp.f.
 
-Checked against a compiled probe (tools/probes/liftfp.py) on every word of
+Checked against a compiled probe (test_parity/probes/liftfp.py) on every word of
 ``/FLAPIN/``, ``FLP``, ``/SUPWH/`` 282-287 and ``WING`` 201-250.  The
 probe's cases run in one program, so the replay carries the saved chord
 factors ``CFACTR``.
@@ -12,7 +12,6 @@ factors ``CFACTR``.
 
 import json
 import pathlib
-import sys
 
 import numpy as np
 import pytest
@@ -21,8 +20,8 @@ from pydatcom.aerodynamics import flap_lift as module
 from pydatcom.aerodynamics.flap_lift import calculate_liftfp
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(_ROOT / 'tools'))
 from fortran_data import parse  # noqa: E402
+from conftest import requires_fortran  # noqa: E402
 
 _PROBE = json.loads(
     (_ROOT / 'tests' / 'fixtures' / 'probes' / 'liftfp.json').read_text())
@@ -81,6 +80,7 @@ def test_zero_deflection_is_nudged():
     assert c['outputs']['F'][2] == pytest.approx(0.01)
 
 
+@requires_fortran
 def test_tables_match_the_source():
     for name, values in parse('liftfp').items():
         if name == 'ITRANS' or (name.startswith('F') and name[1].isdigit()):

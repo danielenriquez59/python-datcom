@@ -18,6 +18,7 @@ import pytest
 from pydatcom.aerodynamics import hinge as H
 from pydatcom.aerodynamics.hinge import (
     calculate_hinge, ROUND_NOSE, ELLIPTIC_NOSE, SHARP_NOSE)
+from conftest import requires_fortran
 
 _SOURCE = (pathlib.Path(__file__).resolve().parents[1] /
            'datcom-legacy' / 'datcom_2000' / 'hinge.f')
@@ -57,7 +58,7 @@ def _parse_all():
     return tables
 
 
-_TABLES = _parse_all()
+_TABLES = _parse_all() if _SOURCE.exists() else {}
 
 # (python grid, FORTRAN name)
 _GRIDS = [
@@ -98,11 +99,13 @@ _SURFACES = [
 ]
 
 
+@requires_fortran
 @pytest.mark.parametrize('grid,name', _GRIDS, ids=[n for _, n in _GRIDS])
 def test_grid_matches_source(grid, name):
     np.testing.assert_allclose(_TABLES[name], grid, rtol=0, atol=0)
 
 
+@requires_fortran
 @pytest.mark.parametrize('table,name,first,second', _SURFACES,
                          ids=[s[1] for s in _SURFACES])
 def test_surface_matches_source_in_the_tlinex_orientation(table, name, first,
